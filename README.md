@@ -59,3 +59,86 @@ flowchart LR
 * **Bounded Retries**: Self-repair attempts are capped (max 1 retry) to prevent runaway loops.
 * **Verifiable Proof**: Every PR includes before/after screenshots, element selectors, and confidence scores.
 * **Interactive Dashboard**: Clean web UI to monitor runs, review diffs, and inspect visual evidence.
+
+---
+
+## Tech Stack
+
+| Component | Technology | Role |
+| :--- | :--- | :--- |
+| **Browser RPA** | Python & Playwright | Headless navigation & multi-viewport screenshot capture |
+| **Visual AI** | Multimodal VLM | Spatial reasoning & defect classification |
+| **Backend API** | FastAPI & Pydantic | Webhook receiver & run management |
+| **PR Automation** | PyGithub & GitHub API | Feature branch, commit, and PR creation |
+| **Frontend UI** | React, Vite, Tailwind CSS | Mock e-commerce target app & QA review dashboard |
+
+---
+
+## Project Structure
+
+```
+OmniSight/
+├── automation/                         # Playwright runner & VLM orchestration
+│   ├── browser_runner.py               # Responsive checkout journey automation
+│   ├── evidence.py                     # Screenshot & DOM extractors
+│   ├── vlm_adapter.py                  # Vision-Language Model interface
+│   └── orchestrator.py                 # Self-healing loop state machine
+├── backend/                            # FastAPI gateway & patch validator
+│   ├── app/main.py                     # API endpoints (/webhook/build, /runs)
+│   ├── app/services/patch_engine.py    # Strict allowlist & diff parser
+│   └── app/services/github_service.py  # Branch, commit, and PR engine
+├── dashboard/                          # React QA Reviewer Dashboard
+├── app-under-test/                     # Mock React shop with intentional bugs
+└── artifacts/                          # Local run evidence (before/after screenshots)
+```
+
+---
+
+## Quickstart
+
+### 1. Clone & Set Up Python Environment
+
+```bash
+git clone https://github.com/Kailash-18/OmniSight.git
+cd OmniSight
+
+python -m venv venv
+# On Windows:
+.\venv\Scripts\Activate.ps1
+# On macOS/Linux:
+source venv/bin/activate
+
+pip install -r requirements.txt
+playwright install chromium
+```
+
+### 2. Configure Environment
+
+Create a `.env` file in the root directory:
+
+```env
+GITHUB_TOKEN=your_github_personal_access_token
+GITHUB_REPO=your-username/OmniSight
+VLM_API_KEY=your_api_key_here
+# Optional: Set to true to run offline with mock VLM responses
+MOCK_VLM=false
+```
+
+### 3. Run the Services
+
+```bash
+# Terminal 1: FastAPI Backend
+uvicorn backend.app.main:app --reload --port 8000
+
+# Terminal 2: Target App Under Test
+npm run dev --prefix app-under-test
+
+# Terminal 3: QA Review Dashboard
+npm run dev --prefix dashboard
+```
+
+---
+
+## License
+
+This project is open-source under the [MIT License](LICENSE).

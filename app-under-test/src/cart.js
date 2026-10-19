@@ -12,8 +12,8 @@ export const setQty = (cart, id, qty) => {
 
 export const itemCount = (cart) => Object.values(cart).reduce((n, q) => n + q, 0)
 
-export const totalCents = (cart) =>
+export const totalPaise = (cart) =>
   Object.entries(cart).reduce((sum, [id, q]) => sum + findProduct(id).price * q, 0)
 
-const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
-export const money = (cents) => fmt.format(cents / 100)
+const fmt = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })
+export const money = (paise) => fmt.format(paise / 100)

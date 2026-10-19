@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { findProduct } from '../data/products.js'
-import { itemCount, totalCents, money } from '../cart.js'
+import { itemCount, totalPaise, money } from '../cart.js'
 
 export default function Checkout({ cart, link, onClear }) {
   const [placed, setPlaced] = useState(null)
@@ -30,7 +30,7 @@ export default function Checkout({ cart, link, onClear }) {
   const submit = (e) => {
     e.preventDefault()
     const data = Object.fromEntries(new FormData(e.currentTarget))
-    setPlaced({ name: data.name.trim(), email: data.email, total: money(totalCents(cart)) })
+    setPlaced({ name: data.name.trim(), email: data.email, total: money(totalPaise(cart)) })
     onClear()
   }
 
@@ -63,7 +63,7 @@ export default function Checkout({ cart, link, onClear }) {
           ))}
         </ul>
         <dl className="summary-rows">
-          <dt className="total">Total</dt><dd className="total" data-testid="checkout-total">{money(totalCents(cart))}</dd>
+          <dt className="total">Total</dt><dd className="total" data-testid="checkout-total">{money(totalPaise(cart))}</dd>
         </dl>
       </aside>
     </section>

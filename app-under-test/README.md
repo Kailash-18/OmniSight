@@ -43,7 +43,7 @@ and buttons, which navigate without a reload.
 
 1. `/`: click **Add to cart** on Stoneware Mug twice and on Desk Lamp once.
    The header badge `cart-count` shows `3`.
-2. Click **Cart** (`cart-link`). Total `cart-total` = **$112.00**. Use +/− or **Remove** to edit.
+2. Click **Cart** (`cart-link`). Total `cart-total` = **₹2,997**. Use +/− or **Remove** to edit.
 3. Click **Continue to checkout** (`continue-to-checkout`).
 4. Fill in Full name, Email (must be a valid address), and Delivery address. All are required;
    the browser blocks submission until they're valid.
@@ -75,7 +75,7 @@ page.get_by_test_id("order-success").wait_for()
 | Checkout | `checkout-form`, `input-name`, `input-email`, `input-address`, `promo-banner`, `submit-order`, `checkout-summary`, `checkout-total`, `checkout-empty` |
 | Success | `order-success`, `order-number`, `continue-shopping` |
 
-Product ids: `mug` ($24), `tote` ($38), `lamp` ($64).
+Product ids: `mug` (₹499), `tote` (₹899), `lamp` (₹1,999). Prices are stored in paise; shown in whole rupees (en-IN).
 
 ## Viewports
 

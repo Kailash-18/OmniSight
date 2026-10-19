@@ -1,5 +1,5 @@
 import { findProduct } from '../data/products.js'
-import { itemCount, totalCents, money } from '../cart.js'
+import { itemCount, totalPaise, money } from '../cart.js'
 
 export default function Cart({ cart, onQty, link, navigate }) {
   const ids = Object.keys(cart)
@@ -45,7 +45,7 @@ export default function Cart({ cart, onQty, link, navigate }) {
         <dl className="summary-rows">
           <dt>Items</dt><dd data-testid="cart-item-count">{itemCount(cart)}</dd>
           <dt>Shipping</dt><dd>Free</dd>
-          <dt className="total">Total</dt><dd className="total" data-testid="cart-total">{money(totalCents(cart))}</dd>
+          <dt className="total">Total</dt><dd className="total" data-testid="cart-total">{money(totalPaise(cart))}</dd>
         </dl>
         <button type="button" className="btn btn-primary btn-block checkout-cta" data-testid="continue-to-checkout" onClick={() => navigate('/checkout')}>
           Continue to checkout <span aria-hidden="true">→</span>

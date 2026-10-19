@@ -78,8 +78,24 @@ class FindingSchema(BaseModel):
     target_element: Optional[str] = Field(default=None, description="CSS selector or test ID")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Model confidence score between 0.0 and 1.0")
     suggested_change: str = Field(..., description="Proposed CSS/layout rule correction")
-    rationale: str = Field(..., description="Visual reasoning justification")
     status: str = Field(default="detected", description="Current remediation status")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": "defect-1-clipping",
+                "category": "element_clipping",
+                "severity": "high",
+                "description": "Place Order button clipped beyond right boundary",
+                "viewport": "mobile_375x667",
+                "target_element": "button[data-testid='checkout-submit']",
+                "confidence": 0.95,
+                "suggested_change": "width: 100%; max-width: 100%;",
+                "rationale": "Bounding box right edge exceeds viewport width of 375px",
+                "status": "detected"
+            }
+        }
+    }
 
     @field_validator("confidence", mode="before")
     @classmethod

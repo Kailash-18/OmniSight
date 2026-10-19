@@ -33,7 +33,15 @@ from app.services.github_service import create_pull_request_for_fix
 app = FastAPI(
     title=settings.API_TITLE,
     version=settings.API_VERSION,
-    description="OmniSight Visual QA Gateway, Action Engine, and PR Automation API"
+    description="OmniSight Visual QA Gateway, Action Engine, and PR Automation API",
+    openapi_tags=[
+        {"name": "System", "description": "Health check and system readiness"},
+        {"name": "CI/CD Webhook", "description": "Build event ingestion and automation triggers"},
+        {"name": "Audit Runs", "description": "Run lifecycle tracking and state management"},
+        {"name": "Action Engine", "description": "Multimodal VLM output parsing and patch validation"},
+    ],
+    contact={"name": "OmniSight Engineering", "email": "engineering@omnisight.local"},
+    license_info={"name": "MIT", "url": "https://opensource.org/licenses/MIT"}
 )
 
 # Enable CORS for QA Dashboard (Member 2)

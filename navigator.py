@@ -1,8 +1,18 @@
+import sys
+import urllib.request
+
 from playwright.sync_api import sync_playwright
 
 # Mock store from app-under-test/ (start it with: npm run dev --prefix app-under-test)
 APP_URL = "http://localhost:5173"
 VIEWPORTS = {"desktop": (1280, 800), "mobile": (375, 667)}
+
+# Fail fast with a clear message instead of a Playwright timeout when the store isn't running.
+try:
+    urllib.request.urlopen(APP_URL, timeout=3)
+except OSError:
+    print(f"Store not reachable at {APP_URL}. Start it first with:\n  npm run dev --prefix app-under-test")
+    sys.exit(1)
 
 with sync_playwright() as p:
     browser = p.chromium.launch()

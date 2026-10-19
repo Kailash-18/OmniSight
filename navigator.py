@@ -5,7 +5,12 @@ from playwright.sync_api import sync_playwright
 
 # Mock store from app-under-test/ (start it with: npm run dev --prefix app-under-test)
 APP_URL = "http://localhost:5173"
-VIEWPORTS = {"desktop": (1280, 800), "mobile": (375, 667)}
+VIEWPORTS = {
+    "desktop_1440x900": (1440, 900),
+    "desktop_1280x800": (1280, 800),
+    "mobile_390x844": (390, 844),
+    "mobile_375x667": (375, 667),
+}
 
 # Fail fast with a clear message instead of a Playwright timeout when the store isn't running.
 try:

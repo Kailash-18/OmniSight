@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException, status
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel
 
+from app.schemas.run_schema import BuildWebhookPayload, PatchSubmitPayload
 from app.services.patch_validator import validate_patch
 from app.services.github_service import create_pull_request_for_fix
 
@@ -10,20 +10,6 @@ app = FastAPI(title="OmniSight Backend API", version="1.0.0")
 
 # In-memory database simulation for local development
 fake_runs_db = {}
-
-class BuildWebhookPayload(BaseModel):
-    target_url: str
-    branch: str
-    scenario: str
-    commit_sha: Optional[str] = None
-    event_id: Optional[str] = None
-
-class PatchSubmitPayload(BaseModel):
-    target_file: str
-    diff: str
-    file_content: str
-    pr_title: str
-    pr_body: str
 
 @app.get("/health", status_code=status.HTTP_200_OK)
 def health_check():

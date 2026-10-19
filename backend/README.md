@@ -250,6 +250,11 @@ terraform plan
 ### 6. Submit and PR Validated Patch
 * **Endpoint**: `POST /runs/{run_id}/submit-patch`
 
+### 7. Team Milestone Tracker
+* **Endpoint**: `GET /api/milestones`
+* **Response (200 OK)**:
+  Returns status of Member 1 deliverables (`week_1_foundation`, `week_2_action_engine`, `week_2_day_3_integration`), approved target hosts, and file allowlists.
+
 ---
 
 ## 🧪 Running the Backend & Tests

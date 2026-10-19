@@ -1,0 +1,2 @@
+# Secrets stay local. Copy backend/.env.example to backend/.env and fill it in.
+.env

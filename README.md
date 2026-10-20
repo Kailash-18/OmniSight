@@ -127,18 +127,31 @@ MOCK_VLM=false
 ### 3. Run the Services
 
 ```bash
-# Terminal 1: FastAPI Backend
-uvicorn backend.app.main:app --reload --port 8000
-
-# Terminal 2: Target App Under Test
+# Terminal 1: Mock Target Store (Port 5173)
 npm run dev --prefix app-under-test
 
-# Terminal 3: QA Review Dashboard
-npm run dev --prefix dashboard
+# Terminal 2: FastAPI Backend Gateway (Port 8000)
+uvicorn app.main:app --app-dir backend --reload --port 8000
+
+# Terminal 3: Run Automation Visual QA Runner
+python -m automation.cli --target http://localhost:5173
+
+# Run Automation Test Suite
+python -m pytest automation/tests/
 ```
+
+---
+
+## Technical Documentation
+
+* [System Architecture](docs/architecture.md): Component topology, closed remediation loop, and security model.
+* [API & Data Contract](docs/api-contract.md): Endpoint specifications, finding schemas, and run status enums.
+* [Demonstration Script](docs/demo-script.md): Step-by-step walkthrough for milestone reviews.
+* [Decisions & Scope](docs/decisions-and-limitations.md): Technical tradeoffs, MVP boundaries, and known limitations.
 
 ---
 
 ## License
 
 This project is open-source under the [MIT License](LICENSE).
+

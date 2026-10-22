@@ -254,3 +254,18 @@ def test_process_run_vlm_output_convenience_endpoint(client: TestClient):
     assert len(detail["findings"]) == 1
     assert detail["findings"][0]["id"] == "defect-convenience"
 
+
+def test_package_schema_and_service_exports():
+    """Verify clean top-level package namespace exports for schemas and services."""
+    import app.schemas as schemas
+    import app.services as services
+
+    assert hasattr(schemas, "FindingSchema")
+    assert hasattr(schemas, "PatchObject")
+    assert hasattr(schemas, "RunStatus")
+    assert hasattr(schemas, "BuildWebhookPayload")
+    assert hasattr(services, "validate_patch")
+    assert hasattr(services, "action_engine")
+    assert hasattr(services, "create_pull_request_for_fix")
+
+

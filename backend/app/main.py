@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.schemas.run_schema import (
+from app.schemas import (
     HealthCheckResponse,
     BuildWebhookPayload,
     RunTriggerPayload,

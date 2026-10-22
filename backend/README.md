@@ -234,6 +234,23 @@ terraform plan
 
 ---
 
+### 4. List All Runs (With Optional Filtering & Pagination)
+* **Endpoint**: `GET /runs?limit=50&status_filter=queued`
+* **Query Parameters**:
+  * `limit` (int, default 50): Maximum number of run summaries to return.
+  * `status_filter` (string, optional): Filter by lifecycle status (`queued`, `running`, `audited`, `fixed`, `pr_opened`, etc.).
+* **Response (200 OK)**:
+  Returns run summaries sorted in reverse chronological order.
+
+### 5. Action Engine VLM Parser
+* **Endpoint**: `POST /action-engine/parse`
+* **Capabilities**: Supports JSON objects, top-level JSON arrays, markdown code fences, and percentage confidence strings (e.g., `"95%"`).
+
+### 6. Submit and PR Validated Patch
+* **Endpoint**: `POST /runs/{run_id}/submit-patch`
+
+---
+
 ## 🧪 Running the Backend & Tests
 
 ### 1. Install Dependencies
@@ -251,4 +268,5 @@ Interactive Swagger docs: `http://localhost:8000/docs`
 ```bash
 python -m pytest backend/tests/ -v
 ```
-All 24 backend tests verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, and API endpoints.
+All **30 backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, idempotency, and API endpoints.
+

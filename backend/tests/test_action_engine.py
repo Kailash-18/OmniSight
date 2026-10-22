@@ -204,3 +204,21 @@ def test_action_engine_empty_input():
     result = action_engine.parse_vlm_response("")
     assert result.is_valid is False
     assert "Empty" in result.validator_errors
+
+
+def test_action_engine_multiple_diff_blocks_selects_first():
+    """Verify code block extraction isolates multiple language blocks correctly."""
+    text = """First diff:
+```diff
+-.first { display: none; }
++.first { display: block; }
+```
+Second diff:
+```css
+.second { color: red; }
+```"""
+    blocks = action_engine.extract_code_blocks(text)
+    assert len(blocks) == 2
+    assert blocks[0]["lang"] == "diff"
+    assert blocks[1]["lang"] == "css"
+

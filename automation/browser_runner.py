@@ -25,7 +25,6 @@ def run_visual_audit_journey(
     """
     target_url = app_url or config.app_url
 
-    # 1. Verify target store connectivity and identity
     healthy, msg, verified_url = check_store_health(target_url)
     if not healthy:
         raise RuntimeError(msg)
@@ -33,7 +32,6 @@ def run_visual_audit_journey(
     active_url = verified_url or target_url
     collector = evidence or EvidenceCollector()
 
-    # 2. Select target viewports
     selected_viewports: List[ViewportSpec] = []
     if viewports:
         for vp_name in viewports:
@@ -51,21 +49,18 @@ def run_visual_audit_journey(
         "steps_completed": [],
     }
 
-    # 3. Launch browser and evaluate viewports in isolated contexts
     with launch_browser() as browser:
         for vp in selected_viewports:
             with create_isolated_page(browser, vp) as page:
                 attach_browser_listeners(page, collector)
                 journey = StoreJourney(page, active_url)
 
-                # Step A: Home Page (Products) - Defect 1 check
                 journey.navigate_home()
                 home_shot = collector.get_screenshot_path(vp.name, "home")
                 page.screenshot(path=str(home_shot), full_page=False)
                 collector.save_dom_snapshot(vp.name, "home", extract_dom_context(page))
                 results["screenshots"].append(str(home_shot))
 
-                # Step B: Cart Page - Defect 2 check
                 journey.add_product_to_cart("mug")
                 journey.navigate_to_cart()
                 cart_shot = collector.get_screenshot_path(vp.name, "cart")
@@ -73,7 +68,6 @@ def run_visual_audit_journey(
                 collector.save_dom_snapshot(vp.name, "cart", extract_dom_context(page))
                 results["screenshots"].append(str(cart_shot))
 
-                # Step C: Checkout Page - Defect 3 check
                 journey.continue_to_checkout()
                 journey.fill_checkout_form()
                 checkout_shot = collector.get_screenshot_path(vp.name, "checkout")

@@ -22,7 +22,6 @@ class ViewportSpec:
         return f"{self.width}x{self.height}"
 
 
-# Team Standard Viewports (Infotact SOP / OmniSight Specs)
 STANDARD_VIEWPORTS: Dict[str, ViewportSpec] = {
     "desktop_1440x900": ViewportSpec(
         name="desktop_1440x900",

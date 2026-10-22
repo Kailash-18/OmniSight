@@ -39,6 +39,11 @@ def main() -> int:
         action="store_true",
         help="Print final output strictly in JSON format",
     )
+    parser.add_argument(
+        "--no-retest",
+        action="store_true",
+        help="Skip closed-loop sandboxed retest verification",
+    )
 
     args = parser.parse_args()
 
@@ -52,12 +57,14 @@ def main() -> int:
         print(f"Target URL: {args.target}")
         print(f"Engine:     Playwright Chromium (Headless: {config.headless})")
         print(f"VLM:        {'Live Multimodal API' if args.use_live_vlm else 'Deterministic Mock'}")
+        print(f"Retest:     {'Disabled' if args.no_retest else 'Sandboxed Verification Enabled'}")
         print("-" * 60)
         print("Starting e-commerce journey and evidence capture...")
 
     result = orchestrator.run_full_remediation_loop(
         target_url=args.target,
         viewports=args.viewports,
+        auto_retest=not args.no_retest,
     )
 
     if args.json_output:
@@ -75,6 +82,19 @@ def main() -> int:
             print(f"  [{idx}] {f['category'].upper()} ({f['severity'].upper()}): {f['description']}")
             print(f"      Target: {f.get('target_element')} | Viewport: {f['viewport']}")
             print(f"      Fix:    {f['suggested_change']}")
+
+        retest = result.get("retest_verification")
+        if retest:
+            print("\nRetest Verification:")
+            print(f"  Status:   {retest.get('status', '').upper()}")
+            print(f"  Delta:    {retest.get('mismatch_percentage', 0.0)}% pixel difference")
+            print(f"  Viewport: {retest.get('target_viewport')}")
+            if retest.get("notes"):
+                print(f"  Notes:    {retest.get('notes')}")
+
+        annotated = result.get("annotated_screenshots", [])
+        if annotated:
+            print(f"\nAnnotated Overlays: {len(annotated)} bounding-box defect overlays generated")
 
         if result.get("artifacts_dir"):
             print(f"\nArtifacts stored in: {result['artifacts_dir']}")

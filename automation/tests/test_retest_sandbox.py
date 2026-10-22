@@ -165,3 +165,52 @@ def test_retest_runner_verify_patch(tmp_path: Path):
     assert Path(verification.after_screenshot).exists()
     assert Path(verification.diff_screenshot).exists()
     assert "defect-remediated" in verification.resolved_findings
+
+
+def test_orchestrator_closed_loop_retest_flow(monkeypatch, tmp_path: Path):
+    from automation.orchestrator import Orchestrator
+    from automation.vlm_adapter import MockVLMAdapter
+
+    orchestrator = Orchestrator(vlm_adapter=MockVLMAdapter())
+
+    shot_path = tmp_path / "mobile_375x667_checkout.png"
+    img = Image.new("RGB", (375, 667), (200, 200, 200))
+    img.save(shot_path)
+
+    dom_path = tmp_path / "mobile_375x667_checkout_dom.json"
+    dom_path.write_text('{"viewport": {"width": 375, "height": 667}, "elements": []}', encoding="utf-8")
+
+    def mock_journey(*args, **kwargs):
+        evidence = kwargs.get("evidence")
+        if evidence:
+            evidence.run_dir = tmp_path
+            evidence.retest_dir = tmp_path / "retest"
+            evidence.retest_dir.mkdir(parents=True, exist_ok=True)
+            evidence.annotated_dir = tmp_path / "annotated"
+            evidence.annotated_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "run_id": "test-closed-loop",
+            "target_url": "http://127.0.0.1:5173",
+            "viewports_evaluated": ["mobile_375x667"],
+            "screenshots": [str(shot_path)],
+            "dom_snapshots": [str(dom_path)],
+            "steps_completed": ["home", "cart", "checkout"],
+        }
+
+    monkeypatch.setattr(
+        "automation.orchestrator.run_visual_audit_journey",
+        mock_journey,
+    )
+
+    result = orchestrator.run_full_remediation_loop(
+        target_url="http://127.0.0.1:5173",
+        viewports=["mobile_375x667"],
+        auto_retest=True,
+    )
+
+    assert result["status"] == "fixed"
+    assert "retest_verification" in result
+    assert result["retest_verification"] is not None
+    assert result["retest_verification"]["status"] == "fixed"
+    assert len(result["findings"]) > 0
+

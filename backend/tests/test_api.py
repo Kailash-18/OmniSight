@@ -198,3 +198,48 @@ def test_submit_valid_patch_opens_pr(client: TestClient):
     detail = client.get(f"/runs/{run_id}").json()
     assert detail["status"] == "pr_opened"
     assert detail["pr_url"] == data["pr_url"]
+
+
+def test_cors_headers_present(client: TestClient):
+    response = client.get("/health", headers={"origin": "http://localhost:5173"})
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") in ("*", "http://localhost:5173")
+
+
+
+
+def test_process_run_vlm_output_convenience_endpoint(client: TestClient):
+    raw_vlm = """
+{
+  "findings": [
+    {
+      "id": "defect-convenience",
+      "category": "contrast_issue",
+      "severity": "medium",
+      "description": "Low contrast ratio on footer text",
+      "viewport": "desktop_1440x900",
+      "confidence": 0.89,
+      "suggested_change": "color: #111827",
+      "rationale": "Contrast ratio below WCAG AA"
+    }
+  ],
+  "summary": "Detected contrast defect",
+  "proposed_patch": {
+    "target_file": "app-under-test/src/styles/defects.css",
+    "diff": "-footer { color: #ccc; }\n+footer { color: #111827; }",
+    "explanation": "Fix contrast ratio"
+  }
+}
+"""
+    run_res = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"})
+    run_id = run_res.json()["run_id"]
+
+    parse_res = client.post(f"/runs/{run_id}/process-vlm-output", json={"raw_vlm_output": raw_vlm})
+    assert parse_res.status_code == 200
+    assert parse_res.json()["is_valid"] is True
+
+    detail = client.get(f"/runs/{run_id}").json()
+    assert detail["status"] == "audited"
+    assert len(detail["findings"]) == 1
+    assert detail["findings"][0]["id"] == "defect-convenience"
+

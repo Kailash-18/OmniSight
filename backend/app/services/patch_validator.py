@@ -5,8 +5,9 @@ Enforces zero-trust guardrails on AI-generated patches to protect codebase integ
 
 import os
 import re
+from typing import Any
 from urllib.parse import unquote
-from typing import Dict, Any
+
 from app.core.config import settings
 
 # Disallowed patterns that could signify malicious script injection or arbitrary code execution
@@ -29,13 +30,17 @@ DANGEROUS_PATTERNS = [
 ALLOWED_EXTENSIONS = {".css", ".jsx", ".js"}
 
 
-def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
+def validate_patch(
+    target_file: str,
+    diff_content: str,
+    file_content: str | None = None
+) -> dict[str, Any]:
     """
     Validates that a proposed patch strictly adheres to security boundaries:
     1. Rejects path traversal, null bytes, and absolute paths.
     2. Enforces allowed target files and approved extensions.
     3. Validates diff syntax and rejects empty or oversized diffs.
-    4. Guards against script injection, shell payloads, and rogue execution.
+    4. Guards against script injection, shell payloads, and rogue execution in diff & file content.
     """
     if not target_file or not target_file.strip():
         return {
@@ -45,7 +50,7 @@ def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
             "diff_sanitized": None
         }
 
-    # Detect null bytes in target file or diff
+    # Detect null bytes in target file, diff, or modified file content
     if "\x00" in target_file:
         return {
             "validation_status": False,
@@ -62,12 +67,25 @@ def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
             "diff_sanitized": None
         }
 
+    if file_content and "\x00" in file_content:
+        return {
+            "validation_status": False,
+            "validator_errors": "Security violation: Null byte detected in file content payload.",
+            "target_file": target_file,
+            "diff_sanitized": None
+        }
+
     # URL-decode to prevent URL-encoded directory traversal (%2e%2e)
     decoded_path = unquote(target_file.strip())
     clean_path = decoded_path.replace("\\", "/")
 
+    # Normalize leading ./ or git diff a/ and b/ prefixes
+    clean_path = clean_path.removeprefix("./")
+    if clean_path.startswith(("a/", "b/")):
+        clean_path = clean_path[2:]
+
     # 1. Path traversal, UNC, & absolute path checks
-    if clean_path.startswith("/") or clean_path.startswith("//") or re.match(r"^[a-zA-Z]:", clean_path):
+    if clean_path.startswith(("/", "//")) or re.match(r"^[a-zA-Z]:", clean_path):
         return {
             "validation_status": False,
             "validator_errors": "Security violation: Absolute file paths are rejected.",
@@ -76,7 +94,7 @@ def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
         }
 
     path_segments = [seg for seg in clean_path.split("/") if seg]
-    if any(seg == ".." or seg == "." for seg in path_segments):
+    if any(seg == ".." for seg in path_segments):
         return {
             "validation_status": False,
             "validator_errors": "Security violation: Path traversal ('..') is strictly rejected.",
@@ -95,7 +113,6 @@ def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
             "target_file": clean_path,
             "diff_sanitized": None
         }
-
 
     # 3. File extension check
     _, ext = os.path.splitext(clean_path)
@@ -143,7 +160,7 @@ def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
             "diff_sanitized": None
         }
 
-    # 5. Injection and dangerous payload checks
+    # 5. Injection and dangerous payload checks on diff content
     for pattern in DANGEROUS_PATTERNS:
         if re.search(pattern, diff_content, re.IGNORECASE):
             return {
@@ -154,6 +171,19 @@ def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
                 "target_file": clean_path,
                 "diff_sanitized": None
             }
+
+    # 6. Injection checks on full file content if provided
+    if file_content:
+        for pattern in DANGEROUS_PATTERNS:
+            if re.search(pattern, file_content, re.IGNORECASE):
+                return {
+                    "validation_status": False,
+                    "validator_errors": (
+                        f"Security violation: Potential script/code injection pattern detected in file content: '{pattern}'"
+                    ),
+                    "target_file": clean_path,
+                    "diff_sanitized": None
+                }
 
     # All security checks passed
     return {

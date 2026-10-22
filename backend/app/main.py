@@ -3,31 +3,30 @@ FastAPI CI/CD Gateway and Action Engine API for OmniSight.
 Handles build webhooks, manual audit triggers, run lifecycle, and VLM patch validation.
 """
 
-from datetime import datetime, timezone
+import uuid
+from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import urlparse
-from typing import List, Dict, Any, Optional
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.schemas import (
-    HealthCheckResponse,
     BuildWebhookPayload,
-    RunTriggerPayload,
+    HealthCheckResponse,
     PatchSubmitPayload,
+    RunDetailResponse,
+    RunRecordUpdatePayload,
+    RunStatus,
+    RunSummaryResponse,
+    RunTriggerPayload,
     VLMParseRequest,
     VLMParseResponse,
-    RunRecordUpdatePayload,
-    RunSummaryResponse,
-    RunDetailResponse,
-    RunStatus,
-    PatchObject,
 )
-from app.services.patch_validator import validate_patch
 from app.services.action_engine import action_engine
 from app.services.github_service import create_pull_request_for_fix
-
+from app.services.patch_validator import validate_patch
 
 app = FastAPI(
     title=settings.API_TITLE,
@@ -45,7 +44,7 @@ app.add_middleware(
 )
 
 # In-memory store for test runs (simulates persistence for development & demo)
-runs_db: Dict[str, Dict[str, Any]] = {}
+runs_db: dict[str, dict[str, Any]] = {}
 
 
 def _validate_target_host(target_url: str) -> str:
@@ -71,7 +70,7 @@ def _validate_target_host(target_url: str) -> str:
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid target URL: {str(e)}"
+            detail=f"Invalid target URL: {e!s}"
         )
 
 
@@ -80,7 +79,7 @@ def health_check():
     """Health check endpoint to verify backend service readiness."""
     return HealthCheckResponse(
         status="healthy",
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         version=settings.API_VERSION
     )
 
@@ -107,8 +106,9 @@ def receive_build_webhook(payload: BuildWebhookPayload):
     Validates target URL and registers a new audit run in queued status.
     """
     validated_url = _validate_target_host(payload.target_url)
-    run_id = f"run-{int(datetime.now(timezone.utc).timestamp())}"
-    start_time = datetime.now(timezone.utc).isoformat()
+    unique_suffix = uuid.uuid4().hex[:6]
+    run_id = f"run-{int(datetime.now(UTC).timestamp())}-{unique_suffix}"
+    start_time = datetime.now(UTC).isoformat()
 
     runs_db[run_id] = {
         "run_id": run_id,
@@ -140,8 +140,9 @@ def trigger_run_manual(payload: RunTriggerPayload):
     Manual trigger endpoint to initiate an on-demand browser audit.
     """
     validated_url = _validate_target_host(payload.target_url)
-    run_id = f"run-{int(datetime.now(timezone.utc).timestamp())}"
-    start_time = datetime.now(timezone.utc).isoformat()
+    unique_suffix = uuid.uuid4().hex[:6]
+    run_id = f"run-{int(datetime.now(UTC).timestamp())}-{unique_suffix}"
+    start_time = datetime.now(UTC).isoformat()
 
     runs_db[run_id] = {
         "run_id": run_id,
@@ -166,28 +167,36 @@ def trigger_run_manual(payload: RunTriggerPayload):
     }
 
 
-@app.get("/runs", response_model=List[RunSummaryResponse])
+@app.get("/runs", response_model=list[RunSummaryResponse])
 def list_runs(
     limit: int = 50,
-    status_filter: Optional[RunStatus] = None
+    status_filter: RunStatus | None = None
 ):
     """Returns summaries of recorded test runs in reverse chronological order with optional filtering."""
     sorted_runs = sorted(
         runs_db.values(),
-        key=lambda r: r.get("start_time", ""),
+        key=lambda r: (r.get("start_time", ""), r.get("run_id", "")),
         reverse=True
     )
 
     summaries = []
     for r in sorted_runs:
-        if status_filter and r.get("status") != status_filter.value:
-            continue
+        raw_status = r.get("status")
+        if status_filter:
+            filter_val = status_filter.value if hasattr(status_filter, "value") else str(status_filter)
+            if raw_status != filter_val:
+                continue
+        try:
+            status_enum = RunStatus(raw_status)
+        except ValueError:
+            status_enum = RunStatus.FAILED
+
         summaries.append(
             RunSummaryResponse(
                 run_id=r["run_id"],
                 start_time=r["start_time"],
                 target=r["target"],
-                status=RunStatus(r["status"]),
+                status=status_enum,
                 issue_count=r.get("issue_count", len(r.get("findings", []))),
                 pr_url=r.get("pr_url")
             )
@@ -272,10 +281,13 @@ def parse_vlm_output(payload: VLMParseRequest):
             run_entry["patch"] = result.proposed_patch.model_dump()
 
         if result.is_valid:
-            if result.validation_status:
-                run_entry["status"] = RunStatus.AUDITED.value
+            if result.proposed_patch:
+                if result.validation_status:
+                    run_entry["status"] = RunStatus.AUDITED.value
+                else:
+                    run_entry["status"] = RunStatus.PATCH_REJECTED.value
             else:
-                run_entry["status"] = RunStatus.PATCH_REJECTED.value
+                run_entry["status"] = RunStatus.AUDITED.value
         else:
             run_entry["status"] = RunStatus.NEEDS_REVIEW.value
 
@@ -289,7 +301,7 @@ def process_run_vlm_output(run_id: str, payload: VLMParseRequest):
         # Create an entry if it doesn't already exist
         runs_db[run_id] = {
             "run_id": run_id,
-            "start_time": datetime.now(timezone.utc).isoformat(),
+            "start_time": datetime.now(UTC).isoformat(),
             "target": "http://localhost:5173",
             "status": RunStatus.RUNNING.value,
             "steps": [],
@@ -314,7 +326,7 @@ def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
     if run_id not in runs_db:
         runs_db[run_id] = {
             "run_id": run_id,
-            "start_time": datetime.now(timezone.utc).isoformat(),
+            "start_time": datetime.now(UTC).isoformat(),
             "target": "http://localhost:5173",
             "status": RunStatus.RUNNING.value,
             "steps": [],
@@ -327,8 +339,12 @@ def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
             "error": None
         }
 
-    # 1. Validate patch using security guardrails
-    validation_result = validate_patch(payload.target_file, payload.diff)
+    # 1. Validate patch and full file content using zero-trust guardrails
+    validation_result = validate_patch(
+        payload.target_file,
+        payload.diff,
+        payload.file_content
+    )
     if not validation_result["validation_status"]:
         runs_db[run_id]["status"] = RunStatus.PATCH_REJECTED.value
         runs_db[run_id]["patch"] = {
@@ -366,5 +382,5 @@ def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
         runs_db[run_id]["error"] = str(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"PR automation failed: {str(e)}"
+            detail=f"PR automation failed: {e!s}"
         )

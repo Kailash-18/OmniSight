@@ -69,14 +69,17 @@ def test_list_runs_filtering_and_limit(client: TestClient):
     # Create two runs
     r1 = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"}).json()["run_id"]
     r2 = client.post("/runs", json={"target_url": "http://localhost:5173", "scenario": "checkout_flow"}).json()["run_id"]
+    assert r1 != r2
 
     # Filter by queued status
     queued_runs = client.get("/runs?status_filter=queued").json()
     assert all(r["status"] == "queued" for r in queued_runs)
+    assert any(r["run_id"] == r1 for r in queued_runs)
 
     # Filter by running status
     running_runs = client.get("/runs?status_filter=running").json()
     assert all(r["status"] == "running" for r in running_runs)
+    assert any(r["run_id"] == r2 for r in running_runs)
 
     # Test limit
     limited = client.get("/runs?limit=1").json()
@@ -257,8 +260,7 @@ def test_process_run_vlm_output_convenience_endpoint(client: TestClient):
 
 def test_package_schema_and_service_exports():
     """Verify clean top-level package namespace exports for schemas and services."""
-    import app.schemas as schemas
-    import app.services as services
+    from app import schemas, services
 
     assert hasattr(schemas, "FindingSchema")
     assert hasattr(schemas, "PatchObject")
@@ -267,5 +269,50 @@ def test_package_schema_and_service_exports():
     assert hasattr(services, "validate_patch")
     assert hasattr(services, "action_engine")
     assert hasattr(services, "create_pull_request_for_fix")
+
+
+def test_submit_patch_rejects_malicious_file_content(client: TestClient):
+    res = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"})
+    run_id = res.json()["run_id"]
+
+    malicious_content_patch = {
+        "target_file": "app-under-test/src/styles/defects.css",
+        "diff": "-.btn { width: 500px; }\n+.btn { width: 100%; }",
+        "file_content": ".btn { width: 100%; } <script>window.location='evil.com'</script>",
+        "pr_title": "Sneaky script injection",
+        "pr_body": "Test"
+    }
+    submit_res = client.post(f"/runs/{run_id}/submit-patch", json=malicious_content_patch)
+    assert submit_res.status_code == 400
+    assert "injection pattern detected in file content" in submit_res.json()["detail"]
+
+
+def test_parse_vlm_output_without_patch_sets_audited_status(client: TestClient):
+    raw_vlm = """
+{
+  "findings": [
+    {
+      "id": "defect-no-patch",
+      "category": "layout_overflow",
+      "severity": "low",
+      "description": "Minor margin overflow on banner",
+      "viewport": "desktop_1440x900",
+      "confidence": 0.85,
+      "suggested_change": "margin: 0 auto",
+      "rationale": "Slight horizontal overflow"
+    }
+  ],
+  "summary": "Observation without direct patch"
+}
+"""
+    res = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"})
+    run_id = res.json()["run_id"]
+
+    parse_res = client.post("/action-engine/parse", json={"raw_vlm_output": raw_vlm, "run_id": run_id})
+    assert parse_res.status_code == 200
+    assert parse_res.json()["is_valid"] is True
+
+    detail = client.get(f"/runs/{run_id}").json()
+    assert detail["status"] == "audited"
 
 

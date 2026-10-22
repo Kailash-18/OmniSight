@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.schemas.run_schema import (
+    HealthCheckResponse,
     BuildWebhookPayload,
     RunTriggerPayload,
     PatchSubmitPayload,
@@ -74,14 +75,15 @@ def _validate_target_host(target_url: str) -> str:
         )
 
 
-@app.get("/health", status_code=status.HTTP_200_OK)
+@app.get("/health", response_model=HealthCheckResponse, status_code=status.HTTP_200_OK)
 def health_check():
     """Health check endpoint to verify backend service readiness."""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "version": settings.API_VERSION
-    }
+    return HealthCheckResponse(
+        status="healthy",
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        version=settings.API_VERSION
+    )
+
 
 
 @app.post("/webhook/build", status_code=status.HTTP_202_ACCEPTED)

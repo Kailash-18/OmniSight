@@ -38,6 +38,14 @@ class Severity(str, Enum):
     CRITICAL = "critical"
 
 
+class HealthCheckResponse(BaseModel):
+    """Health check status and server metadata."""
+    status: str = Field(default="healthy", description="Readiness status of API gateway")
+    timestamp: str = Field(..., description="Current UTC timestamp in ISO 8601 format")
+    version: str = Field(..., description="API software version")
+
+
+
 # ---------------------------------------------------------------------------
 # Request Payloads
 # ---------------------------------------------------------------------------

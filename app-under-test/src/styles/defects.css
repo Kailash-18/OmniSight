@@ -1,0 +1,65 @@
+/*
+ * OmniSight SEEDED VISUAL DEFECTS — intentional, do not "fix" in the baseline.
+ *
+ * Every rule here is a deliberate bug for the OmniSight VLM to find. base.css is
+ * the clean design; this file only adds the defects on top.
+ *   - Repair a single defect: delete its block below.
+ *   - Repaired reference: remove `import './styles/defects.css'` in src/main.jsx.
+ * Static media queries only: no randomness, no timing, identical every run.
+ */
+
+/* ---------------------------------------------------------------------------
+ * DEFECT-1  heading-overlap
+ * Where:    Products page (/), desktop viewports >= 1024px (1440x900, 1280x800)
+ * Symptom:  The hero heading "Simple goods for every day." overlaps the top of
+ *           the product cards below it.
+ * Cause:    Negative bottom margin pulls the cards up under the heading,
+ *           and z-index keeps the heading painted on top.
+ * ------------------------------------------------------------------------- */
+@media (min-width: 1024px) {
+  .hero-title {
+    position: relative;
+    z-index: 2;
+    margin-bottom: -96px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * DEFECT-2  mobile-checkout-button-clipped
+ * Where:    Cart page (/cart) with >= 1 item, mobile viewports <= 480px
+ *           (390x844, 375x667)
+ * Symptom:  "Continue to checkout" is wider than the summary card and its
+ *           right side (including the arrow) is cut off at the card edge.
+ * Cause:    Fixed min-width wider than the card plus overflow: clip on
+ *           the card. Still clickable: the visible part receives clicks.
+ * ------------------------------------------------------------------------- */
+@media (max-width: 480px) {
+  .cart-summary {
+    overflow: clip; /* not hidden: hidden makes a scroll container Playwright can shift */
+  }
+  .checkout-cta {
+    min-width: 460px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * DEFECT-3  submit-button-obstructed
+ * Where:    Checkout page (/checkout) with >= 1 item, all viewports
+ * Symptom:  The "Submit order" button is completely covered by the
+ *           free-shipping promo banner; no submit button is visible.
+ * Cause:    The banner is absolutely positioned over the actions area with
+ *           a higher z-index. pointer-events: none lets clicks and keyboard
+ *           submit still reach the button, so the journey can complete.
+ * ------------------------------------------------------------------------- */
+.checkout-actions {
+  position: relative;
+}
+.promo-banner {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}

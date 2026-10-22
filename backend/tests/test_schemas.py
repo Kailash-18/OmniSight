@@ -196,3 +196,22 @@ def test_patch_submit_payload_validation():
     assert "OmniSight Automated Visual Defect Fix" in payload.pr_title
     assert payload.pr_body == ""
 
+
+def test_run_detail_response_serialization():
+    """Verify RunDetailResponse model serialization with findings and evidence paths."""
+    from app.schemas.run_schema import RunDetailResponse, RunStatus
+
+    detail = RunDetailResponse(
+        run_id="run-test-detail-1",
+        start_time="2026-10-22T20:00:00Z",
+        target="http://localhost:5173",
+        status=RunStatus.AUDITED,
+        steps=["nav", "audit"],
+        evidence_paths={"screenshots": ["desktop.png"]}
+    )
+    data = detail.model_dump()
+    assert data["run_id"] == "run-test-detail-1"
+    assert data["status"] == "audited"
+    assert "screenshots" in data["evidence_paths"]
+
+

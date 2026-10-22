@@ -85,6 +85,20 @@ def health_check():
     )
 
 
+@app.get("/api/milestones", status_code=status.HTTP_200_OK)
+def get_milestone_status():
+    """Returns tracking status for Member 1 milestones and allowed security domains."""
+    return {
+        "member": "Member 1 - Backend & PR Automation",
+        "week_1_foundation": "completed",
+        "week_2_action_engine": "completed",
+        "week_3_pr_automation": "ready",
+        "allowed_targets": settings.ALLOWED_TARGET_HOSTS,
+        "allowed_patch_files": settings.ALLOWED_PATCH_FILES,
+    }
+
+
+
 
 @app.post("/webhook/build", status_code=status.HTTP_202_ACCEPTED)
 def receive_build_webhook(payload: BuildWebhookPayload):

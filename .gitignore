@@ -3,6 +3,15 @@
 .env.local
 *.env
 
+# Terraform Variables & State Secrets
+*.tfvars
+*.tfvars.json
+terraform.tfvars
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
 # Python Bytecode & Cache
 __pycache__/
 *.py[cod]

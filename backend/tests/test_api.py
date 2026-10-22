@@ -384,6 +384,23 @@ def test_pr_markdown_description_format():
     assert "Visual Evidence" in body
 
 
+def test_openapi_spec_tags_and_endpoint_metadata(client: TestClient):
+    """Verify OpenAPI 3.0 schema generation includes proper tags, metadata, and path models."""
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    spec = response.json()
+
+    assert "openapi" in spec
+    assert "paths" in spec
+    assert "/webhook/build" in spec["paths"]
+    assert "CI/CD Webhook" in spec["paths"]["/webhook/build"]["post"]["tags"]
+    assert "/runs" in spec["paths"]
+    assert "Audit Runs" in spec["paths"]["/runs"]["get"]["tags"]
+    assert "/action-engine/parse" in spec["paths"]
+    assert "Action Engine" in spec["paths"]["/action-engine/parse"]["post"]["tags"]
+
+
+
 
 
 

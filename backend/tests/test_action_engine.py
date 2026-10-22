@@ -96,6 +96,83 @@ def test_action_engine_code_block_extraction():
     assert ".clipped" in blocks[0]["code"]
 
 
+def test_action_engine_confidence_normalization():
+    raw_vlm = """
+{
+  "findings": [
+    {
+      "id": "defect-pct",
+      "category": "element_clipping",
+      "severity": "high",
+      "description": "Percentage confidence test",
+      "viewport": "all",
+      "confidence": "95%",
+      "suggested_change": "width: 100%",
+      "rationale": "Test"
+    },
+    {
+      "id": "defect-int",
+      "category": "element_obstruction",
+      "severity": "critical",
+      "description": "Integer 90 confidence test",
+      "viewport": "all",
+      "confidence": 90,
+      "suggested_change": "z-index: 10",
+      "rationale": "Test"
+    }
+  ]
+}
+"""
+    result = action_engine.parse_vlm_response(raw_vlm)
+    assert result.is_valid is True
+    assert len(result.findings) == 2
+    assert result.findings[0].confidence == 0.95
+    assert result.findings[1].confidence == 0.90
+
+
+def test_action_engine_case_and_hyphen_normalization():
+    raw_vlm = """
+{
+  "findings": [
+    {
+      "id": "defect-upper",
+      "category": "ELEMENT_OVERLAP",
+      "severity": "CRITICAL",
+      "description": "Uppercase enums",
+      "viewport": "mobile_375x667",
+      "confidence": 0.85,
+      "suggested_change": "margin: 0",
+      "rationale": "Test"
+    }
+  ]
+}
+"""
+    result = action_engine.parse_vlm_response(raw_vlm)
+    assert result.is_valid is True
+    assert result.findings[0].category == DefectCategory.ELEMENT_OVERLAP
+    assert result.findings[0].severity == Severity.CRITICAL
+
+
+def test_action_engine_top_level_array_json():
+    raw_vlm = """[
+  {
+    "id": "defect-array-item",
+    "category": "layout_overflow",
+    "severity": "low",
+    "description": "Direct list response from model",
+    "viewport": "desktop_1440x900",
+    "confidence": 0.80,
+    "suggested_change": "overflow-x: hidden",
+    "rationale": "Test"
+  }
+]"""
+    result = action_engine.parse_vlm_response(raw_vlm)
+    assert result.is_valid is True
+    assert len(result.findings) == 1
+    assert result.findings[0].id == "defect-array-item"
+    assert result.findings[0].category == DefectCategory.LAYOUT_OVERFLOW
+
+
 def test_action_engine_rejects_unapproved_target_file_in_patch():
     raw_vlm = """
 {

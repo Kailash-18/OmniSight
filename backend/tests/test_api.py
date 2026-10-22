@@ -368,5 +368,22 @@ def test_runs_reverse_chronological_ordering(client: TestClient):
     assert runs[0]["run_id"] == r2
 
 
+def test_pr_markdown_description_format():
+    """Verify PR body markdown generation includes defect details and evidence tables."""
+    from app.services.github_service import generate_pr_markdown_description
+
+    body = generate_pr_markdown_description(
+        defect_title="Button Clipping",
+        viewport="mobile_375x667",
+        target_file="app-under-test/src/styles/defects.css",
+        diff="-.btn { width: 500px; }\n+.btn { width: 100%; }"
+    )
+    assert "OmniSight Automated Visual QA Fix" in body
+    assert "Button Clipping" in body
+    assert "mobile_375x667" in body
+    assert "Visual Evidence" in body
+
+
+
 
 

@@ -42,7 +42,7 @@ flowchart LR
 
 | Step | Action | Description |
 | :--- | :--- | :--- |
-| **1. Inspect** | Browser Automation | Playwright navigates the checkout flow on desktop ($1280\times800$) and mobile ($375\times667$) screens, saving `before.png` and DOM context. |
+| **1. Inspect** | Browser Automation | Playwright navigates the checkout flow on desktop (1280x800) and mobile (375x667) screens, saving `before.png` and DOM context. |
 | **2. Audit** | Multimodal Reasoning | The VLM examines the screenshot and DOM to detect visual bugs (e.g., clipped buttons, bad contrast) and outputs a structured JSON report. |
 | **3. Validate** | Security Sandbox | The patch engine checks that the suggested fix touches only allowlisted files and valid CSS rules, rejecting any path traversal or unsafe code. |
 | **4. Retest** | Verification | The fix is applied in an isolated worktree and the checkout journey is rerun to capture `after.png`. |
@@ -70,7 +70,7 @@ flowchart LR
 | **Visual AI** | Multimodal VLM | Spatial reasoning & defect classification |
 | **Backend API** | FastAPI & Pydantic | Webhook receiver & run management |
 | **PR Automation** | PyGithub & GitHub API | Feature branch, commit, and PR creation |
-| **Frontend UI** | React, Vite, Tailwind CSS | Mock e-commerce target app & QA review dashboard |
+| **Frontend UI** | React, Vite, CSS | Mock e-commerce target app & QA review dashboard |
 
 ---
 
@@ -83,11 +83,16 @@ OmniSight/
 │   ├── evidence.py                     # Screenshot & DOM extractors
 │   ├── vlm_adapter.py                  # Vision-Language Model interface
 │   └── orchestrator.py                 # Self-healing loop state machine
-├── backend/                            # FastAPI gateway & patch validator
-│   ├── app/main.py                     # API endpoints (/webhook/build, /runs)
-│   ├── app/services/patch_engine.py    # Strict allowlist & diff parser
-│   └── app/services/github_service.py  # Branch, commit, and PR engine
-├── dashboard/                          # React QA Reviewer Dashboard
+├── backend/                            # FastAPI gateway, action engine & patch validator
+│   ├── app/
+│   │   ├── core/config.py              # Environment configuration & security boundaries
+│   │   ├── schemas/run_schema.py       # Pydantic v2 data models & enums
+│   │   ├── services/action_engine.py   # Multimodal VLM output parser
+│   │   ├── services/patch_validator.py # Zero-Trust patch security guardrails
+│   │   ├── services/github_service.py  # Branch, commit, and PR engine
+│   │   └── main.py                     # API endpoints (/webhook/build, /runs, etc.)
+│   ├── terraform/                      # IaC deployment configuration
+│   └── tests/                          # 67 passing unit & integration tests
 ├── app-under-test/                     # Mock React shop with intentional bugs
 └── artifacts/                          # Local run evidence (before/after screenshots)
 ```
@@ -108,19 +113,21 @@ python -m venv venv
 # On macOS/Linux:
 source venv/bin/activate
 
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
+# If using the browser automation runner:
+pip install -r automation/requirements.txt
 playwright install chromium
 ```
 
 ### 2. Configure Environment
 
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory (or use `backend/.env`):
 
 ```env
 GITHUB_TOKEN=your_github_personal_access_token
-GITHUB_REPO=your-username/OmniSight
+REPO_NAME=Kailash-18/OmniSight
+MOCK_GITHUB=false
 VLM_API_KEY=your_api_key_here
-# Optional: Set to true to run offline with mock VLM responses
 MOCK_VLM=false
 ```
 
@@ -136,6 +143,9 @@ uvicorn app.main:app --app-dir backend --reload --port 8000
 # Terminal 3: Run Automation Visual QA Runner
 python -m automation.cli --target http://localhost:5173
 
+# Run Backend Test Suite (67 tests)
+python -m pytest backend/tests/ -v
+
 # Run Automation Test Suite
 python -m pytest automation/tests/
 ```
@@ -144,6 +154,7 @@ python -m pytest automation/tests/
 
 ## Technical Documentation
 
+* [Backend Gateway & Action Engine](backend/README.md): Detailed API reference, zero-trust guardrails, and test suite.
 * [System Architecture](docs/architecture.md): Component topology, closed remediation loop, and security model.
 * [API & Data Contract](docs/api-contract.md): Endpoint specifications, finding schemas, and run status enums.
 * [Demonstration Script](docs/demo-script.md): Step-by-step walkthrough for milestone reviews.

@@ -22,7 +22,6 @@ class EvidenceCollector:
         self.dom_dir = self.run_dir / "dom"
         self.logs_dir = self.run_dir / "logs"
 
-        # Initialize directory tree
         for directory in [self.run_dir, self.screenshots_dir, self.dom_dir, self.logs_dir]:
             directory.mkdir(parents=True, exist_ok=True)
 

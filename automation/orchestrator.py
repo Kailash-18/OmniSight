@@ -54,7 +54,6 @@ class Orchestrator:
         app_url = target_url or config.app_url
 
         try:
-            # 1. Inspect
             self.state = AgentState.INSPECTING
             run_results = run_visual_audit_journey(
                 app_url=app_url,
@@ -62,7 +61,6 @@ class Orchestrator:
                 evidence=evidence
             )
 
-            # 2. Audit
             self.state = AgentState.AUDITING
             audit_report = self.vlm.audit_viewports(
                 run_id=evidence.run_id,
@@ -72,7 +70,6 @@ class Orchestrator:
                 dom_snapshots=run_results["dom_snapshots"],
             )
 
-            # 3. Evaluate Findings
             if not audit_report.findings:
                 self.state = AgentState.FIXED
                 return {
@@ -82,10 +79,8 @@ class Orchestrator:
                     "message": "Zero visual defects detected. App visually healthy."
                 }
 
-            # 4. Patch Evaluation & Bounded Retest
             if audit_report.proposed_patch:
                 self.state = AgentState.VALIDATING
-                # For Week 1 baseline, mark as fixed when patch is generated
                 self.state = AgentState.FIXED
                 final_status = AgentState.FIXED.value
             else:

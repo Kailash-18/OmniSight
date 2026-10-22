@@ -19,16 +19,15 @@ The OmniSight Backend service acts as the central intelligence and security clea
 
 ---
 
-## 🗓️ Weekly Milestones (Member 1)
+## 📦 Core Modules & Engineering Deliverables (Member 1)
 
-| Period | Milestone | Status | Details |
+| Module | Core Responsibility | Status | Technical Implementation |
 | :--- | :--- | :---: | :--- |
-| **Week 1** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/runs`, `/runs/{run_id}`, shared Pydantic data schemas. |
-| **Week 2 (Day 1-2)** | Action Engine & Security Validator | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), path traversal defense, allowlist checks, script injection filters, 42 unit/integration tests. |
-| **Week 2 (Day 3-5)** | Mid-Project Review & Integration | 🚀 Ready | Extraction check verified, sandbox retest coordination with Team Lead & Member 2. |
-
-| **Week 3** | Bounded Self-Healing & PR Engine | ✅ Scaffolded | Branch, commit, and PR creation via PyGithub with mock fallbacks for offline testing. |
-| **Week 4** | Production Hardening & Cloud Deploy | ✅ Prepared | Terraform parameterized infrastructure module (`backend/terraform/`). |
+| **API Gateway & Ingestion Engine** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/runs`, `/runs/{run_id}`, shared Pydantic data schemas. |
+| **Multimodal Action Engine** | VLM Parsing & Code Block Extraction | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), natural language isolation, and structured findings. |
+| **Zero-Trust Security Validator** | Safe Code Modification Guardrails | ✅ Completed | Path traversal defense, allowlist checks, script injection filters, and 56 passing unit/integration tests. |
+| **Pull Request Automation Service** | Bounded Self-Healing & Evidence PRs | ✅ Ready | Branch, commit, and evidence-backed PR generation via PyGithub with mock fallbacks for offline testing. |
+| **Cloud Infrastructure as Code** | Production Hardening & Cloud Deploy | ✅ Prepared | Terraform parameterized infrastructure module (`backend/terraform/`) with zero hardcoded credentials. |
 
 ---
 
@@ -249,6 +248,11 @@ terraform plan
 
 ### 6. Submit and PR Validated Patch
 * **Endpoint**: `POST /runs/{run_id}/submit-patch`
+
+### 7. System Milestone Tracker
+* **Endpoint**: `GET /api/milestones`
+* **Response (200 OK)**:
+  Returns status of Member 1 deliverables (`foundation_scaffolding`, `action_engine_and_security`, `system_integration`, `pr_automation_engine`), approved target hosts, and file allowlists.
 
 ---
 

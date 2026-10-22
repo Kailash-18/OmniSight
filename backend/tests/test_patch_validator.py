@@ -169,3 +169,13 @@ def test_reject_null_byte_in_file_content():
     res = validate_patch(target, diff, file_content=bad_content)
     assert res["validation_status"] is False
     assert "Null byte detected in file content payload" in res["validator_errors"]
+
+
+def test_patch_validator_whitespace_tolerance():
+    """Verify patch validator gracefully handles surrounding whitespace and newlines."""
+    target = "  app-under-test/src/styles/defects.css  \n"
+    diff = "  \n\n -.btn { width: 500px; }\n+.btn { width: 100%; }\n\n  "
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is True
+    assert res["target_file"] == "app-under-test/src/styles/defects.css"
+

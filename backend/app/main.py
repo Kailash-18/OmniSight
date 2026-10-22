@@ -84,7 +84,13 @@ def _validate_target_host(target_url: str) -> str:
         )
 
 
-@app.get("/health", response_model=HealthCheckResponse, status_code=status.HTTP_200_OK)
+@app.get(
+    "/health",
+    response_model=HealthCheckResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["System"],
+    summary="Backend Health Check"
+)
 def health_check():
     """Health check endpoint to verify backend service readiness."""
     return HealthCheckResponse(
@@ -94,7 +100,12 @@ def health_check():
     )
 
 
-@app.get("/api/milestones", status_code=status.HTTP_200_OK)
+@app.get(
+    "/api/milestones",
+    status_code=status.HTTP_200_OK,
+    tags=["System"],
+    summary="Engineering Deliverables and Security Boundaries"
+)
 def get_milestone_status():
     """Returns tracking status for Member 1 milestones and allowed security domains."""
     return {

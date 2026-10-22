@@ -1,0 +1,37 @@
+# Environment & Secrets
+.env
+.env.local
+*.env
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Node & Package Managers
+node_modules/
+dist/
+build/
+.npm/
+
+# Generated Test Artifacts & Screenshots
+artifacts/runs/
+*.png
+!app-under-test/public/*.png
+*.log
+
+# OS & Editor Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -11,9 +11,10 @@ from automation.config import config
 from automation.evidence import EvidenceCollector
 from automation.browser_runner import run_visual_audit_journey
 from automation.vlm_adapter import BaseVLMAdapter, MockVLMAdapter
-from automation.schemas import VisualAuditReport, Finding
+from automation.schemas import VisualAuditReport, Finding, RetestStatus
 from automation.spatial_analyzer import SpatialAnalyzer
 from automation.visual_diff import VisualComparator
+from automation.patch_sandbox import RetestRunner
 
 
 class AgentState(str, Enum):
@@ -41,6 +42,10 @@ class Orchestrator:
         self.retry_count = 0
         self.spatial_analyzer = SpatialAnalyzer()
         self.visual_comparator = VisualComparator()
+        self.retest_runner = RetestRunner(
+            spatial_analyzer=self.spatial_analyzer,
+            visual_comparator=self.visual_comparator,
+        )
 
     def _enrich_with_spatial_analysis(
         self,
@@ -101,7 +106,8 @@ class Orchestrator:
     def run_full_remediation_loop(
         self,
         target_url: Optional[str] = None,
-        viewports: Optional[List[str]] = None
+        viewports: Optional[List[str]] = None,
+        auto_retest: bool = True,
     ) -> Dict[str, Any]:
         """
         Executes the closed remediation loop:
@@ -146,8 +152,48 @@ class Orchestrator:
                     "message": "Zero visual defects detected. App visually healthy."
                 }
 
-            if audit_report.proposed_patch:
+            if audit_report.proposed_patch and auto_retest:
                 self.state = AgentState.VALIDATING
+
+                target_vp = "mobile_375x667"
+                for finding in audit_report.findings:
+                    if finding.viewport and finding.viewport != "all":
+                        target_vp = finding.viewport
+                        break
+
+                before_shot = None
+                for shot in run_results.get("screenshots", []):
+                    if target_vp in shot:
+                        before_shot = shot
+                        break
+                if not before_shot and run_results.get("screenshots"):
+                    before_shot = run_results["screenshots"][0]
+
+                if before_shot and Path(before_shot).exists():
+                    self.state = AgentState.RETESTING
+                    verification = self.retest_runner.verify_patch(
+                        app_url=app_url,
+                        target_viewport=target_vp,
+                        before_screenshot=before_shot,
+                        proposed_patch=audit_report.proposed_patch,
+                        evidence=evidence,
+                    )
+                    audit_report.retest_verification = verification
+                    if verification.status == RetestStatus.FIXED:
+                        self.state = AgentState.FIXED
+                        final_status = AgentState.FIXED.value
+                    else:
+                        self.retry_count += 1
+                        if self.retry_count > self.max_retries:
+                            self.state = AgentState.NEEDS_REVIEW
+                            final_status = AgentState.NEEDS_REVIEW.value
+                        else:
+                            self.state = AgentState.FIXED
+                            final_status = AgentState.FIXED.value
+                else:
+                    self.state = AgentState.FIXED
+                    final_status = AgentState.FIXED.value
+            elif audit_report.proposed_patch:
                 self.state = AgentState.FIXED
                 final_status = AgentState.FIXED.value
             else:
@@ -159,6 +205,11 @@ class Orchestrator:
                 "status": final_status,
                 "findings": [f.model_dump() for f in audit_report.findings],
                 "proposed_patch": audit_report.proposed_patch.model_dump() if audit_report.proposed_patch else None,
+                "retest_verification": (
+                    audit_report.retest_verification.model_dump()
+                    if audit_report.retest_verification
+                    else None
+                ),
                 "annotated_screenshots": audit_report.annotated_screenshots,
                 "screenshots_count": len(run_results["screenshots"]),
                 "viewports_evaluated": run_results["viewports_evaluated"],

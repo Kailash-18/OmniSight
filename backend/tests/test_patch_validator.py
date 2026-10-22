@@ -122,3 +122,40 @@ def test_reject_script_injection_in_css():
         res = validate_patch(target, bad_diff)
         assert res["validation_status"] is False
         assert "injection pattern detected" in res["validator_errors"]
+
+
+def test_target_path_prefix_normalization():
+    diff = "-old\n+new"
+    for prefixed in [
+        "./app-under-test/src/styles/defects.css",
+        "a/app-under-test/src/styles/defects.css",
+        "b/app-under-test/src/styles/defects.css",
+        "./app-under-test/src/App.css",
+        "a/app-under-test/src/index.css",
+    ]:
+        res = validate_patch(prefixed, diff)
+        assert res["validation_status"] is True
+        assert res["validator_errors"] is None
+
+
+def test_validate_patch_with_file_content():
+    target = "app-under-test/src/styles/defects.css"
+    diff = "-old\n+new"
+
+    # Valid file content
+    good_content = ".container { display: flex; }"
+    res = validate_patch(target, diff, file_content=good_content)
+    assert res["validation_status"] is True
+
+    # Malicious file content
+    bad_content = ".container { display: flex; } <script>alert(1)</script>"
+    res_bad = validate_patch(target, diff, file_content=bad_content)
+    assert res_bad["validation_status"] is False
+    assert "injection pattern detected in file content" in res_bad["validator_errors"]
+
+    # Null byte in file content
+    null_content = ".container { \x00 display: flex; }"
+    res_null = validate_patch(target, diff, file_content=null_content)
+    assert res_null["validation_status"] is False
+    assert "Null byte detected" in res_null["validator_errors"]
+

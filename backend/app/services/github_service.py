@@ -4,9 +4,10 @@ Creates isolated remediation branches, commits validated patches, and opens evid
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
+
 from github import Github, GithubException
+
 from app.core.config import settings
 
 logger = logging.getLogger("omnisight.backend.github")
@@ -18,9 +19,9 @@ def generate_pr_markdown_description(
     target_file: str,
     diff: str,
     verification_status: str = "Verified Fixed in Sandbox",
-    before_screenshot_url: Optional[str] = None,
-    after_screenshot_url: Optional[str] = None,
-    limitations: Optional[str] = None
+    before_screenshot_url: str | None = None,
+    after_screenshot_url: str | None = None,
+    limitations: str | None = None
 ) -> str:
     """Generates standard Markdown PR body with visual evidence and audit metadata."""
     before_img = f"![Before Fix]({before_screenshot_url})" if before_screenshot_url else "_Evidence captured in local run artifacts._"
@@ -62,9 +63,9 @@ def create_pull_request_for_fix(
     run_id: str,
     target_file: str,
     file_content: str,
-    commit_message: Optional[str] = None,
-    pr_title: Optional[str] = None,
-    pr_body: Optional[str] = None
+    commit_message: str | None = None,
+    pr_title: str | None = None,
+    pr_body: str | None = None
 ) -> str:
     """
     Creates an isolated feature branch, commits the approved file patch, and opens a GitHub PR.
@@ -105,7 +106,7 @@ def create_pull_request_for_fix(
                     existing_ref.edit(sha=base_branch_ref.commit.sha, force=True)
                 except Exception:
                     # If updating fails, use a unique timestamped branch
-                    branch_name = f"omnisight-fix-{run_id}-{int(datetime.utcnow().timestamp())}"
+                    branch_name = f"omnisight-fix-{run_id}-{int(datetime.now(UTC).timestamp())}"
                     repo.create_git_ref(
                         ref=f"refs/heads/{branch_name}",
                         sha=base_branch_ref.commit.sha
@@ -156,9 +157,9 @@ def create_pull_request_for_fix(
                 pulls = repo.get_pulls(state="open", head=f"{repo.owner.login}:{branch_name}")
                 for p in pulls:
                     return p.html_url
-            raise pr_err
+            raise
 
 
     except Exception as e:
-        logger.error(f"GitHub PR automation error for run {run_id}: {str(e)}")
-        raise RuntimeError(f"GitHub PR creation failed: {str(e)}")
+        logger.error(f"GitHub PR automation error for run {run_id}: {e}")
+        raise RuntimeError(f"GitHub PR creation failed: {e}") from e

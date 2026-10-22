@@ -6,13 +6,14 @@ and executable code blocks, and validates patches against strict security guardr
 
 import json
 import re
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any
+
 from app.schemas.run_schema import (
+    DefectCategory,
     FindingSchema,
     PatchObject,
-    VLMParseResponse,
-    DefectCategory,
     Severity,
+    VLMParseResponse,
 )
 from app.services.patch_validator import validate_patch
 
@@ -21,7 +22,7 @@ class ActionEngine:
     """Action Engine for extracting, parsing, and verifying VLM visual defect audits."""
 
     @staticmethod
-    def extract_code_blocks(text: str) -> List[Dict[str, str]]:
+    def extract_code_blocks(text: str) -> list[dict[str, str]]:
         """
         Extracts all markdown-fenced code blocks from prose text.
         Returns a list of dicts with 'lang' and 'code'.
@@ -52,7 +53,7 @@ class ActionEngine:
             return 0.8
 
     @staticmethod
-    def _normalize_category(cat_val: Any) -> Tuple[DefectCategory, Optional[str]]:
+    def _normalize_category(cat_val: Any) -> tuple[DefectCategory, str | None]:
         """Normalizes defect categories handling case and hyphens."""
         warning = None
         s = str(cat_val).strip().lower().replace("-", "_")
@@ -62,7 +63,7 @@ class ActionEngine:
             return DefectCategory.ELEMENT_OVERLAP, f"Unknown category '{cat_val}', normalized to element_overlap."
 
     @staticmethod
-    def _normalize_severity(sev_val: Any) -> Tuple[Severity, Optional[str]]:
+    def _normalize_severity(sev_val: Any) -> tuple[Severity, str | None]:
         """Normalizes severity strings handling case."""
         warning = None
         s = str(sev_val).strip().lower()
@@ -72,7 +73,7 @@ class ActionEngine:
             return Severity.MEDIUM, f"Unknown severity '{sev_val}', normalized to medium."
 
     @classmethod
-    def extract_json_object(cls, text: str) -> Tuple[Optional[Any], List[str]]:
+    def extract_json_object(cls, text: str) -> tuple[Any | None, list[str]]:
         """
         Robustly extracts the primary JSON object or list from raw VLM output.
         Handles pure JSON, markdown fenced JSON, and JSON surrounded by natural language.
@@ -101,27 +102,31 @@ class ActionEngine:
             pass
 
         # Strategy 3: Find outermost balanced curly braces or brackets in prose
+        candidates = []
         for start_char, end_char in [("{", "}"), ("[", "]")]:
             start_idx = cleaned_text.find(start_char)
             end_idx = cleaned_text.rfind(end_char)
             if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                candidate = cleaned_text[start_idx:end_idx + 1]
-                try:
-                    data = json.loads(candidate, strict=False)
-                    if isinstance(data, (dict, list)):
-                        return data, errors
-                except json.JSONDecodeError:
-                    # Attempt light sanitization (remove trailing commas before closing brackets)
-                    sanitized = re.sub(r",\s*([\]}])", r"\1", candidate)
-                    try:
-                        data = json.loads(sanitized, strict=False)
-                        if isinstance(data, (dict, list)):
-                            return data, errors
-                    except json.JSONDecodeError as err:
-                        errors.append(f"Failed to decode embedded JSON structure: {str(err)}")
+                candidates.append((start_idx, end_idx, cleaned_text[start_idx:end_idx + 1]))
 
-        errors.append("No valid JSON structure could be isolated from model response.")
-        return None, errors
+        # Sort candidates so the earliest occurring bracket pair is tried first
+        candidates.sort(key=lambda c: (c[0], -(c[1] - c[0])))
+
+        for _, _, candidate in candidates:
+            try:
+                data = json.loads(candidate, strict=False)
+                if isinstance(data, (dict, list)):
+                    return data, []
+            except json.JSONDecodeError:
+                sanitized = re.sub(r",\s*([\]}])", r"\1", candidate)
+                try:
+                    data = json.loads(sanitized, strict=False)
+                    if isinstance(data, (dict, list)):
+                        return data, []
+                except json.JSONDecodeError:
+                    pass
+
+        return None, ["No valid JSON structure could be isolated from model response."]
 
     @classmethod
     def parse_vlm_response(cls, raw_vlm_output: str) -> VLMParseResponse:
@@ -146,13 +151,46 @@ class ActionEngine:
         data, parse_errors = cls.extract_json_object(raw_vlm_output)
 
         if data is None:
+            # Check if there is an isolated diff code block even without JSON findings
+            code_blocks = cls.extract_code_blocks(raw_vlm_output)
+            diff_blocks = [b for b in code_blocks if b["lang"] in ("diff", "patch", "css")]
+            if diff_blocks:
+                diff_text = diff_blocks[0]["code"]
+                target_file = None
+                diff_target_match = re.search(r"^\+\+\+\s+(?:b/)?([^\t\r\n]+)", diff_text, re.MULTILINE)
+                if diff_target_match:
+                    target_file = diff_target_match.group(1).strip()
+                if not target_file:
+                    target_file = "app-under-test/src/styles/defects.css"
+
+                proposed_patch = PatchObject(
+                    target_file=target_file,
+                    diff=diff_text,
+                    explanation="Isolated code block extracted from prose"
+                )
+                val_result = validate_patch(proposed_patch.target_file, proposed_patch.diff)
+                validation_status = val_result["validation_status"]
+                validator_errors = val_result["validator_errors"]
+                proposed_patch.validation_status = validation_status
+                proposed_patch.validator_errors = validator_errors
+
+                return VLMParseResponse(
+                    is_valid=True,
+                    findings=[],
+                    summary="Diff code block extracted from response without structured findings JSON",
+                    proposed_patch=proposed_patch,
+                    validation_status=validation_status,
+                    validator_errors=validator_errors,
+                    parse_errors=["No structured findings JSON provided, extracted diff block."]
+                )
+
             return VLMParseResponse(
                 is_valid=False,
                 findings=[],
                 summary=None,
                 proposed_patch=None,
                 validation_status=False,
-                validator_errors="Unable to parse JSON from VLM response.",
+                validator_errors="Unable to parse JSON or diff block from VLM response.",
                 parse_errors=parse_errors
             )
 
@@ -167,7 +205,7 @@ class ActionEngine:
             proposed_patch_data = data.get("proposed_patch")
 
         # 1. Parse findings
-        parsed_findings: List[FindingSchema] = []
+        parsed_findings: list[FindingSchema] = []
         for idx, item in enumerate(raw_findings):
             if not isinstance(item, dict):
                 parse_errors.append(f"Finding at index {idx} is not an object.")
@@ -198,10 +236,10 @@ class ActionEngine:
                 )
                 parsed_findings.append(finding)
             except Exception as e:
-                parse_errors.append(f"Failed to validate finding schema at index {idx}: {str(e)}")
+                parse_errors.append(f"Failed to validate finding schema at index {idx}: {e!s}")
 
         # 2. Extract proposed patch
-        proposed_patch: Optional[PatchObject] = None
+        proposed_patch: PatchObject | None = None
 
         if isinstance(proposed_patch_data, dict):
             target_file = proposed_patch_data.get("target_file", "").strip()
@@ -218,10 +256,16 @@ class ActionEngine:
             code_blocks = cls.extract_code_blocks(raw_vlm_output)
             diff_blocks = [b["code"] for b in code_blocks if b["lang"] in ("diff", "patch", "css")]
             if diff_blocks:
-                target_file = data.get("target_file", "app-under-test/src/styles/defects.css") if isinstance(data, dict) else "app-under-test/src/styles/defects.css"
+                diff_text = diff_blocks[0]
+                target_file = None
+                diff_target_match = re.search(r"^\+\+\+\s+(?:b/)?([^\t\r\n]+)", diff_text, re.MULTILINE)
+                if diff_target_match:
+                    target_file = diff_target_match.group(1).strip()
+                if not target_file:
+                    target_file = data.get("target_file", "app-under-test/src/styles/defects.css") if isinstance(data, dict) else "app-under-test/src/styles/defects.css"
                 proposed_patch = PatchObject(
                     target_file=target_file,
-                    diff=diff_blocks[0],
+                    diff=diff_text,
                     explanation="Isolated code block extracted from VLM response"
                 )
 

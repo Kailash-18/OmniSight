@@ -3,8 +3,8 @@ Unit Tests for Action Engine (Member 1 Week 2 Deliverable).
 Verifies extraction of structured findings and executable code blocks from VLM output.
 """
 
-from app.services.action_engine import action_engine
 from app.schemas.run_schema import DefectCategory, Severity
+from app.services.action_engine import action_engine
 
 
 def test_action_engine_pure_json():
@@ -204,3 +204,44 @@ def test_action_engine_empty_input():
     result = action_engine.parse_vlm_response("")
     assert result.is_valid is False
     assert "Empty" in result.validator_errors
+
+
+def test_action_engine_top_level_array_no_spurious_errors():
+    raw_vlm = """Here is the inspection output:
+[
+  {
+    "id": "defect-arr-1",
+    "category": "element_clipping",
+    "severity": "high",
+    "description": "Clipping issue",
+    "viewport": "mobile_375x667",
+    "confidence": 0.92,
+    "suggested_change": "width: 100%",
+    "rationale": "Clipped boundary"
+  }
+]
+"""
+    result = action_engine.parse_vlm_response(raw_vlm)
+    assert result.is_valid is True
+    assert len(result.findings) == 1
+    assert result.findings[0].id == "defect-arr-1"
+    # Ensure no spurious "Failed to decode embedded JSON structure" parse error leaked
+    assert not any("Failed to decode" in err for err in result.parse_errors)
+
+
+def test_action_engine_infers_diff_header_target():
+    raw_vlm = """Identified styling defect:
+```diff
+--- a/app-under-test/src/styles/base.css
++++ b/app-under-test/src/styles/base.css
+@@ -5,3 +5,3 @@
+-.container { padding: 0; }
++.container { padding: 16px; }
+```
+"""
+    result = action_engine.parse_vlm_response(raw_vlm)
+    assert result.is_valid is True
+    assert result.proposed_patch is not None
+    assert result.proposed_patch.target_file == "app-under-test/src/styles/base.css"
+    assert result.validation_status is True
+

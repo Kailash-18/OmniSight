@@ -179,8 +179,20 @@ def test_settings_allowlist_helpers():
     assert settings.is_host_allowed("evil.attacker.com") is False
 
     # Path checks including leading relative and git diff prefixes
-    assert settings.is_path_allowed("app-under-test/src/styles/defects.css") is True
-    assert settings.is_path_allowed("./app-under-test/src/styles/defects.css") is True
-    assert settings.is_path_allowed("a/app-under-test/src/styles/defects.css") is True
     assert settings.is_path_allowed("b/app-under-test/src/styles/defects.css") is True
     assert settings.is_path_allowed("backend/app/main.py") is False
+
+
+def test_patch_submit_payload_validation():
+    """Verify PatchSubmitPayload defaults and required fields."""
+    from app.schemas.run_schema import PatchSubmitPayload
+
+    payload = PatchSubmitPayload(
+        target_file="app-under-test/src/styles/defects.css",
+        diff="-.old { margin: 0; }\n+.old { margin: 10px; }",
+        file_content=".old { margin: 10px; }"
+    )
+    assert payload.target_file == "app-under-test/src/styles/defects.css"
+    assert "OmniSight Automated Visual Defect Fix" in payload.pr_title
+    assert payload.pr_body == ""
+

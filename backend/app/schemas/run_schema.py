@@ -5,7 +5,7 @@ Enforces data integrity, validation rules, and schema compatibility with Automat
 
 from enum import Enum
 from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class RunStatus(str, Enum):
@@ -67,10 +67,6 @@ class RunTriggerPayload(BaseModel):
         default_factory=lambda: ["desktop_1440x900", "mobile_375x667"],
         description="List of target viewports"
     )
-
-
-from pydantic import BaseModel, Field, field_validator
-
 
 class FindingSchema(BaseModel):
     """Structured defect report item from VLM visual inspection."""

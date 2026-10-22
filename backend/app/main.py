@@ -61,11 +61,12 @@ def _validate_target_host(target_url: str) -> str:
         hostname = (parsed.hostname or "").lower()
         if not hostname:
             raise ValueError("Target URL does not contain a valid host.")
-        if hostname not in settings.ALLOWED_TARGET_HOSTS:
+        if not settings.is_host_allowed(hostname):
             raise ValueError(
                 f"Host '{hostname}' is not in allowed target hosts: {settings.ALLOWED_TARGET_HOSTS}"
             )
         return url_to_parse
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

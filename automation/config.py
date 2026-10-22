@@ -6,29 +6,36 @@ Centralized settings for target URLs, viewports, timeouts, and artifact paths.
 import os
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 @dataclass
 class AutomationConfig:
-    # Target Application
     app_url: str = field(
-        default_factory=lambda: os.getenv("APP_URL", "http://localhost:5173")
+        default_factory=lambda: os.getenv("APP_URL", "http://127.0.0.1:5173")
     )
     backend_url: str = field(
-        default_factory=lambda: os.getenv("BACKEND_URL", "http://localhost:8000")
+        default_factory=lambda: os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+    )
+    vlm_api_key: Optional[str] = field(
+        default_factory=lambda: (
+            os.getenv("VLM_API_KEY")
+            or os.getenv("GEMINI_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("ANTHROPIC_API_KEY")
+        )
     )
 
-    # Timeouts (milliseconds)
     navigation_timeout_ms: int = 15000
     action_timeout_ms: int = 5000
     health_check_timeout_s: float = 3.0
 
-    # Browser Execution
     headless: bool = True
     browser_type: str = "chromium"
 
-    # Artifact Storage
     workspace_root: Path = field(
         default_factory=lambda: Path(__file__).resolve().parent.parent
     )
@@ -40,5 +47,4 @@ class AutomationConfig:
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
 
-# Global configuration instance
 config = AutomationConfig()

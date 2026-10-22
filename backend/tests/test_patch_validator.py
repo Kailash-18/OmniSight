@@ -39,12 +39,26 @@ def test_reject_path_traversal():
         "app-under-test/src/../../backend/.env",
         "../../etc/passwd",
         "app-under-test/src/styles/../../../passwords.txt",
+        "app-under-test/src/%2e%2e/backend/app/main.py",
+        "app-under-test/src/styles/%2e%2e%2fdefects.css",
     ]
     diff = "-old\n+new"
     for target in traversal_targets:
         res = validate_patch(target, diff)
         assert res["validation_status"] is False
         assert "Security violation" in res["validator_errors"]
+
+
+def test_reject_null_bytes():
+    bad_target = "app-under-test/src/styles/\x00defects.css"
+    res = validate_patch(bad_target, "-old\n+new")
+    assert res["validation_status"] is False
+    assert "Null byte detected" in res["validator_errors"]
+
+    bad_diff = "-old\n+\x00malicious"
+    res2 = validate_patch("app-under-test/src/styles/defects.css", bad_diff)
+    assert res2["validation_status"] is False
+    assert "Null byte detected" in res2["validator_errors"]
 
 
 def test_reject_absolute_paths():

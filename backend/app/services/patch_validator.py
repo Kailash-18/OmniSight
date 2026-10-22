@@ -5,6 +5,7 @@ Enforces zero-trust guardrails on AI-generated patches to protect codebase integ
 
 import os
 import re
+from urllib.parse import unquote
 from typing import Dict, Any
 from app.core.config import settings
 
@@ -31,7 +32,7 @@ ALLOWED_EXTENSIONS = {".css", ".jsx", ".js"}
 def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
     """
     Validates that a proposed patch strictly adheres to security boundaries:
-    1. Rejects path traversal and absolute paths.
+    1. Rejects path traversal, null bytes, and absolute paths.
     2. Enforces allowed target files and approved extensions.
     3. Validates diff syntax and rejects empty or oversized diffs.
     4. Guards against script injection, shell payloads, and rogue execution.
@@ -44,10 +45,29 @@ def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
             "diff_sanitized": None
         }
 
-    clean_path = target_file.strip().replace("\\", "/")
+    # Detect null bytes in target file or diff
+    if "\x00" in target_file:
+        return {
+            "validation_status": False,
+            "validator_errors": "Security violation: Null byte detected in target file path.",
+            "target_file": target_file,
+            "diff_sanitized": None
+        }
 
-    # 1. Path traversal & absolute path checks
-    if clean_path.startswith("/") or re.match(r"^[a-zA-Z]:", clean_path):
+    if diff_content and "\x00" in diff_content:
+        return {
+            "validation_status": False,
+            "validator_errors": "Security violation: Null byte detected in patch diff payload.",
+            "target_file": target_file,
+            "diff_sanitized": None
+        }
+
+    # URL-decode to prevent URL-encoded directory traversal (%2e%2e)
+    decoded_path = unquote(target_file.strip())
+    clean_path = decoded_path.replace("\\", "/")
+
+    # 1. Path traversal, UNC, & absolute path checks
+    if clean_path.startswith("/") or clean_path.startswith("//") or re.match(r"^[a-zA-Z]:", clean_path):
         return {
             "validation_status": False,
             "validator_errors": "Security violation: Absolute file paths are rejected.",

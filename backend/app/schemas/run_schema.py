@@ -122,6 +122,24 @@ class FindingSchema(BaseModel):
                 return Severity.MEDIUM
         return v
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": "defect-checkout-clipped",
+                "category": "element_clipping",
+                "severity": "high",
+                "description": "Place Order CTA clipped on mobile 375x667 viewport",
+                "viewport": "mobile_375x667",
+                "target_element": "[data-testid='btn-place-order']",
+                "confidence": 0.94,
+                "suggested_change": "width: 100%; box-sizing: border-box;",
+                "rationale": "Bounding box extends past viewport right boundary",
+                "status": "detected"
+            }
+        }
+    }
+
+
 
 class PatchObject(BaseModel):
     """Constrained code/CSS patch suggestion."""

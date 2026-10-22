@@ -45,7 +45,6 @@ class MockVLMAdapter(BaseVLMAdapter):
     ) -> VisualAuditReport:
         findings: List[Finding] = []
 
-        # Analyze captured evidence names for seeded defect scenarios
         for shot_path in screenshots:
             path_str = str(shot_path).lower()
 
@@ -97,10 +96,8 @@ class MockVLMAdapter(BaseVLMAdapter):
                     )
                 )
 
-        # Deduplicate findings by id
         unique_findings = {f.id: f for f in findings}.values()
 
-        # Generate a clean patch for Defect 3 as the primary target
         patch_diff = (
             "--- a/app-under-test/src/styles/defects.css\n"
             "+++ b/app-under-test/src/styles/defects.css\n"

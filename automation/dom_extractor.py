@@ -23,7 +23,6 @@ def extract_dom_context(page: Page) -> Dict[str, Any]:
             const rect = el.getBoundingClientRect();
             const style = window.getComputedStyle(el);
             
-            // Only capture elements with non-zero dimensions
             if (rect.width > 0 || rect.height > 0) {
                 elements.push({
                     tag: el.tagName.toLowerCase(),

@@ -34,7 +34,7 @@ build/
 .npm/
 
 # Generated Test Artifacts & Screenshots
-artifacts/runs/
+artifacts/
 *.png
 !app-under-test/public/*.png
 *.log

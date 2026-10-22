@@ -21,7 +21,7 @@ def main() -> int:
         "--target",
         type=str,
         default=config.app_url,
-        help="Target web app URL (default: http://localhost:5173)",
+        help=f"Target web app URL (default: {config.app_url})",
     )
     parser.add_argument(
         "--viewports",

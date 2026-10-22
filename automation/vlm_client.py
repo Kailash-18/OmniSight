@@ -27,7 +27,13 @@ class LiveVLMAdapter(BaseVLMAdapter):
 
     def __init__(self, provider: str = "auto", api_key: Optional[str] = None):
         self.provider = provider
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+        self.api_key = (
+            api_key
+            or os.getenv("VLM_API_KEY")
+            or os.getenv("GEMINI_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("ANTHROPIC_API_KEY")
+        )
         self.mock_fallback = MockVLMAdapter()
 
     def audit_viewports(
@@ -38,7 +44,6 @@ class LiveVLMAdapter(BaseVLMAdapter):
         screenshots: List[str],
         dom_snapshots: List[str],
     ) -> VisualAuditReport:
-        # Fall back to mock adapter if no API credentials configured
         if not self.api_key:
             return self.mock_fallback.audit_viewports(
                 run_id=run_id,
@@ -48,7 +53,6 @@ class LiveVLMAdapter(BaseVLMAdapter):
                 dom_snapshots=dom_snapshots,
             )
 
-        # Real vision API implementation when keys are present
         try:
             return self._call_vision_model(
                 run_id=run_id,
@@ -57,7 +61,6 @@ class LiveVLMAdapter(BaseVLMAdapter):
                 dom_snapshots=dom_snapshots,
             )
         except Exception:
-            # Fall back to mock adapter to preserve pipeline reliability
             return self.mock_fallback.audit_viewports(
                 run_id=run_id,
                 target_url=target_url,
@@ -73,7 +76,6 @@ class LiveVLMAdapter(BaseVLMAdapter):
         screenshots: List[str],
         dom_snapshots: List[str],
     ) -> VisualAuditReport:
-        # In this implementation, delegate to mock if external libraries are not present
         return self.mock_fallback.audit_viewports(
             run_id=run_id,
             target_url=target_url,

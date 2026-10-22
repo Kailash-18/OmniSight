@@ -212,3 +212,57 @@ def test_visual_comparator_annotate_anomalies(tmp_path: Path):
     assert out.exists()
     with Image.open(out) as res:
         assert res.size == (500, 500)
+
+
+def test_orchestrator_enrich_with_spatial_analysis(tmp_path: Path):
+    from automation.orchestrator import Orchestrator
+    from automation.evidence import EvidenceCollector
+    from automation.schemas import VisualAuditReport
+
+    orchestrator = Orchestrator()
+    evidence = EvidenceCollector(run_id="test-spatial-enrich")
+    evidence.run_dir = tmp_path
+    evidence.annotated_dir = tmp_path / "annotated"
+    evidence.annotated_dir.mkdir(parents=True, exist_ok=True)
+
+    shot_path = tmp_path / "mobile_375x667_cart.png"
+    img = Image.new("RGB", (375, 667), (255, 255, 255))
+    img.save(shot_path)
+
+    dom_path = tmp_path / "mobile_375x667_cart_dom.json"
+    dom_data = {
+        "viewport": {"width": 375, "height": 667},
+        "elements": [
+            {
+                "tag": "button",
+                "test_id": "continue-to-checkout",
+                "box": {"x": 20, "y": 400, "width": 460, "height": 48},
+            }
+        ],
+    }
+    with open(dom_path, "w", encoding="utf-8") as f:
+        json.dump(dom_data, f)
+
+    audit_report = VisualAuditReport(
+        run_id="test-spatial-enrich",
+        target_url="http://127.0.0.1:5173",
+        findings=[],
+        summary="Initial audit",
+    )
+
+    run_results = {
+        "screenshots": [str(shot_path)],
+        "dom_snapshots": [str(dom_path)],
+    }
+
+    enriched = orchestrator._enrich_with_spatial_analysis(
+        audit_report=audit_report,
+        evidence=evidence,
+        run_results=run_results,
+    )
+
+    assert len(enriched.findings) >= 1
+    assert any(f.category == DefectCategory.ELEMENT_CLIPPING for f in enriched.findings)
+    assert len(enriched.annotated_screenshots) == 1
+    assert Path(enriched.annotated_screenshots[0]).exists()
+

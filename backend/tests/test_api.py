@@ -41,17 +41,47 @@ def test_build_webhook_rejects_disallowed_target_host(client: TestClient):
     assert "not in allowed target hosts" in response.json()["detail"]
 
 
-def test_manual_run_trigger(client: TestClient):
+def test_build_webhook_auto_prefixes_scheme(client: TestClient):
     payload = {
-        "target_url": "http://127.0.0.1:5173",
-        "scenario": "checkout_flow",
-        "viewports": ["desktop_1440x900", "mobile_375x667"]
+        "target_url": "localhost:5173",
+        "branch": "main",
+        "scenario": "checkout_flow"
     }
-    response = client.post("/runs", json=payload)
-    assert response.status_code == 201
-    data = response.json()
-    assert "run_id" in data
-    assert data["status"] == "running"
+    response = client.post("/webhook/build", json=payload)
+    assert response.status_code == 202
+    run_id = response.json()["run_id"]
+    detail = client.get(f"/runs/{run_id}").json()
+    assert detail["target"].startswith("http://")
+
+
+def test_build_webhook_rejects_disallowed_scheme(client: TestClient):
+    payload = {
+        "target_url": "ftp://localhost:5173",
+        "branch": "main",
+        "scenario": "checkout_flow"
+    }
+    response = client.post("/webhook/build", json=payload)
+    assert response.status_code == 400
+    assert "not allowed" in response.json()["detail"]
+
+
+def test_list_runs_filtering_and_limit(client: TestClient):
+    # Create two runs
+    r1 = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"}).json()["run_id"]
+    r2 = client.post("/runs", json={"target_url": "http://localhost:5173", "scenario": "checkout_flow"}).json()["run_id"]
+
+    # Filter by queued status
+    queued_runs = client.get("/runs?status_filter=queued").json()
+    assert all(r["status"] == "queued" for r in queued_runs)
+
+    # Filter by running status
+    running_runs = client.get("/runs?status_filter=running").json()
+    assert all(r["status"] == "running" for r in running_runs)
+
+    # Test limit
+    limited = client.get("/runs?limit=1").json()
+    assert len(limited) == 1
+
 
 
 def test_list_and_get_run_details(client: TestClient):

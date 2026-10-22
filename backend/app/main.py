@@ -47,10 +47,17 @@ app.add_middleware(
 runs_db: Dict[str, Dict[str, Any]] = {}
 
 
-def _validate_target_host(target_url: str):
-    """Enforces target URL restriction to prevent SSRF against unauthorized internal services."""
+def _validate_target_host(target_url: str) -> str:
+    """Enforces target URL restriction and scheme validation to prevent SSRF against internal services."""
     try:
-        parsed = urlparse(target_url)
+        url_to_parse = target_url.strip()
+        if "://" not in url_to_parse:
+            url_to_parse = f"http://{url_to_parse}"
+
+        parsed = urlparse(url_to_parse)
+        if parsed.scheme.lower() not in ("http", "https"):
+            raise ValueError(f"Scheme '{parsed.scheme}' not allowed. Must be http or https.")
+
         hostname = (parsed.hostname or "").lower()
         if not hostname:
             raise ValueError("Target URL does not contain a valid host.")
@@ -58,6 +65,7 @@ def _validate_target_host(target_url: str):
             raise ValueError(
                 f"Host '{hostname}' is not in allowed target hosts: {settings.ALLOWED_TARGET_HOSTS}"
             )
+        return url_to_parse
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -81,14 +89,14 @@ def receive_build_webhook(payload: BuildWebhookPayload):
     Simulated CI/CD build event webhook.
     Validates target URL and registers a new audit run in queued status.
     """
-    _validate_target_host(payload.target_url)
+    validated_url = _validate_target_host(payload.target_url)
     run_id = f"run-{int(datetime.now(timezone.utc).timestamp())}"
     start_time = datetime.now(timezone.utc).isoformat()
 
     runs_db[run_id] = {
         "run_id": run_id,
         "start_time": start_time,
-        "target": payload.target_url,
+        "target": validated_url,
         "branch": payload.branch,
         "scenario": payload.scenario,
         "status": RunStatus.QUEUED.value,
@@ -114,14 +122,14 @@ def trigger_run_manual(payload: RunTriggerPayload):
     """
     Manual trigger endpoint to initiate an on-demand browser audit.
     """
-    _validate_target_host(payload.target_url)
+    validated_url = _validate_target_host(payload.target_url)
     run_id = f"run-{int(datetime.now(timezone.utc).timestamp())}"
     start_time = datetime.now(timezone.utc).isoformat()
 
     runs_db[run_id] = {
         "run_id": run_id,
         "start_time": start_time,
-        "target": payload.target_url,
+        "target": validated_url,
         "branch": "main",
         "scenario": payload.scenario,
         "status": RunStatus.RUNNING.value,
@@ -142,10 +150,21 @@ def trigger_run_manual(payload: RunTriggerPayload):
 
 
 @app.get("/runs", response_model=List[RunSummaryResponse])
-def list_runs():
-    """Returns summaries of all recorded test runs for the QA dashboard."""
+def list_runs(
+    limit: int = 50,
+    status_filter: Optional[RunStatus] = None
+):
+    """Returns summaries of recorded test runs in reverse chronological order with optional filtering."""
+    sorted_runs = sorted(
+        runs_db.values(),
+        key=lambda r: r.get("start_time", ""),
+        reverse=True
+    )
+
     summaries = []
-    for r in runs_db.values():
+    for r in sorted_runs:
+        if status_filter and r.get("status") != status_filter.value:
+            continue
         summaries.append(
             RunSummaryResponse(
                 run_id=r["run_id"],
@@ -156,7 +175,10 @@ def list_runs():
                 pr_url=r.get("pr_url")
             )
         )
+        if len(summaries) >= limit:
+            break
     return summaries
+
 
 
 @app.get("/runs/{run_id}", response_model=RunDetailResponse)

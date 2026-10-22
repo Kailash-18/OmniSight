@@ -4,7 +4,7 @@
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-2.0%2B-e92063.svg)](https://docs.pydantic.dev/)
-[![Pytest](https://img.shields.io/badge/Pytest-37%20Passed-45ba4b.svg)](https://pytest.org/)
+[![Pytest](https://img.shields.io/badge/Pytest-32%20Backend%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
 [![Terraform](https://img.shields.io/badge/Terraform-Secured-844FBA.svg)](https://www.terraform.io/)
 
 ---
@@ -14,7 +14,7 @@
 The OmniSight Backend service acts as the central intelligence and security clearinghouse for the autonomous visual self-healing loop:
 1. **CI/CD Gateway (`/webhook/build`)**: Ingests build events from external CI/CD pipelines (or manual QA triggers) and schedules browser audit runs.
 2. **Action Engine (`/action-engine/parse`)**: Parses multimodal Vision-Language Model (VLM) outputs, extracting structured findings, rationale, confidence scores, and unified git diff code patches from natural language and markdown code blocks.
-3. **Zero-Trust Patch Validator**: Verifies that proposed fixes conform to strict security allowlists, rejecting path traversals (`..`), absolute paths, unauthorized file modifications, oversized diffs, and script injection payloads.
+3. **Zero-Trust Patch Validator**: Verifies that proposed fixes conform to strict security allowlists, rejecting path traversals (`..`), URL-encoded traversal (`%2e%2e`), null bytes, absolute paths, unauthorized file modifications, oversized diffs, and script injection payloads.
 4. **GitHub PR Automation**: Once a patch passes automated re-testing in an isolated sandbox, creates a feature branch, commits the approved changes, and opens an evidence-backed Pull Request.
 
 ---
@@ -24,8 +24,9 @@ The OmniSight Backend service acts as the central intelligence and security clea
 | Period | Milestone | Status | Details |
 | :--- | :--- | :---: | :--- |
 | **Week 1** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/runs`, `/runs/{run_id}`, shared Pydantic data schemas. |
-| **Week 2 (Day 1-2)** | Action Engine & Security Validator | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), path traversal defense, allowlist checks, script injection filters, 24 unit/integration tests. |
+| **Week 2 (Day 1-2)** | Action Engine & Security Validator | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), path traversal defense, allowlist checks, script injection filters, 32 unit/integration tests. |
 | **Week 2 (Day 3-5)** | Mid-Project Review & Integration | 🚀 Ready | Extraction check verified, sandbox retest coordination with Team Lead & Member 2. |
+
 | **Week 3** | Bounded Self-Healing & PR Engine | ✅ Scaffolded | Branch, commit, and PR creation via PyGithub with mock fallbacks for offline testing. |
 | **Week 4** | Production Hardening & Cloud Deploy | ✅ Prepared | Terraform parameterized infrastructure module (`backend/terraform/`). |
 

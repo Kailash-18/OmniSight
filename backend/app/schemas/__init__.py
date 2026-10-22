@@ -7,6 +7,7 @@ from app.schemas.run_schema import (
     RunStatus,
     DefectCategory,
     Severity,
+    HealthCheckResponse,
     BuildWebhookPayload,
     RunTriggerPayload,
     FindingSchema,
@@ -23,6 +24,7 @@ __all__ = [
     "RunStatus",
     "DefectCategory",
     "Severity",
+    "HealthCheckResponse",
     "BuildWebhookPayload",
     "RunTriggerPayload",
     "FindingSchema",
@@ -34,3 +36,4 @@ __all__ = [
     "RunSummaryResponse",
     "RunDetailResponse",
 ]
+

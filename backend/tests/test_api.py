@@ -358,4 +358,15 @@ def test_run_details_preserves_finding_rationale(client: TestClient):
     assert detail["findings"][0]["rationale"] == "Promo banner completely covers submit CTA on mobile viewport"
 
 
+def test_runs_reverse_chronological_ordering(client: TestClient):
+    """Verify GET /runs returns records in reverse chronological order by start_time."""
+    r1 = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "flow_1"}).json()["run_id"]
+    r2 = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "flow_2"}).json()["run_id"]
+    runs = client.get("/runs").json()
+    assert len(runs) >= 2
+    # Verify newest run appears first
+    assert runs[0]["run_id"] == r2
+
+
+
 

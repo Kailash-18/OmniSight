@@ -4,7 +4,7 @@
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-2.0%2B-e92063.svg)](https://docs.pydantic.dev/)
-[![Pytest](https://img.shields.io/badge/Pytest-42%20Backend%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
+[![Pytest](https://img.shields.io/badge/Pytest-63%20Backend%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
 [![Terraform](https://img.shields.io/badge/Terraform-Secured-844FBA.svg)](https://www.terraform.io/)
 
 ---
@@ -25,7 +25,7 @@ The OmniSight Backend service acts as the central intelligence and security clea
 | :--- | :--- | :---: | :--- |
 | **API Gateway & Ingestion Engine** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/runs`, `/runs/{run_id}`, shared Pydantic data schemas. |
 | **Multimodal Action Engine** | VLM Parsing & Code Block Extraction | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), natural language isolation, and structured findings. |
-| **Zero-Trust Security Validator** | Safe Code Modification Guardrails | ✅ Completed | Path traversal defense, allowlist checks, script injection filters, and 56 passing unit/integration tests. |
+| **Zero-Trust Security Validator** | Safe Code Modification Guardrails | ✅ Completed | Path traversal defense, allowlist checks, script injection filters, and 63 passing unit/integration tests. |
 | **Pull Request Automation Service** | Bounded Self-Healing & Evidence PRs | ✅ Ready | Branch, commit, and evidence-backed PR generation via PyGithub with mock fallbacks for offline testing. |
 | **Cloud Infrastructure as Code** | Production Hardening & Cloud Deploy | ✅ Prepared | Terraform parameterized infrastructure module (`backend/terraform/`) with zero hardcoded credentials. |
 
@@ -273,7 +273,7 @@ Interactive Swagger docs: `http://localhost:8000/docs`
 ```bash
 python -m pytest backend/tests/ -v
 ```
-All **32 backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, idempotency, and API endpoints.
+All **63 backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, idempotency, OpenAPI schema generation, and PR automation.
 
 ### 4. Quick API Smoke Test via cURL
 ```bash
@@ -288,5 +288,19 @@ curl -X POST http://localhost:8000/webhook/build \
 # List active runs
 curl -X GET http://localhost:8000/runs
 ```
+
+---
+
+## ✅ System Integration Verification Matrix
+
+| Area | Component | Verification Status | Test Coverage |
+| :--- | :--- | :---: | :--- |
+| **SSRF Defense** | Target Host & Scheme Filtering | PASSED | `test_build_webhook_rejects_disallowed_target_host`, `test_build_webhook_rejects_disallowed_scheme` |
+| **Multimodal Parser** | VLM Markdown & JSON Parsing | PASSED | `test_action_engine_markdown_fenced_json`, `test_action_engine_code_block_extraction` |
+| **Zero-Trust Validator** | Path Traversal & Script Filtering | PASSED | `test_reject_path_traversal`, `test_reject_script_injection_in_file_content` |
+| **State Persistence** | Idempotent Run Updates & Queries | PASSED | `test_update_run_upserts_if_not_present`, `test_runs_reverse_chronological_ordering` |
+| **OpenAPI Contract** | OpenAPI 3.0 Documentation & Tags | PASSED | `test_openapi_spec_tags_and_endpoint_metadata` |
+| **PR Automation** | Automated Branch & PR Generation | PASSED | `test_submit_valid_patch_opens_pr`, `test_pr_markdown_description_format` |
+
 
 

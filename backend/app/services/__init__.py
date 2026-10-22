@@ -1,4 +1,9 @@
-"""Services package initialization."""
+"""
+OmniSight Services Package.
+Exposes core business logic modules including the Action Engine,
+Zero-Trust Patch Validator, and GitHub Pull Request Automation Service.
+"""
+
 from app.services.patch_validator import validate_patch
 from app.services.action_engine import action_engine, ActionEngine
 from app.services.github_service import (
@@ -13,3 +18,4 @@ __all__ = [
     "create_pull_request_for_fix",
     "generate_pr_markdown_description",
 ]
+

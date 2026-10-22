@@ -105,7 +105,7 @@ def create_pull_request_for_fix(
                     existing_ref.edit(sha=base_branch_ref.commit.sha, force=True)
                 except Exception:
                     # If updating fails, use a unique timestamped branch
-                    branch_name = f"omnisight-fix-{run_id}-{int(datetime.utcnow().timestamp())}"
+                    branch_name = f"omnisight-fix-{run_id}-{int(datetime.now(timezone.utc).timestamp())}"
                     repo.create_git_ref(
                         ref=f"refs/heads/{branch_name}",
                         sha=base_branch_ref.commit.sha

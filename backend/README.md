@@ -269,5 +269,20 @@ Interactive Swagger docs: `http://localhost:8000/docs`
 ```bash
 python -m pytest backend/tests/ -v
 ```
-All **30 backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, idempotency, and API endpoints.
+All **32 backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, idempotency, and API endpoints.
+
+### 4. Quick API Smoke Test via cURL
+```bash
+# Health check
+curl -X GET http://localhost:8000/health
+
+# Trigger simulated build webhook
+curl -X POST http://localhost:8000/webhook/build \
+  -H "Content-Type: application/json" \
+  -d '{"target_url":"http://localhost:5173","branch":"main","scenario":"checkout_flow"}'
+
+# List active runs
+curl -X GET http://localhost:8000/runs
+```
+
 

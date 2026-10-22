@@ -21,12 +21,22 @@ class EvidenceCollector:
         self.screenshots_dir = self.run_dir / "screenshots"
         self.dom_dir = self.run_dir / "dom"
         self.logs_dir = self.run_dir / "logs"
+        self.annotated_dir = self.run_dir / "annotated"
+        self.retest_dir = self.run_dir / "retest"
 
-        for directory in [self.run_dir, self.screenshots_dir, self.dom_dir, self.logs_dir]:
+        for directory in [
+            self.run_dir,
+            self.screenshots_dir,
+            self.dom_dir,
+            self.logs_dir,
+            self.annotated_dir,
+            self.retest_dir,
+        ]:
             directory.mkdir(parents=True, exist_ok=True)
 
         self.recorded_screenshots: List[str] = []
         self.recorded_dom_snapshots: List[str] = []
+        self.recorded_annotated: List[str] = []
         self.console_logs: List[Dict[str, Any]] = []
 
     def get_screenshot_path(self, viewport_name: str, page_name: str) -> Path:
@@ -34,6 +44,15 @@ class EvidenceCollector:
         path = self.screenshots_dir / filename
         self.recorded_screenshots.append(str(path))
         return path
+
+    def get_annotated_path(self, viewport_name: str, page_name: str) -> Path:
+        filename = f"{viewport_name}_{page_name}_annotated.png"
+        path = self.annotated_dir / filename
+        self.recorded_annotated.append(str(path))
+        return path
+
+    def get_retest_path(self, filename: str) -> Path:
+        return self.retest_dir / filename
 
     def save_dom_snapshot(
         self, viewport_name: str, page_name: str, dom_data: Dict[str, Any]

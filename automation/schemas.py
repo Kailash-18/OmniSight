@@ -42,9 +42,34 @@ class ProposedPatch(BaseModel):
     explanation: str = Field(description="Why this patch repairs the visual defect")
 
 
+class RetestStatus(str, Enum):
+    FIXED = "fixed"
+    UNRESOLVED = "unresolved"
+    NEEDS_REVIEW = "needs_review"
+    FAILED = "failed"
+
+
+class RetestVerification(BaseModel):
+    status: RetestStatus = Field(description="Verification evaluation result")
+    target_viewport: str = Field(description="Viewport verified under retest")
+    before_screenshot: str = Field(description="Path to baseline defect screenshot")
+    after_screenshot: str = Field(description="Path to post-repair screenshot")
+    diff_screenshot: Optional[str] = Field(default=None, description="Visual diff overlay path")
+    mismatch_percentage: float = Field(default=0.0, description="Pixel mismatch delta percentage")
+    resolved_findings: List[str] = Field(default_factory=list, description="IDs of cleared defects")
+    remaining_findings: List[str] = Field(default_factory=list, description="IDs of lingering defects")
+    notes: str = Field(default="", description="Verification summary notes")
+
+
 class VisualAuditReport(BaseModel):
     run_id: str
     target_url: str
     findings: List[Finding]
     summary: str
     proposed_patch: Optional[ProposedPatch] = None
+    annotated_screenshots: List[str] = Field(
+        default_factory=list, description="Screenshots with visual defect annotations"
+    )
+    retest_verification: Optional[RetestVerification] = Field(
+        default=None, description="Sandboxed retest verification result"
+    )

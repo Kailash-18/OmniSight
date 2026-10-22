@@ -61,6 +61,9 @@ class RunTriggerPayload(BaseModel):
     )
 
 
+from pydantic import BaseModel, Field, field_validator
+
+
 class FindingSchema(BaseModel):
     """Structured defect report item from VLM visual inspection."""
     id: str = Field(..., description="Unique defect ID (e.g. defect-1-overlap)")
@@ -74,6 +77,43 @@ class FindingSchema(BaseModel):
     rationale: str = Field(..., description="Visual reasoning justification")
     status: str = Field(default="detected", description="Current remediation status")
 
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def normalize_confidence(cls, v: Any) -> float:
+        try:
+            if isinstance(v, str):
+                v_clean = v.strip().rstrip("%")
+                f = float(v_clean)
+            else:
+                f = float(v)
+            if f > 1.0:
+                f = f / 100.0
+            return max(0.0, min(1.0, f))
+        except (ValueError, TypeError):
+            return 0.8
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def normalize_category(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            s = v.strip().lower().replace("-", "_")
+            try:
+                return DefectCategory(s)
+            except ValueError:
+                return DefectCategory.ELEMENT_OVERLAP
+        return v
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def normalize_severity(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            s = v.strip().lower()
+            try:
+                return Severity(s)
+            except ValueError:
+                return Severity.MEDIUM
+        return v
+
 
 class PatchObject(BaseModel):
     """Constrained code/CSS patch suggestion."""
@@ -82,6 +122,14 @@ class PatchObject(BaseModel):
     explanation: Optional[str] = Field(default=None, description="Rationale for the patch")
     validation_status: Optional[bool] = Field(default=None, description="Whether patch passed security checks")
     validator_errors: Optional[str] = Field(default=None, description="Error reason if patch was rejected")
+
+    @field_validator("target_file", mode="before")
+    @classmethod
+    def normalize_target_file(cls, v: Any) -> str:
+        if isinstance(v, str):
+            return v.strip().replace("\\", "/")
+        return str(v)
+
 
 
 class PatchSubmitPayload(BaseModel):

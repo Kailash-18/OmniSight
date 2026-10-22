@@ -4,6 +4,7 @@ Creates isolated remediation branches, commits validated patches, and opens evid
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 from github import Github, GithubException
 from app.core.config import settings
@@ -90,15 +91,31 @@ def create_pull_request_for_fix(
 
         branch_name = f"omnisight-fix-{run_id}"
 
-        # 1. Create fix branch from base branch
-        repo.create_git_ref(
-            ref=f"refs/heads/{branch_name}",
-            sha=base_branch_ref.commit.sha
-        )
-
-        # 2. Update or create file
+        # 1. Create fix branch or reuse if existing (idempotent retries)
         try:
-            file_node = repo.get_contents(target_file, ref=default_branch)
+            repo.create_git_ref(
+                ref=f"refs/heads/{branch_name}",
+                sha=base_branch_ref.commit.sha
+            )
+        except GithubException as ref_err:
+            if ref_err.status == 422:
+                # Branch already exists; update it to latest base commit
+                try:
+                    existing_ref = repo.get_git_ref(f"heads/{branch_name}")
+                    existing_ref.edit(sha=base_branch_ref.commit.sha, force=True)
+                except Exception:
+                    # If updating fails, use a unique timestamped branch
+                    branch_name = f"omnisight-fix-{run_id}-{int(datetime.utcnow().timestamp())}"
+                    repo.create_git_ref(
+                        ref=f"refs/heads/{branch_name}",
+                        sha=base_branch_ref.commit.sha
+                    )
+            else:
+                raise
+
+        # 2. Update or create file on branch
+        try:
+            file_node = repo.get_contents(target_file, ref=branch_name)
             repo.update_file(
                 path=target_file,
                 message=default_commit_msg,
@@ -107,22 +124,40 @@ def create_pull_request_for_fix(
                 branch=branch_name
             )
         except GithubException:
-            repo.create_file(
-                path=target_file,
-                message=default_commit_msg,
-                content=file_content,
-                branch=branch_name
+            try:
+                base_node = repo.get_contents(target_file, ref=default_branch)
+                repo.update_file(
+                    path=target_file,
+                    message=default_commit_msg,
+                    content=file_content,
+                    sha=base_node.sha,
+                    branch=branch_name
+                )
+            except GithubException:
+                repo.create_file(
+                    path=target_file,
+                    message=default_commit_msg,
+                    content=file_content,
+                    branch=branch_name
+                )
+
+        # 3. Open PR or retrieve existing PR for branch
+        try:
+            pr = repo.create_pull(
+                title=default_title,
+                body=default_body,
+                head=branch_name,
+                base=default_branch
             )
+            return pr.html_url
+        except GithubException as pr_err:
+            if pr_err.status == 422:
+                # Check if a PR already exists for this head branch
+                pulls = repo.get_pulls(state="open", head=f"{repo.owner.login}:{branch_name}")
+                for p in pulls:
+                    return p.html_url
+            raise pr_err
 
-        # 3. Open PR
-        pr = repo.create_pull(
-            title=default_title,
-            body=default_body,
-            head=branch_name,
-            base=default_branch
-        )
-
-        return pr.html_url
 
     except Exception as e:
         logger.error(f"GitHub PR automation error for run {run_id}: {str(e)}")

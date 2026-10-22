@@ -33,7 +33,15 @@ from app.services.github_service import create_pull_request_for_fix
 app = FastAPI(
     title=settings.API_TITLE,
     version=settings.API_VERSION,
-    description="OmniSight Visual QA Gateway, Action Engine, and PR Automation API"
+    description="OmniSight Visual QA Gateway, Action Engine, and PR Automation API",
+    openapi_tags=[
+        {"name": "System", "description": "Health check and system readiness"},
+        {"name": "CI/CD Webhook", "description": "Build event ingestion and automation triggers"},
+        {"name": "Audit Runs", "description": "Run lifecycle tracking and state management"},
+        {"name": "Action Engine", "description": "Multimodal VLM output parsing and patch validation"},
+    ],
+    contact={"name": "OmniSight Engineering", "email": "engineering@omnisight.local"},
+    license_info={"name": "MIT", "url": "https://opensource.org/licenses/MIT"}
 )
 
 # Enable CORS for QA Dashboard (Member 2)
@@ -91,6 +99,10 @@ def get_milestone_status():
     """Returns tracking status for Member 1 milestones and allowed security domains."""
     return {
         "member": "Member 1 - Backend & PR Automation",
+        "foundation_scaffolding": "completed",
+        "action_engine_and_security": "completed",
+        "system_integration": "completed",
+        "pr_automation_engine": "ready",
         "week_1_foundation": "completed",
         "week_2_action_engine": "completed",
         "week_2_day_3_integration": "completed",
@@ -98,8 +110,6 @@ def get_milestone_status():
         "allowed_targets": settings.ALLOWED_TARGET_HOSTS,
         "allowed_patch_files": settings.ALLOWED_PATCH_FILES,
     }
-
-
 
 
 @app.post("/webhook/build", status_code=status.HTTP_202_ACCEPTED)
@@ -199,7 +209,6 @@ def list_runs(
         if len(summaries) >= limit:
             break
     return summaries
-
 
 
 @app.get("/runs/{run_id}", response_model=RunDetailResponse)
@@ -362,19 +371,20 @@ def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
         )
 
     # 2. If valid, open a GitHub Pull Request
+    sanitized_target = validation_result["target_file"]
     try:
         pr_url = create_pull_request_for_fix(
             run_id=run_id,
-            target_file=payload.target_file,
+            target_file=sanitized_target,
             file_content=payload.file_content,
-            commit_message=f"fix(ui): OmniSight auto-repair for {payload.target_file}",
+            commit_message=f"fix(ui): OmniSight auto-repair for {sanitized_target}",
             pr_title=payload.pr_title,
             pr_body=payload.pr_body
         )
         runs_db[run_id]["status"] = RunStatus.PR_OPENED.value
         runs_db[run_id]["pr_url"] = pr_url
         runs_db[run_id]["patch"] = {
-            "target_file": payload.target_file,
+            "target_file": sanitized_target,
             "diff": payload.diff,
             "validation_status": True,
             "validator_errors": None

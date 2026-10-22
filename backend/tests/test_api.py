@@ -180,7 +180,7 @@ def test_submit_patch_rejected_on_allowlist_violation(client: TestClient):
     assert detail["status"] == "patch_rejected"
 
 
-def test_submit_valid_patch_opens_pr(client: TestClient):
+def test_submit_valid_patch_validated(client: TestClient):
     res = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"})
     run_id = res.json()["run_id"]
 
@@ -195,12 +195,11 @@ def test_submit_valid_patch_opens_pr(client: TestClient):
     assert submit_res.status_code == 200
     data = submit_res.json()
     assert data["status"] == "success"
-    assert "pr_url" in data
-    assert "github.com" in data["pr_url"]
+    assert data["validation_status"] is True
 
     detail = client.get(f"/runs/{run_id}").json()
-    assert detail["status"] == "pr_opened"
-    assert detail["pr_url"] == data["pr_url"]
+    assert detail["status"] == "audited"
+    assert detail["patch"]["validation_status"] is True
 
 
 def test_cors_headers_present(client: TestClient):
@@ -268,7 +267,6 @@ def test_package_schema_and_service_exports():
     assert hasattr(schemas, "BuildWebhookPayload")
     assert hasattr(services, "validate_patch")
     assert hasattr(services, "action_engine")
-    assert hasattr(services, "create_pull_request_for_fix")
 
 
 def test_submit_patch_rejects_malicious_file_content(client: TestClient):

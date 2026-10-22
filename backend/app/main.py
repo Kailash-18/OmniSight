@@ -123,7 +123,12 @@ def get_milestone_status():
     }
 
 
-@app.post("/webhook/build", status_code=status.HTTP_202_ACCEPTED)
+@app.post(
+    "/webhook/build",
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["CI/CD Webhook"],
+    summary="Ingest CI/CD Build Event"
+)
 def receive_build_webhook(payload: BuildWebhookPayload):
     """
     Simulated CI/CD build event webhook.
@@ -158,7 +163,12 @@ def receive_build_webhook(payload: BuildWebhookPayload):
     }
 
 
-@app.post("/runs", status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/runs",
+    status_code=status.HTTP_201_CREATED,
+    tags=["Audit Runs"],
+    summary="Trigger On-Demand Audit Run"
+)
 def trigger_run_manual(payload: RunTriggerPayload):
     """
     Manual trigger endpoint to initiate an on-demand browser audit.
@@ -191,7 +201,12 @@ def trigger_run_manual(payload: RunTriggerPayload):
     }
 
 
-@app.get("/runs", response_model=List[RunSummaryResponse])
+@app.get(
+    "/runs",
+    response_model=List[RunSummaryResponse],
+    tags=["Audit Runs"],
+    summary="List Recorded Audit Runs"
+)
 def list_runs(
     limit: int = 50,
     status_filter: Optional[RunStatus] = None
@@ -222,7 +237,12 @@ def list_runs(
     return summaries
 
 
-@app.get("/runs/{run_id}", response_model=RunDetailResponse)
+@app.get(
+    "/runs/{run_id}",
+    response_model=RunDetailResponse,
+    tags=["Audit Runs"],
+    summary="Get Detailed Audit Run Record"
+)
 def get_run_details(run_id: str):
     """Returns comprehensive forensic details, evidence links, and patch data for a run."""
     if run_id not in runs_db:
@@ -247,7 +267,12 @@ def get_run_details(run_id: str):
     )
 
 
-@app.put("/runs/{run_id}", status_code=status.HTTP_200_OK)
+@app.put(
+    "/runs/{run_id}",
+    status_code=status.HTTP_200_OK,
+    tags=["Audit Runs"],
+    summary="Update Run Progress and Findings"
+)
 def update_run_record(run_id: str, payload: RunRecordUpdatePayload):
     """Updates an existing run record with progress, findings, evidence, or state transitions."""
     if run_id not in runs_db:
@@ -290,7 +315,12 @@ def update_run_record(run_id: str, payload: RunRecordUpdatePayload):
     return {"message": f"Run '{run_id}' updated successfully.", "status": run_entry["status"]}
 
 
-@app.post("/action-engine/parse", response_model=VLMParseResponse)
+@app.post(
+    "/action-engine/parse",
+    response_model=VLMParseResponse,
+    tags=["Action Engine"],
+    summary="Parse VLM Multimodal Findings and Diff"
+)
 def parse_vlm_output(payload: VLMParseRequest):
     """
     Action Engine parser endpoint.
@@ -321,7 +351,12 @@ def parse_vlm_output(payload: VLMParseRequest):
     return result
 
 
-@app.post("/runs/{run_id}/process-vlm-output", response_model=VLMParseResponse)
+@app.post(
+    "/runs/{run_id}/process-vlm-output",
+    response_model=VLMParseResponse,
+    tags=["Action Engine"],
+    summary="Process VLM Output for Specific Run"
+)
 def process_run_vlm_output(run_id: str, payload: VLMParseRequest):
     """Convenience endpoint to parse VLM output and associate it with a specific run."""
     if run_id not in runs_db:
@@ -345,7 +380,11 @@ def process_run_vlm_output(run_id: str, payload: VLMParseRequest):
     return parse_vlm_output(payload)
 
 
-@app.post("/runs/{run_id}/submit-patch")
+@app.post(
+    "/runs/{run_id}/submit-patch",
+    tags=["Audit Runs"],
+    summary="Validate Patch and Open Pull Request"
+)
 def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
     """
     Validates the proposed patch and opens an automated GitHub PR if security checks pass.

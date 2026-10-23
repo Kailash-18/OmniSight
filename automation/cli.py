@@ -44,11 +44,36 @@ def main() -> int:
         action="store_true",
         help="Skip closed-loop sandboxed retest verification",
     )
+    parser.add_argument(
+        "--sync-backend",
+        action="store_true",
+        help="Synchronize audit progress, findings, and patch with FastAPI backend gateway",
+    )
+    parser.add_argument(
+        "--backend-url",
+        type=str,
+        default=config.backend_url,
+        help=f"FastAPI backend gateway URL (default: {config.backend_url})",
+    )
 
     args = parser.parse_args()
 
+    backend_client = None
+    backend_status_str = "Standalone Local Mode"
+    if args.sync_backend:
+        from automation.backend_client import BackendClient
+        backend_client = BackendClient(base_url=args.backend_url)
+        if backend_client.check_health():
+            backend_status_str = f"Connected ({args.backend_url})"
+        else:
+            backend_status_str = f"Offline ({args.backend_url}) - local fallback"
+
     vlm = LiveVLMAdapter() if args.use_live_vlm else MockVLMAdapter()
-    orchestrator = Orchestrator(vlm_adapter=vlm)
+    orchestrator = Orchestrator(
+        vlm_adapter=vlm,
+        backend_client=backend_client,
+        sync_backend=args.sync_backend,
+    )
 
     if not args.json_output:
         print("=" * 60)
@@ -58,6 +83,7 @@ def main() -> int:
         print(f"Engine:     Playwright Chromium (Headless: {config.headless})")
         print(f"VLM:        {'Live Multimodal API' if args.use_live_vlm else 'Deterministic Mock'}")
         print(f"Retest:     {'Disabled' if args.no_retest else 'Sandboxed Verification Enabled'}")
+        print(f"Backend:    {backend_status_str}")
         print("-" * 60)
         print("Starting e-commerce journey and evidence capture...")
 
@@ -74,6 +100,8 @@ def main() -> int:
         print("-" * 60)
         print(f"Run Completed: {result.get('run_id')}")
         print(f"Final Status:  {status.upper()}")
+        if result.get("error"):
+            print(f"Error:         {result['error']}")
         print(f"Screenshots:   {result.get('screenshots_count', 0)} files saved")
         findings = result.get("findings", [])
         print(f"Defects Found: {len(findings)}")
@@ -95,6 +123,9 @@ def main() -> int:
         annotated = result.get("annotated_screenshots", [])
         if annotated:
             print(f"\nAnnotated Overlays: {len(annotated)} bounding-box defect overlays generated")
+
+        if args.sync_backend and backend_client and result.get("run_id"):
+            print(f"\nBackend Run:   {args.backend_url}/runs/{result.get('run_id')}")
 
         if result.get("artifacts_dir"):
             print(f"\nArtifacts stored in: {result['artifacts_dir']}")

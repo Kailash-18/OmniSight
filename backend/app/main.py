@@ -90,6 +90,7 @@ def get_milestone_status():
         "member": "Member 1 - Backend & PR Automation",
         "week_1_foundation": "completed",
         "week_2_action_engine": "completed",
+        "week_2_day_3_integration": "completed",
         "week_3_pr_automation": "ready",
         "allowed_targets": settings.ALLOWED_TARGET_HOSTS,
         "allowed_patch_files": settings.ALLOWED_PATCH_FILES,
@@ -235,10 +236,22 @@ def get_run_details(run_id: str):
 def update_run_record(run_id: str, payload: RunRecordUpdatePayload):
     """Updates an existing run record with progress, findings, evidence, or state transitions."""
     if run_id not in runs_db:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Run '{run_id}' not found."
-        )
+        runs_db[run_id] = {
+            "run_id": run_id,
+            "start_time": datetime.now(UTC).isoformat(),
+            "target": "http://localhost:5173",
+            "branch": "main",
+            "scenario": "checkout_flow",
+            "status": RunStatus.RUNNING.value,
+            "steps": [],
+            "evidence_paths": {},
+            "findings": [],
+            "patch": None,
+            "issue_count": 0,
+            "retry_count": 0,
+            "pr_url": None,
+            "error": None
+        }
 
     run_entry = runs_db[run_id]
     if payload.status is not None:

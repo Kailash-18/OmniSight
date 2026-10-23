@@ -42,13 +42,17 @@ class EvidenceCollector:
     def get_screenshot_path(self, viewport_name: str, page_name: str) -> Path:
         filename = f"{viewport_name}_{page_name}.png"
         path = self.screenshots_dir / filename
-        self.recorded_screenshots.append(str(path))
+        path_str = str(path)
+        if path_str not in self.recorded_screenshots:
+            self.recorded_screenshots.append(path_str)
         return path
 
     def get_annotated_path(self, viewport_name: str, page_name: str) -> Path:
         filename = f"{viewport_name}_{page_name}_annotated.png"
         path = self.annotated_dir / filename
-        self.recorded_annotated.append(str(path))
+        path_str = str(path)
+        if path_str not in self.recorded_annotated:
+            self.recorded_annotated.append(path_str)
         return path
 
     def get_retest_path(self, filename: str) -> Path:
@@ -61,7 +65,9 @@ class EvidenceCollector:
         path = self.dom_dir / filename
         with open(path, "w", encoding="utf-8") as f:
             json.dump(dom_data, f, indent=2)
-        self.recorded_dom_snapshots.append(str(path))
+        path_str = str(path)
+        if path_str not in self.recorded_dom_snapshots:
+            self.recorded_dom_snapshots.append(path_str)
         return path
 
     def record_console_log(self, level: str, message: str, url: str):

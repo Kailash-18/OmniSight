@@ -133,11 +133,11 @@ npm run dev --prefix app-under-test
 # Terminal 2: FastAPI Backend Gateway (Port 8000)
 uvicorn app.main:app --app-dir backend --reload --port 8000
 
-# Terminal 3: Run Automation Visual QA Runner
-python -m automation.cli --target http://localhost:5173
+# Terminal 3: Run Automation Visual QA Runner (Standalone or Synced with Backend Gateway)
+python -m automation.cli --target http://localhost:5173 --sync-backend
 
-# Run Automation Test Suite
-python -m pytest automation/tests/
+# Run Full Test Suite (72 unit, security, and integration tests)
+python -m pytest
 ```
 
 ---
@@ -146,6 +146,7 @@ python -m pytest automation/tests/
 
 * [System Architecture](docs/architecture.md): Component topology, closed remediation loop, and security model.
 * [API & Data Contract](docs/api-contract.md): Endpoint specifications, finding schemas, and run status enums.
+* [Week 2 Day 3 Review & Integration Report](docs/week-2-day-3-review.md): Mid-project milestone review, component status, test matrix, and verification proofs.
 * [Demonstration Script](docs/demo-script.md): Step-by-step walkthrough for milestone reviews.
 * [Decisions & Scope](docs/decisions-and-limitations.md): Technical tradeoffs, MVP boundaries, and known limitations.
 

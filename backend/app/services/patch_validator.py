@@ -85,19 +85,7 @@ def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
         }
 
     # 2. Path allowlist check (Checked first so arbitrary directories are immediately rejected)
-    is_allowed = False
-    for allowed_target in settings.ALLOWED_PATCH_FILES:
-        allowed_normalized = allowed_target.strip().replace("\\", "/")
-        if allowed_normalized.endswith("/"):
-            if clean_path.startswith(allowed_normalized):
-                is_allowed = True
-                break
-        else:
-            if clean_path == allowed_normalized:
-                is_allowed = True
-                break
-
-    if not is_allowed:
+    if not settings.is_path_allowed(clean_path):
         return {
             "validation_status": False,
             "validator_errors": (
@@ -107,6 +95,7 @@ def validate_patch(target_file: str, diff_content: str) -> Dict[str, Any]:
             "target_file": clean_path,
             "diff_sanitized": None
         }
+
 
     # 3. File extension check
     _, ext = os.path.splitext(clean_path)

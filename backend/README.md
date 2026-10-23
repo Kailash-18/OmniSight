@@ -25,7 +25,7 @@ The OmniSight Backend service acts as the central intelligence and security clea
 | :--- | :--- | :---: | :--- |
 | **Week 1** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/runs`, `/runs/{run_id}`, shared Pydantic data schemas. |
 | **Week 2 (Day 1-2)** | Action Engine & Security Validator | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), path traversal defense, allowlist checks, script injection filters, 40 unit/integration tests. |
-| **Week 2 (Day 3-5)** | Mid-Project Review & Integration | 🚀 Ready | Extraction check verified, sandbox retest coordination with Team Lead & Member 2. |
+| **Week 2 (Day 3-5)** | Mid-Project Review & Integration | ✅ Completed | Extraction check verified, sandbox retest coordination with Team Lead & Member 2, end-to-end integration verified. |
 | **Week 3** | Bounded Self-Healing & PR Engine | ⏳ In Progress | Branch, commit, and PR creation via PyGithub with mock fallbacks for offline testing. |
 | **Week 4** | Production Hardening & Cloud Deploy | ⏳ Planned | Containerized deployment and cloud infrastructure. |
 
@@ -212,42 +212,11 @@ cp backend/.env.example backend/.env
 
 ---
 
-## ☁️ Terraform Deployment Security (`backend/terraform/`)
+## ☁️ Cloud Infrastructure (Week 4 Milestone)
 
-Infrastructure definitions for deploying the backend containerized service are located in `backend/terraform/`:
-* `variables.tf`: All parameters (CPU, memory, region, allowed hosts, and sensitive tokens) are parameterized via Terraform variables. The GitHub token is flagged as `sensitive = true`.
-* `main.tf`: Deploys the service without any hardcoded credentials.
-* `terraform.tfvars.example`: Example variable definition file.
-
-> [!IMPORTANT]
-> **Terraform Security Rule**:
-> Never commit `terraform.tfvars` containing live credentials to git. All `*.tfvars` and `*.tfstate` files are excluded by `.gitignore`.
-
-To use Terraform locally:
-```bash
-cd backend/terraform
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your parameters
-terraform init
-terraform plan
-```
-
----
-
-### 4. List All Runs (With Optional Filtering & Pagination)
-* **Endpoint**: `GET /runs?limit=50&status_filter=queued`
-* **Query Parameters**:
-  * `limit` (int, default 50): Maximum number of run summaries to return.
-  * `status_filter` (string, optional): Filter by lifecycle status (`queued`, `running`, `audited`, `fixed`, `pr_opened`, etc.).
-* **Response (200 OK)**:
-  Returns run summaries sorted in reverse chronological order.
-
-### 5. Action Engine VLM Parser
-* **Endpoint**: `POST /action-engine/parse`
-* **Capabilities**: Supports JSON objects, top-level JSON arrays, markdown code fences, and percentage confidence strings (e.g., `"95%"`).
-
-### 6. Submit and PR Validated Patch
-* **Endpoint**: `POST /runs/{run_id}/submit-patch`
+Infrastructure definitions for deploying the containerized backend gateway to AWS App Runner / ECS are staged in `backend/terraform/` for Week 4 deliverables:
+* Zero hardcoded credentials; all parameters and sensitive GitHub PATs are managed via environment variables and `.tfvars` excluded by `.gitignore`.
+* Production containerization will package FastAPI, Uvicorn, and health endpoints.
 
 ---
 
@@ -268,7 +237,7 @@ Interactive Swagger docs: `http://localhost:8000/docs`
 ```bash
 python -m pytest backend/tests/ -v
 ```
-All **32 backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, idempotency, and API endpoints.
+All **40 backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, idempotency, milestone reporting, and API endpoints.
 
 ### 4. Quick API Smoke Test via cURL
 ```bash

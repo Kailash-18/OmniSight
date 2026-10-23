@@ -214,6 +214,7 @@ def test_get_milestones_status(client: TestClient):
     data = response.json()
     assert data["week_1_foundation"] == "completed"
     assert data["week_2_action_engine"] == "completed"
+    assert data["week_2_day_3_integration"] == "completed"
     assert "allowed_targets" in data
     assert "allowed_patch_files" in data
 

@@ -9,7 +9,7 @@ from typing import Tuple, Optional
 
 
 def check_store_health(
-    app_url: str = "http://127.0.0.1:5173", timeout: float = 3.0
+    app_url: str = "http://127.0.0.1:5173", timeout: float = 1.5
 ) -> Tuple[bool, str, Optional[str]]:
     """
     Validates if the target URL is running and is verified as the everyday. store.
@@ -31,7 +31,14 @@ def check_store_health(
                 u.replace("5173", "5175"),
             ])
 
-    for url in candidate_urls:
+    seen = set()
+    unique_candidates = []
+    for u in candidate_urls:
+        if u not in seen:
+            seen.add(u)
+            unique_candidates.append(u)
+
+    for url in unique_candidates:
         try:
             req = urllib.request.Request(
                 url,

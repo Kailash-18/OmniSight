@@ -34,10 +34,18 @@ class Orchestrator:
     def __init__(
         self,
         vlm_adapter: Optional[BaseVLMAdapter] = None,
-        max_retries: int = 1
+        max_retries: int = 1,
+        backend_client: Optional[Any] = None,
+        sync_backend: bool = False,
     ):
         self.vlm = vlm_adapter or MockVLMAdapter()
         self.max_retries = max_retries
+        self.sync_backend = sync_backend
+        self.backend_client = backend_client
+        if self.sync_backend and self.backend_client is None:
+            from automation.backend_client import BackendClient
+            self.backend_client = BackendClient(base_url=config.backend_url)
+
         self.state = AgentState.IDLE
         self.retry_count = 0
         self.spatial_analyzer = SpatialAnalyzer()
@@ -122,6 +130,13 @@ class Orchestrator:
 
         try:
             self.state = AgentState.INSPECTING
+            if self.sync_backend and self.backend_client:
+                self.backend_client.update_run_state(
+                    run_id=evidence.run_id,
+                    status=AgentState.INSPECTING.value,
+                    steps=["initiate_browser_session"],
+                )
+
             run_results = run_visual_audit_journey(
                 app_url=app_url,
                 viewports=viewports,
@@ -129,6 +144,17 @@ class Orchestrator:
             )
 
             self.state = AgentState.AUDITING
+            if self.sync_backend and self.backend_client:
+                self.backend_client.update_run_state(
+                    run_id=evidence.run_id,
+                    status=AgentState.AUDITING.value,
+                    steps=run_results.get("steps_completed", []),
+                    evidence_paths={
+                        "screenshots": run_results.get("screenshots", []),
+                        "dom_snapshots": run_results.get("dom_snapshots", []),
+                    },
+                )
+
             audit_report = self.vlm.audit_viewports(
                 run_id=evidence.run_id,
                 target_url=app_url,
@@ -143,8 +169,25 @@ class Orchestrator:
                 run_results=run_results,
             )
 
+            if self.sync_backend and self.backend_client:
+                self.backend_client.update_run_state(
+                    run_id=evidence.run_id,
+                    findings=[f.model_dump() for f in audit_report.findings],
+                    patch=(
+                        audit_report.proposed_patch.model_dump()
+                        if audit_report.proposed_patch
+                        else None
+                    ),
+                )
+
             if not audit_report.findings:
                 self.state = AgentState.FIXED
+                if self.sync_backend and self.backend_client:
+                    self.backend_client.update_run_state(
+                        run_id=evidence.run_id,
+                        status=AgentState.FIXED.value,
+                        findings=[],
+                    )
                 return {
                     "run_id": evidence.run_id,
                     "status": self.state.value,
@@ -171,6 +214,12 @@ class Orchestrator:
 
                 if before_shot and Path(before_shot).exists():
                     self.state = AgentState.RETESTING
+                    if self.sync_backend and self.backend_client:
+                        self.backend_client.update_run_state(
+                            run_id=evidence.run_id,
+                            status=AgentState.RETESTING.value,
+                        )
+
                     verification = self.retest_runner.verify_patch(
                         app_url=app_url,
                         target_viewport=target_vp,
@@ -200,6 +249,29 @@ class Orchestrator:
                 self.state = AgentState.NEEDS_REVIEW
                 final_status = AgentState.NEEDS_REVIEW.value
 
+            if self.sync_backend and self.backend_client and audit_report.proposed_patch:
+                try:
+                    patch_obj = audit_report.proposed_patch
+                    target_file_path = Path(patch_obj.target_file)
+                    file_content = ""
+                    if target_file_path.exists():
+                        file_content = target_file_path.read_text(encoding="utf-8")
+                    self.backend_client.submit_patch(
+                        run_id=evidence.run_id,
+                        target_file=patch_obj.target_file,
+                        diff=patch_obj.diff,
+                        file_content=file_content,
+                    )
+                except Exception:
+                    pass
+
+            if self.sync_backend and self.backend_client:
+                self.backend_client.update_run_state(
+                    run_id=evidence.run_id,
+                    status=final_status,
+                    retry_count=self.retry_count,
+                )
+
             return {
                 "run_id": evidence.run_id,
                 "status": final_status,
@@ -218,6 +290,12 @@ class Orchestrator:
 
         except Exception as e:
             self.state = AgentState.FAILED
+            if self.sync_backend and self.backend_client:
+                self.backend_client.update_run_state(
+                    run_id=evidence.run_id if 'evidence' in locals() else "unknown",
+                    status=AgentState.FAILED.value,
+                    error=str(e),
+                )
             return {
                 "run_id": evidence.run_id if 'evidence' in locals() else "unknown",
                 "status": AgentState.FAILED.value,

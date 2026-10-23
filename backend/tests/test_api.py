@@ -206,6 +206,17 @@ def test_cors_headers_present(client: TestClient):
     assert response.headers.get("access-control-allow-origin") in ("*", "http://localhost:5173")
 
 
+def test_get_milestones_status(client: TestClient):
+    response = client.get("/api/milestones")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["week_1_foundation"] == "completed"
+    assert data["week_2_action_engine"] == "completed"
+    assert "allowed_targets" in data
+    assert "allowed_patch_files" in data
+
+
+
 
 
 def test_process_run_vlm_output_convenience_endpoint(client: TestClient):

@@ -25,7 +25,6 @@ from app.schemas import (
     VLMParseResponse,
 )
 from app.services.action_engine import action_engine
-from app.services.github_service import create_pull_request_for_fix
 from app.services.patch_validator import validate_patch
 
 app = FastAPI(
@@ -358,29 +357,16 @@ def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
             detail=validation_result["validator_errors"]
         )
 
-    # 2. If valid, open a GitHub Pull Request
-    try:
-        pr_url = create_pull_request_for_fix(
-            run_id=run_id,
-            target_file=payload.target_file,
-            file_content=payload.file_content,
-            commit_message=f"fix(ui): OmniSight auto-repair for {payload.target_file}",
-            pr_title=payload.pr_title,
-            pr_body=payload.pr_body
-        )
-        runs_db[run_id]["status"] = RunStatus.PR_OPENED.value
-        runs_db[run_id]["pr_url"] = pr_url
-        runs_db[run_id]["patch"] = {
-            "target_file": payload.target_file,
-            "diff": payload.diff,
-            "validation_status": True,
-            "validator_errors": None
-        }
-        return {"status": "success", "pr_url": pr_url}
-    except Exception as e:
-        runs_db[run_id]["status"] = RunStatus.FAILED.value
-        runs_db[run_id]["error"] = str(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"PR automation failed: {e!s}"
-        )
+    # 2. If valid, record approved patch on run
+    runs_db[run_id]["status"] = RunStatus.AUDITED.value
+    runs_db[run_id]["patch"] = {
+        "target_file": payload.target_file,
+        "diff": payload.diff,
+        "validation_status": True,
+        "validator_errors": None
+    }
+    return {
+        "status": "success",
+        "validation_status": True,
+        "message": f"Patch for {payload.target_file} passed all zero-trust security guardrails."
+    }

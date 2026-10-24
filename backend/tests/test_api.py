@@ -4,6 +4,7 @@ Verifies build webhook, manual trigger, run queries, patch submission, and SSRF 
 """
 
 from fastapi.testclient import TestClient
+from app.main import runs_db
 
 
 def test_health_check(client: TestClient):
@@ -398,6 +399,88 @@ def test_openapi_spec_tags_and_endpoint_metadata(client: TestClient):
     assert "Audit Runs" in spec["paths"]["/runs"]["get"]["tags"]
     assert "/action-engine/parse" in spec["paths"]
     assert "Action Engine" in spec["paths"]["/action-engine/parse"]["post"]["tags"]
+
+
+def test_github_webhook_pr_merged_updates_run_to_fixed(client: TestClient):
+    """Verify GitHub webhook with merged PR transitions matching run status to FIXED."""
+    run_id = "run-hook-test-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-24T12:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "pr_opened",
+        "steps": ["patch_submitted"],
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/101",
+        "findings": []
+    }
+
+    payload = {
+        "action": "closed",
+        "number": 101,
+        "pull_request": {
+            "html_url": "https://github.com/Kailash-18/OmniSight/pull/101",
+            "number": 101,
+            "state": "closed",
+            "merged": True,
+            "head_ref": f"omnisight-fix-{run_id}"
+        }
+    }
+    response = client.post("/webhook/github", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "processed"
+    assert data["matched_run_id"] == run_id
+    assert runs_db[run_id]["status"] == "fixed"
+    assert "github_pr_merged" in runs_db[run_id]["steps"]
+
+
+def test_github_webhook_pr_closed_unmerged_updates_run_to_needs_review(client: TestClient):
+    """Verify GitHub webhook with closed unmerged PR transitions run status to NEEDS_REVIEW."""
+    run_id = "run-hook-test-2"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-24T12:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "pr_opened",
+        "steps": ["patch_submitted"],
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/102",
+        "findings": []
+    }
+
+    payload = {
+        "action": "closed",
+        "number": 102,
+        "pull_request": {
+            "html_url": "https://github.com/Kailash-18/OmniSight/pull/102",
+            "number": 102,
+            "state": "closed",
+            "merged": False,
+            "head_ref": f"omnisight-fix-{run_id}"
+        }
+    }
+    response = client.post("/webhook/github", json=payload)
+    assert response.status_code == 200
+    assert runs_db[run_id]["status"] == "needs_review"
+    assert "github_pr_closed_unmerged" in runs_db[run_id]["steps"]
+
+
+def test_github_webhook_unmatched_run_processed_gracefully(client: TestClient):
+    """Verify GitHub webhook without matching run completes without error."""
+    payload = {
+        "action": "closed",
+        "number": 999,
+        "pull_request": {
+            "html_url": "https://github.com/Kailash-18/OmniSight/pull/999",
+            "number": 999,
+            "state": "closed",
+            "merged": False,
+            "head_ref": "feature/unrelated"
+        }
+    }
+    response = client.post("/webhook/github", json=payload)
+    assert response.status_code == 200
+    assert response.json()["matched_run_id"] is None
+
 
 
 

@@ -93,6 +93,7 @@ def get_milestone_status():
         "member": "Member 1 - Backend & PR Automation",
         "week_1_foundation": "completed",
         "week_2_action_engine": "completed",
+        "week_2_day_3_integration": "completed",
         "week_3_pr_automation": "ready",
         "allowed_targets": settings.ALLOWED_TARGET_HOSTS,
         "allowed_patch_files": settings.ALLOWED_PATCH_FILES,

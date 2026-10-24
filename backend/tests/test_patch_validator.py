@@ -139,6 +139,20 @@ def test_accept_leading_dot_slash():
     assert res["target_file"] == "app-under-test/src/styles/defects.css"
 
 
+def test_target_path_prefix_normalization():
+    diff = "-old\n+new"
+    for prefixed in [
+        "./app-under-test/src/styles/defects.css",
+        "a/app-under-test/src/styles/defects.css",
+        "b/app-under-test/src/styles/defects.css",
+        "./app-under-test/src/App.css",
+        "a/app-under-test/src/index.css",
+    ]:
+        res = validate_patch(prefixed, diff)
+        assert res["validation_status"] is True
+        assert res["validator_errors"] is None
+
+
 def test_reject_script_injection_in_file_content():
     target = "app-under-test/src/styles/defects.css"
     diff = "-.btn { width: 500px; }\n+.btn { width: 100%; }"

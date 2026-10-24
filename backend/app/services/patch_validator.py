@@ -74,8 +74,10 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
     decoded_path = unquote(target_file.strip())
     clean_path = decoded_path.replace("\\", "/")
 
-    # Normalize benign leading relative prefix "./"
+    # Normalize benign leading relative prefix "./" and git diff prefixes "a/", "b/"
     while clean_path.startswith("./"):
+        clean_path = clean_path[2:]
+    if clean_path.startswith(("a/", "b/")):
         clean_path = clean_path[2:]
 
     # 1. Path traversal, UNC, & absolute path checks

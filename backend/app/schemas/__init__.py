@@ -20,6 +20,7 @@ from app.schemas.run_schema import (
     RunRecordUpdatePayload,
     RunSummaryResponse,
     RunDetailResponse,
+    RunMetricsSummaryResponse,
 )
 
 __all__ = [
@@ -39,5 +40,6 @@ __all__ = [
     "RunRecordUpdatePayload",
     "RunSummaryResponse",
     "RunDetailResponse",
+    "RunMetricsSummaryResponse",
 ]
 

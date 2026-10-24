@@ -267,3 +267,15 @@ class RunDetailResponse(BaseModel):
     retry_count: int = 0
     pr_url: Optional[str] = None
     error: Optional[str] = None
+
+
+class RunMetricsSummaryResponse(BaseModel):
+    """Aggregate audit and PR metrics for the QA dashboard."""
+    total_runs: int = Field(..., description="Total runs recorded")
+    active_runs: int = Field(..., description="Currently queued or running audits")
+    fixed_runs: int = Field(..., description="Runs successfully fixed or verified")
+    prs_opened: int = Field(..., description="Total Pull Requests created")
+    total_defects_detected: int = Field(..., description="Total visual anomalies detected")
+    clean_run_rate_percent: float = Field(..., description="Percentage of runs clean or resolved")
+    defects_by_category: Dict[str, int] = Field(default_factory=dict, description="Count per defect category")
+    runs_by_status: Dict[str, int] = Field(default_factory=dict, description="Count per run lifecycle status")

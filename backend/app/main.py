@@ -23,6 +23,7 @@ from app.schemas import (
     RunRecordUpdatePayload,
     RunSummaryResponse,
     RunDetailResponse,
+    RunMetricsSummaryResponse,
     RunStatus,
     PatchObject,
 )
@@ -301,6 +302,74 @@ def list_runs(
             break
     return summaries
 
+
+@app.get(
+    "/runs/metrics/summary",
+    response_model=RunMetricsSummaryResponse,
+    tags=["Audit Runs"],
+    summary="Get Aggregated Audit & PR Metrics"
+)
+def get_runs_metrics_summary():
+    """
+    Computes real-time aggregate metrics across all recorded audit runs,
+    including total runs, active runs, PR creation count, defect category breakdown,
+    and overall clean/remediated run rate.
+    """
+    total_runs = len(runs_db)
+    if total_runs == 0:
+        return RunMetricsSummaryResponse(
+            total_runs=0,
+            active_runs=0,
+            fixed_runs=0,
+            prs_opened=0,
+            total_defects_detected=0,
+            clean_run_rate_percent=100.0,
+            defects_by_category={},
+            runs_by_status={}
+        )
+
+    active_runs = 0
+    fixed_runs = 0
+    prs_opened = 0
+    total_defects = 0
+    clean_runs = 0
+    defects_by_cat: Dict[str, int] = {}
+    runs_by_stat: Dict[str, int] = {}
+
+    for r in runs_db.values():
+        stat = r.get("status", "unknown")
+        runs_by_stat[stat] = runs_by_stat.get(stat, 0) + 1
+
+        if stat in (RunStatus.QUEUED.value, RunStatus.RUNNING.value, RunStatus.VERIFYING.value):
+            active_runs += 1
+        if stat == RunStatus.FIXED.value:
+            fixed_runs += 1
+        if r.get("pr_url"):
+            prs_opened += 1
+
+        findings = r.get("findings", [])
+        num_issues = r.get("issue_count", len(findings))
+        total_defects += num_issues
+        if num_issues == 0 or stat == RunStatus.FIXED.value:
+            clean_runs += 1
+
+        for f in findings:
+            cat = f.get("category", "other") if isinstance(f, dict) else getattr(f, "category", "other")
+            cat_str = cat.value if hasattr(cat, "value") else str(cat)
+            defects_by_cat[cat_str] = defects_by_cat.get(cat_str, 0) + 1
+
+    clean_rate = round((clean_runs / total_runs) * 100.0, 1)
+
+    return RunMetricsSummaryResponse(
+        total_runs=total_runs,
+        active_runs=active_runs,
+        fixed_runs=fixed_runs,
+        prs_opened=prs_opened,
+        total_defects_detected=total_defects,
+        clean_run_rate_percent=clean_rate,
+        defects_by_category=defects_by_cat,
+        runs_by_status=runs_by_stat
+    )
 
 
 @app.get(

@@ -122,3 +122,36 @@ def test_reject_script_injection_in_css():
         res = validate_patch(target, bad_diff)
         assert res["validation_status"] is False
         assert "injection pattern detected" in res["validator_errors"]
+
+
+def test_accept_app_css_and_index_css():
+    diff = "-.root { margin: 0; }\n+.root { margin: 4px; }"
+    for target in ["app-under-test/src/App.css", "app-under-test/src/index.css"]:
+        res = validate_patch(target, diff)
+        assert res["validation_status"] is True
+        assert res["validator_errors"] is None
+
+
+def test_accept_leading_dot_slash():
+    diff = "-.btn { width: 500px; }\n+.btn { width: 100%; }"
+    res = validate_patch("./app-under-test/src/styles/defects.css", diff)
+    assert res["validation_status"] is True
+    assert res["target_file"] == "app-under-test/src/styles/defects.css"
+
+
+def test_reject_script_injection_in_file_content():
+    target = "app-under-test/src/styles/defects.css"
+    diff = "-.btn { width: 500px; }\n+.btn { width: 100%; }"
+    bad_content = ".btn { width: 100%; } <script>evil()</script>"
+    res = validate_patch(target, diff, file_content=bad_content)
+    assert res["validation_status"] is False
+    assert "Malicious script injection" in res["validator_errors"]
+
+
+def test_reject_null_byte_in_file_content():
+    target = "app-under-test/src/styles/defects.css"
+    diff = "-.btn { width: 500px; }\n+.btn { width: 100%; }"
+    bad_content = ".btn { width: 100%; }\x00/* hidden payload */"
+    res = validate_patch(target, diff, file_content=bad_content)
+    assert res["validation_status"] is False
+    assert "Null byte detected in file content payload" in res["validator_errors"]

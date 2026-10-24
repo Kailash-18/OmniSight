@@ -32,7 +32,7 @@ class Settings:
     RUN_TIMEOUT_SECONDS: int = int(os.getenv("RUN_TIMEOUT_SECONDS", "300"))
 
     # Allowed Target Hosts for Browser Audits (SSRF Prevention)
-    _default_hosts = "localhost,127.0.0.1,0.0.0.0,staging.internal"
+    _default_hosts = "localhost,127.0.0.1,0.0.0.0,::1,staging.internal"
     ALLOWED_TARGET_HOSTS: List[str] = [
         h.strip().lower()
         for h in os.getenv("ALLOWED_TARGET_HOSTS", _default_hosts).split(",")
@@ -43,6 +43,8 @@ class Settings:
     _default_patch_files = (
         "app-under-test/src/styles/defects.css,"
         "app-under-test/src/styles/base.css,"
+        "app-under-test/src/App.css,"
+        "app-under-test/src/index.css,"
         "app-under-test/src/components/,"
         "app-under-test/src/App.jsx"
     )

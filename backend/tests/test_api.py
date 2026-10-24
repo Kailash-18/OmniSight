@@ -269,3 +269,46 @@ def test_package_schema_and_service_exports():
     assert hasattr(services, "create_pull_request_for_fix")
 
 
+def test_update_run_upserts_if_not_present(client: TestClient):
+    unregistered_run_id = f"run-worker-standalone-{uuid_hex()}"
+    update_payload = {
+        "status": "audited",
+        "steps": ["step_one", "step_two"],
+        "retry_count": 0
+    }
+    put_res = client.put(f"/runs/{unregistered_run_id}", json=update_payload)
+    assert put_res.status_code == 200
+
+    detail = client.get(f"/runs/{unregistered_run_id}").json()
+    assert detail["status"] == "audited"
+    assert detail["steps"] == ["step_one", "step_two"]
+
+
+def test_webhook_run_id_uniqueness(client: TestClient):
+    payload = {"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"}
+    r1 = client.post("/webhook/build", json=payload).json()["run_id"]
+    r2 = client.post("/webhook/build", json=payload).json()["run_id"]
+    assert r1 != r2
+
+
+def test_submit_patch_rejects_malicious_file_content(client: TestClient):
+    res = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"})
+    run_id = res.json()["run_id"]
+
+    submit_payload = {
+        "target_file": "app-under-test/src/styles/defects.css",
+        "diff": "-.btn { width: 500px; }\n+.btn { width: 100%; }",
+        "file_content": ".btn { width: 100%; } <script>evil()</script>",
+        "pr_title": "fix(ui): inject script",
+        "pr_body": "Dangerous payload"
+    }
+    submit_res = client.post(f"/runs/{run_id}/submit-patch", json=submit_payload)
+    assert submit_res.status_code == 400
+    assert "Malicious script injection" in submit_res.json()["detail"]
+
+
+def uuid_hex():
+    import uuid
+    return uuid.uuid4().hex[:6]
+
+

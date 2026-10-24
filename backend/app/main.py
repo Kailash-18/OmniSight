@@ -3,6 +3,7 @@ FastAPI CI/CD Gateway and Action Engine API for OmniSight.
 Handles build webhooks, manual audit triggers, run lifecycle, and VLM patch validation.
 """
 
+import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional
@@ -107,7 +108,8 @@ def receive_build_webhook(payload: BuildWebhookPayload):
     Validates target URL and registers a new audit run in queued status.
     """
     validated_url = _validate_target_host(payload.target_url)
-    run_id = f"run-{int(datetime.now(timezone.utc).timestamp())}"
+    unique_suffix = uuid.uuid4().hex[:6]
+    run_id = f"run-{int(datetime.now(timezone.utc).timestamp())}-{unique_suffix}"
     start_time = datetime.now(timezone.utc).isoformat()
 
     runs_db[run_id] = {
@@ -140,7 +142,8 @@ def trigger_run_manual(payload: RunTriggerPayload):
     Manual trigger endpoint to initiate an on-demand browser audit.
     """
     validated_url = _validate_target_host(payload.target_url)
-    run_id = f"run-{int(datetime.now(timezone.utc).timestamp())}"
+    unique_suffix = uuid.uuid4().hex[:6]
+    run_id = f"run-{int(datetime.now(timezone.utc).timestamp())}-{unique_suffix}"
     start_time = datetime.now(timezone.utc).isoformat()
 
     runs_db[run_id] = {
@@ -227,10 +230,22 @@ def get_run_details(run_id: str):
 def update_run_record(run_id: str, payload: RunRecordUpdatePayload):
     """Updates an existing run record with progress, findings, evidence, or state transitions."""
     if run_id not in runs_db:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Run '{run_id}' not found."
-        )
+        runs_db[run_id] = {
+            "run_id": run_id,
+            "start_time": datetime.now(timezone.utc).isoformat(),
+            "target": "http://localhost:5173",
+            "branch": "main",
+            "scenario": "checkout_flow",
+            "status": RunStatus.RUNNING.value,
+            "steps": [],
+            "evidence_paths": {},
+            "findings": [],
+            "patch": None,
+            "issue_count": 0,
+            "retry_count": 0,
+            "pr_url": None,
+            "error": None
+        }
 
     run_entry = runs_db[run_id]
     if payload.status is not None:
@@ -272,10 +287,13 @@ def parse_vlm_output(payload: VLMParseRequest):
             run_entry["patch"] = result.proposed_patch.model_dump()
 
         if result.is_valid:
-            if result.validation_status:
-                run_entry["status"] = RunStatus.AUDITED.value
+            if result.proposed_patch:
+                if result.validation_status:
+                    run_entry["status"] = RunStatus.AUDITED.value
+                else:
+                    run_entry["status"] = RunStatus.PATCH_REJECTED.value
             else:
-                run_entry["status"] = RunStatus.PATCH_REJECTED.value
+                run_entry["status"] = RunStatus.AUDITED.value
         else:
             run_entry["status"] = RunStatus.NEEDS_REVIEW.value
 
@@ -327,8 +345,8 @@ def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
             "error": None
         }
 
-    # 1. Validate patch using security guardrails
-    validation_result = validate_patch(payload.target_file, payload.diff)
+    # 1. Validate patch and file content using security guardrails
+    validation_result = validate_patch(payload.target_file, payload.diff, payload.file_content)
     if not validation_result["validation_status"]:
         runs_db[run_id]["status"] = RunStatus.PATCH_REJECTED.value
         runs_db[run_id]["patch"] = {

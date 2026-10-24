@@ -66,3 +66,75 @@ def test_create_pull_request_deterministic_mock_url(monkeypatch):
     url1 = create_pull_request_for_fix(run_id, "app-under-test/src/App.css", "body {}")
     url2 = create_pull_request_for_fix(run_id, "app-under-test/src/App.css", "body {}")
     assert url1 == url2
+
+
+def test_create_pull_request_with_custom_labels(monkeypatch, caplog):
+    """Verify create_pull_request_for_fix logs and accepts custom labels."""
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+    run_id = "run-label-test-55"
+    custom_labels = ["omnisight", "viewport:mobile", "high-priority"]
+
+    with caplog.at_level("INFO"):
+        pr_url = create_pull_request_for_fix(
+            run_id=run_id,
+            target_file="app-under-test/src/styles/defects.css",
+            file_content=".checkout { display: block; }",
+            labels=custom_labels
+        )
+
+    assert pr_url.startswith("https://github.com/Kailash-18/OmniSight/pull/")
+    assert "viewport:mobile" in caplog.text
+    assert "high-priority" in caplog.text
+
+
+def test_create_pull_request_live_mock_adds_labels(monkeypatch):
+    """Verify that when token is present, add_to_labels is called on the created PR object."""
+    monkeypatch.setattr(settings, "MOCK_GITHUB", False)
+    monkeypatch.setattr(settings, "GITHUB_TOKEN", "ghp_valid_mock_token_123456789")
+    monkeypatch.setattr(settings, "REPO_NAME", "Kailash-18/OmniSight")
+
+    applied_labels = []
+
+    class MockPR:
+        html_url = "https://github.com/Kailash-18/OmniSight/pull/42"
+        def add_to_labels(self, *labels):
+            applied_labels.extend(labels)
+
+    class MockCommit:
+        sha = "abc1234def5678"
+
+    class MockBranch:
+        commit = MockCommit()
+
+    class MockRepo:
+        default_branch = "main"
+        owner = type("Owner", (), {"login": "Kailash-18"})()
+        def get_branch(self, name):
+            return MockBranch()
+        def create_git_ref(self, ref, sha):
+            return None
+        def get_contents(self, path, ref=None):
+            return type("Content", (), {"sha": "sha999"})()
+        def update_file(self, path, message, content, sha, branch):
+            return None
+        def create_pull(self, title, body, head, base):
+            return MockPR()
+
+    class MockGithub:
+        def __init__(self, token):
+            pass
+        def get_repo(self, repo_name):
+            return MockRepo()
+
+    monkeypatch.setattr("app.services.github_service.Github", MockGithub)
+
+    url = create_pull_request_for_fix(
+        run_id="run-live-test",
+        target_file="app-under-test/src/styles/defects.css",
+        file_content="/* fix */",
+        labels=["omnisight-bot", "visual-qa"]
+    )
+    assert url == "https://github.com/Kailash-18/OmniSight/pull/42"
+    assert "omnisight-bot" in applied_labels
+    assert "visual-qa" in applied_labels
+

@@ -251,9 +251,17 @@ def trigger_run_manual(payload: RunTriggerPayload):
 )
 def list_runs(
     limit: int = 50,
-    status_filter: Optional[RunStatus] = None
+    status_filter: Optional[RunStatus] = None,
+    branch: Optional[str] = None,
+    scenario: Optional[str] = None,
+    target: Optional[str] = None,
+    has_pr: Optional[bool] = None,
+    has_issues: Optional[bool] = None
 ):
-    """Returns summaries of recorded test runs in reverse chronological order with optional filtering."""
+    """
+    Returns summaries of recorded test runs in reverse chronological order with optional filtering.
+    Supports filtering by status, branch, scenario, target host, PR presence, and detected visual defects.
+    """
     sorted_runs = sorted(
         runs_db.values(),
         key=lambda r: r.get("start_time", ""),
@@ -264,6 +272,21 @@ def list_runs(
     for r in sorted_runs:
         if status_filter and r.get("status") != status_filter.value:
             continue
+        if branch and r.get("branch") != branch:
+            continue
+        if scenario and r.get("scenario") != scenario:
+            continue
+        if target and target.lower() not in r.get("target", "").lower():
+            continue
+        if has_pr is not None:
+            pr_present = bool(r.get("pr_url"))
+            if pr_present != has_pr:
+                continue
+        if has_issues is not None:
+            issues_present = r.get("issue_count", len(r.get("findings", []))) > 0
+            if issues_present != has_issues:
+                continue
+
         summaries.append(
             RunSummaryResponse(
                 run_id=r["run_id"],
@@ -277,6 +300,7 @@ def list_runs(
         if len(summaries) >= limit:
             break
     return summaries
+
 
 
 @app.get(

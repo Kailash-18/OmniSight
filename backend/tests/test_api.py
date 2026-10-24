@@ -312,3 +312,49 @@ def uuid_hex():
     return uuid.uuid4().hex[:6]
 
 
+def test_submit_patch_stores_normalized_target_path(client: TestClient):
+    """Verify submit-patch normalizes leading ./ and git prefixes in stored patch."""
+    res = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"})
+    run_id = res.json()["run_id"]
+
+    submit_payload = {
+        "target_file": "./app-under-test/src/styles/defects.css",
+        "diff": "-.btn { width: 500px; }\n+.btn { width: 100%; }",
+        "file_content": ".btn { width: 100%; }",
+        "pr_title": "fix(ui): normalized prefix test",
+        "pr_body": "Verification test"
+    }
+    submit_res = client.post(f"/runs/{run_id}/submit-patch", json=submit_payload)
+    assert submit_res.status_code == 200
+
+    detail = client.get(f"/runs/{run_id}").json()
+    assert detail["patch"]["target_file"] == "app-under-test/src/styles/defects.css"
+
+
+def test_run_details_preserves_finding_rationale(client: TestClient):
+    """Verify finding rationale is preserved in full forensic run detail responses."""
+    run_res = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"})
+    run_id = run_res.json()["run_id"]
+
+    update_payload = {
+        "findings": [
+            {
+                "id": "defect-checkout-obstructed",
+                "category": "element_obstruction",
+                "severity": "high",
+                "description": "Submit CTA obstructed",
+                "viewport": "mobile_375x667",
+                "confidence": 0.98,
+                "suggested_change": "position: static;",
+                "rationale": "Promo banner completely covers submit CTA on mobile viewport",
+                "status": "detected"
+            }
+        ]
+    }
+    client.put(f"/runs/{run_id}", json=update_payload)
+    detail = client.get(f"/runs/{run_id}").json()
+    assert len(detail["findings"]) == 1
+    assert detail["findings"][0]["rationale"] == "Promo banner completely covers submit CTA on mobile viewport"
+
+
+

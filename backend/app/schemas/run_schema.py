@@ -20,6 +20,15 @@ class RunStatus(str, Enum):
     PR_OPENED = "pr_opened"
     FAILED = "failed"
 
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_clean = value.strip().lower().replace("-", "_")
+            for member in cls:
+                if member.value == val_clean:
+                    return member
+        return cls.FAILED
+
 
 class DefectCategory(str, Enum):
     """Classification of visual defects."""
@@ -29,6 +38,15 @@ class DefectCategory(str, Enum):
     CONTRAST_ISSUE = "contrast_issue"
     LAYOUT_OVERFLOW = "layout_overflow"
 
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            clean = value.strip().lower().replace("-", "_")
+            for member in cls:
+                if member.value == clean:
+                    return member
+        return cls.ELEMENT_OVERLAP
+
 
 class Severity(str, Enum):
     """Impact severity of visual defects."""
@@ -37,13 +55,21 @@ class Severity(str, Enum):
     HIGH = "high"
     CRITICAL = "critical"
 
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            clean = value.strip().lower()
+            for member in cls:
+                if member.value == clean:
+                    return member
+        return cls.MEDIUM
+
 
 class HealthCheckResponse(BaseModel):
     """Health check status and server metadata."""
     status: str = Field(default="healthy", description="Readiness status of API gateway")
     timestamp: str = Field(..., description="Current UTC timestamp in ISO 8601 format")
     version: str = Field(..., description="API software version")
-
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +104,7 @@ class FindingSchema(BaseModel):
     target_element: Optional[str] = Field(default=None, description="CSS selector or test ID")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Model confidence score between 0.0 and 1.0")
     suggested_change: str = Field(..., description="Proposed CSS/layout rule correction")
+    rationale: Optional[str] = Field(default=None, description="Multimodal visual reasoning justification")
     status: str = Field(default="detected", description="Current remediation status")
 
     model_config = {
@@ -133,23 +160,6 @@ class FindingSchema(BaseModel):
             except ValueError:
                 return Severity.MEDIUM
         return v
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "id": "defect-checkout-clipped",
-                "category": "element_clipping",
-                "severity": "high",
-                "description": "Place Order CTA clipped on mobile 375x667 viewport",
-                "viewport": "mobile_375x667",
-                "target_element": "[data-testid='btn-place-order']",
-                "confidence": 0.94,
-                "suggested_change": "width: 100%; box-sizing: border-box;",
-                "rationale": "Bounding box extends past viewport right boundary",
-                "status": "detected"
-            }
-        }
-    }
 
 
 

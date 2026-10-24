@@ -218,7 +218,7 @@ class ActionEngine:
             code_blocks = cls.extract_code_blocks(raw_vlm_output)
             diff_blocks = [b["code"] for b in code_blocks if b["lang"] in ("diff", "patch", "css")]
             if diff_blocks:
-                target_file = data.get("target_file", "app-under-test/src/styles/defects.css") if isinstance(data, dict) else "app-under-test/src/styles/defects.css"
+                target_file = (data.get("target_file") if isinstance(data, dict) else None) or "app-under-test/src/styles/defects.css"
                 proposed_patch = PatchObject(
                     target_file=target_file,
                     diff=diff_blocks[0],
@@ -233,6 +233,7 @@ class ActionEngine:
             val_result = validate_patch(proposed_patch.target_file, proposed_patch.diff)
             validation_status = val_result["validation_status"]
             validator_errors = val_result["validator_errors"]
+            proposed_patch.target_file = val_result.get("target_file", proposed_patch.target_file)
             proposed_patch.validation_status = validation_status
             proposed_patch.validator_errors = validator_errors
         else:

@@ -129,3 +129,58 @@ def test_health_check_response_schema():
     data = resp.model_dump()
     assert data["status"] == "healthy"
     assert data["version"] == "1.0.0"
+
+
+def test_finding_schema_rationale_preserved():
+    """Verify rationale field is stored and serialized in FindingSchema."""
+    finding = FindingSchema(
+        id="defect-rationale-test",
+        category=DefectCategory.ELEMENT_OBSTRUCTION,
+        severity=Severity.HIGH,
+        description="Checkout CTA is occluded by modal backdrop",
+        viewport="desktop_1440x900",
+        confidence=0.97,
+        suggested_change="z-index: 100;",
+        rationale="Backdrop element covers primary button with higher z-index",
+        status="detected"
+    )
+    assert finding.rationale == "Backdrop element covers primary button with higher z-index"
+    dumped = finding.model_dump()
+    assert dumped["rationale"] == "Backdrop element covers primary button with higher z-index"
+
+
+def test_enum_resilience_missing_values():
+    """Verify enums handle non-standard casing and unknown values gracefully."""
+    # RunStatus
+    assert RunStatus("RUNNING") == RunStatus.RUNNING
+    assert RunStatus("Queued") == RunStatus.QUEUED
+    assert RunStatus("non_existent_status") == RunStatus.FAILED
+
+    # DefectCategory
+    assert DefectCategory("ELEMENT_CLIPPING") == DefectCategory.ELEMENT_CLIPPING
+    assert DefectCategory("element-clipping") == DefectCategory.ELEMENT_CLIPPING
+    assert DefectCategory("unknown_category") == DefectCategory.ELEMENT_OVERLAP
+
+    # Severity
+    assert Severity("CRITICAL") == Severity.CRITICAL
+    assert Severity("Low") == Severity.LOW
+    assert Severity("extreme") == Severity.MEDIUM
+
+
+def test_settings_allowlist_helpers():
+    """Verify Settings is_host_allowed and is_path_allowed normalizations."""
+    from app.core.config import settings
+
+    # Host checks including bracketed IPv6
+    assert settings.is_host_allowed("localhost") is True
+    assert settings.is_host_allowed("127.0.0.1") is True
+    assert settings.is_host_allowed("::1") is True
+    assert settings.is_host_allowed("[::1]") is True
+    assert settings.is_host_allowed("evil.attacker.com") is False
+
+    # Path checks including leading relative and git diff prefixes
+    assert settings.is_path_allowed("app-under-test/src/styles/defects.css") is True
+    assert settings.is_path_allowed("./app-under-test/src/styles/defects.css") is True
+    assert settings.is_path_allowed("a/app-under-test/src/styles/defects.css") is True
+    assert settings.is_path_allowed("b/app-under-test/src/styles/defects.css") is True
+    assert settings.is_path_allowed("backend/app/main.py") is False

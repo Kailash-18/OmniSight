@@ -61,6 +61,8 @@ class Settings:
     def is_host_allowed(self, hostname: str) -> bool:
         """Checks if a given host is in the allowed target hosts list, supporting exact and wildcards."""
         host = (hostname or "").lower().strip()
+        if host.startswith("[") and host.endswith("]"):
+            host = host[1:-1]
         for allowed in self.ALLOWED_TARGET_HOSTS:
             if allowed.startswith("*.") and host.endswith(allowed[1:]):
                 return True
@@ -71,6 +73,10 @@ class Settings:
     def is_path_allowed(self, clean_path: str) -> bool:
         """Checks if a sanitized target file path falls strictly within the allowlist boundaries."""
         normalized = clean_path.replace("\\", "/").strip()
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        if normalized.startswith(("a/", "b/")):
+            normalized = normalized[2:]
         for allowed in self.ALLOWED_PATCH_FILES:
             if allowed.endswith("/"):
                 if normalized.startswith(allowed):

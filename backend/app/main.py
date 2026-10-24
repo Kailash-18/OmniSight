@@ -108,8 +108,6 @@ def get_milestone_status():
     }
 
 
-
-
 @app.post("/webhook/build", status_code=status.HTTP_202_ACCEPTED)
 def receive_build_webhook(payload: BuildWebhookPayload):
     """
@@ -207,7 +205,6 @@ def list_runs(
         if len(summaries) >= limit:
             break
     return summaries
-
 
 
 @app.get("/runs/{run_id}", response_model=RunDetailResponse)
@@ -370,19 +367,20 @@ def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
         )
 
     # 2. If valid, open a GitHub Pull Request
+    sanitized_target = validation_result["target_file"]
     try:
         pr_url = create_pull_request_for_fix(
             run_id=run_id,
-            target_file=payload.target_file,
+            target_file=sanitized_target,
             file_content=payload.file_content,
-            commit_message=f"fix(ui): OmniSight auto-repair for {payload.target_file}",
+            commit_message=f"fix(ui): OmniSight auto-repair for {sanitized_target}",
             pr_title=payload.pr_title,
             pr_body=payload.pr_body
         )
         runs_db[run_id]["status"] = RunStatus.PR_OPENED.value
         runs_db[run_id]["pr_url"] = pr_url
         runs_db[run_id]["patch"] = {
-            "target_file": payload.target_file,
+            "target_file": sanitized_target,
             "diff": payload.diff,
             "validation_status": True,
             "validator_errors": None

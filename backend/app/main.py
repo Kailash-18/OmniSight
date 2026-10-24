@@ -429,7 +429,8 @@ def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
             file_content=payload.file_content,
             commit_message=f"fix(ui): OmniSight auto-repair for {sanitized_target}",
             pr_title=payload.pr_title,
-            pr_body=payload.pr_body
+            pr_body=payload.pr_body,
+            labels=payload.labels
         )
         runs_db[run_id]["status"] = RunStatus.PR_OPENED.value
         runs_db[run_id]["pr_url"] = pr_url
@@ -437,7 +438,8 @@ def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
             "target_file": sanitized_target,
             "diff": payload.diff,
             "validation_status": True,
-            "validator_errors": None
+            "validator_errors": None,
+            "labels": payload.labels
         }
         return {"status": "success", "pr_url": pr_url}
     except Exception as e:

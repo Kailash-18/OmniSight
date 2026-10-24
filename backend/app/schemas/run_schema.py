@@ -187,6 +187,8 @@ class PatchSubmitPayload(BaseModel):
     file_content: str = Field(..., description="Full modified file content to commit")
     pr_title: str = Field(default="OmniSight Automated Visual Defect Fix", description="PR title")
     pr_body: str = Field(default="", description="Detailed PR description with evidence")
+    labels: List[str] = Field(default_factory=lambda: ["omnisight", "automated-fix"], description="GitHub labels to attach to created PR")
+
 
 
 class VLMParseRequest(BaseModel):

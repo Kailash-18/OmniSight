@@ -4,8 +4,9 @@
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-2.0%2B-e92063.svg)](https://docs.pydantic.dev/)
-[![Pytest](https://img.shields.io/badge/Pytest-67%20Backend%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
+[![Pytest](https://img.shields.io/badge/Pytest-82%20Backend%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
 [![Terraform](https://img.shields.io/badge/Terraform-Secured-844FBA.svg)](https://www.terraform.io/)
+
 
 ---
 
@@ -23,11 +24,12 @@ The OmniSight Backend service acts as the central intelligence and security clea
 
 | Module | Core Responsibility | Status | Technical Implementation |
 | :--- | :--- | :---: | :--- |
-| **API Gateway & Ingestion Engine** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/runs`, `/runs/{run_id}`, shared Pydantic data schemas. |
+| **API Gateway & Ingestion Engine** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/webhook/github`, `/runs`, `/runs/metrics/summary`, shared Pydantic data schemas. |
 | **Multimodal Action Engine** | VLM Parsing & Code Block Extraction | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), natural language isolation, and structured findings. |
-| **Zero-Trust Security Validator** | Safe Code Modification Guardrails | ✅ Completed | Path traversal defense, allowlist checks, script injection filters, and 67 passing unit/integration tests. |
-| **Pull Request Automation Service** | Bounded Self-Healing & Evidence PRs | ✅ Ready | Branch, commit, and evidence-backed PR generation via PyGithub with mock fallbacks for offline testing. |
+| **Zero-Trust Security Validator** | Safe Code Modification Guardrails | ✅ Completed | Path traversal defense, allowlist checks, CSS directive filters (`@import`, `behavior`), and 82 passing tests. |
+| **Pull Request Automation Service** | Bounded Self-Healing & Evidence PRs | ✅ Completed | Automated PR creation, PR labeling, lifecycle webhook tracking, retest comments, and markdown evidence export. |
 | **Cloud Infrastructure as Code** | Production Hardening & Cloud Deploy | ✅ Prepared | Terraform parameterized infrastructure module (`backend/terraform/`) with zero hardcoded credentials. |
+
 
 ---
 

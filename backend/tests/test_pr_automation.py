@@ -138,3 +138,52 @@ def test_create_pull_request_live_mock_adds_labels(monkeypatch):
     assert "omnisight-bot" in applied_labels
     assert "visual-qa" in applied_labels
 
+
+def test_add_pr_comment_mock_mode(monkeypatch, caplog):
+    """Verify add_pr_comment_with_retest_evidence succeeds in mock mode."""
+    from app.services.github_service import add_pr_comment_with_retest_evidence
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    with caplog.at_level("INFO"):
+        res = add_pr_comment_with_retest_evidence(
+            pr_number=42,
+            comment_body="### Retest Verification: All 3 defects resolved."
+        )
+    assert res is True
+    assert "Simulated PR #42 comment" in caplog.text
+
+
+def test_add_pr_comment_live_mock(monkeypatch):
+    """Verify add_pr_comment_with_retest_evidence invokes create_issue_comment on live PR object."""
+    from app.services.github_service import add_pr_comment_with_retest_evidence
+    monkeypatch.setattr(settings, "MOCK_GITHUB", False)
+    monkeypatch.setattr(settings, "GITHUB_TOKEN", "ghp_valid_mock_token_123456789")
+    monkeypatch.setattr(settings, "REPO_NAME", "Kailash-18/OmniSight")
+
+    comments_posted = []
+
+    class MockPR:
+        def create_issue_comment(self, body):
+            comments_posted.append(body)
+
+    class MockRepo:
+        def get_pull(self, number):
+            return MockPR()
+
+    class MockGithub:
+        def __init__(self, token):
+            pass
+        def get_repo(self, repo_name):
+            return MockRepo()
+
+    monkeypatch.setattr("app.services.github_service.Github", MockGithub)
+
+    res = add_pr_comment_with_retest_evidence(
+        pr_number=99,
+        comment_body="Retest passed on iPhone SE viewport"
+    )
+    assert res is True
+    assert len(comments_posted) == 1
+    assert "iPhone SE" in comments_posted[0]
+
+

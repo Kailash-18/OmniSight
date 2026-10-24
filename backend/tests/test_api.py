@@ -588,6 +588,52 @@ def test_runs_metrics_summary_calculation(client: TestClient):
     assert metrics["clean_run_rate_percent"] == 66.7
 
 
+def test_export_run_evidence_markdown_success(client: TestClient):
+    """Verify export evidence markdown returns formatted report with defect table and diff."""
+    run_id = "run-export-md-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-24T15:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/88",
+        "findings": [
+            {
+                "id": "def-1",
+                "category": "element_clipping",
+                "severity": "high",
+                "description": "Button clipped",
+                "viewport": "mobile_375x667",
+                "confidence": 0.95
+            }
+        ],
+        "patch": {
+            "target_file": "app-under-test/src/styles/defects.css",
+            "diff": "-width: 500px;\n+width: 100%;",
+            "validation_status": True
+        }
+    }
+
+    response = client.get(f"/runs/{run_id}/export-evidence-markdown")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["run_id"] == run_id
+    md = data["markdown"]
+    assert f"OmniSight Visual QA Report: `{run_id}`" in md
+    assert "Button clipped" in md
+    assert "element_clipping" in md
+    assert "width: 100%;" in md
+    assert "https://github.com/Kailash-18/OmniSight/pull/88" in md
+
+
+def test_export_run_evidence_markdown_not_found(client: TestClient):
+    """Verify 404 is returned when requesting markdown for unknown run."""
+    response = client.get("/runs/run-nonexistent-999/export-evidence-markdown")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+
 
 
 

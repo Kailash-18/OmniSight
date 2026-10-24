@@ -176,3 +176,29 @@ def create_pull_request_for_fix(
     except Exception as e:
         logger.error(f"GitHub PR automation error for run {run_id}: {str(e)}")
         raise RuntimeError(f"GitHub PR creation failed: {str(e)}")
+
+
+def add_pr_comment_with_retest_evidence(
+    pr_number: int,
+    comment_body: str
+) -> bool:
+    """
+    Appends verification retest results and visual evidence comment to an open GitHub PR.
+    Returns True if comment was successfully created or simulated.
+    """
+    token = settings.GITHUB_TOKEN
+    repo_name = settings.REPO_NAME
+
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token"):
+        logger.info(f"Simulated PR #{pr_number} comment: {comment_body[:80]}...")
+        return True
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        pr = repo.get_pull(pr_number)
+        pr.create_issue_comment(comment_body)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to post comment to PR #{pr_number}: {str(e)}")
+        raise RuntimeError(f"Failed to post comment to PR #{pr_number}: {str(e)}")

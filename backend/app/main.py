@@ -402,6 +402,78 @@ def get_run_details(run_id: str):
     )
 
 
+@app.get(
+    "/runs/{run_id}/export-evidence-markdown",
+    status_code=status.HTTP_200_OK,
+    tags=["Audit Runs"],
+    summary="Export Run Audit Evidence as GitHub Markdown"
+)
+def export_run_evidence_markdown(run_id: str):
+    """
+    Serializes a complete run's visual findings, patch, and retest status
+    into GitHub-ready Markdown for PR comments, bug reports, or evidence logs.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+
+    r = runs_db[run_id]
+    findings = r.get("findings", [])
+    patch = r.get("patch") or {}
+    evidence_paths = r.get("evidence_paths", {})
+    status_val = r.get("status", "unknown")
+    target = r.get("target", "unknown")
+    start_time = r.get("start_time", "unknown")
+
+    if findings:
+        findings_rows = []
+        for f in findings:
+            f_dict = f if isinstance(f, dict) else (f.model_dump() if hasattr(f, "model_dump") else f.__dict__)
+            cat = f_dict.get("category", "defect")
+            cat_str = cat.value if hasattr(cat, "value") else str(cat)
+            sev = f_dict.get("severity", "medium")
+            sev_str = sev.value if hasattr(sev, "value") else str(sev)
+            desc = f_dict.get("description", "Visual defect")
+            vp = f_dict.get("viewport", "all")
+            conf = f_dict.get("confidence", 0.8)
+            findings_rows.append(f"| `{cat_str}` | `{sev_str}` | `{vp}` | {desc} | {conf:.0%} |")
+        findings_table = (
+            "| Category | Severity | Viewport | Description | Confidence |\n"
+            "| :--- | :--- | :--- | :--- | :--- |\n" +
+            "\n".join(findings_rows)
+        )
+    else:
+        findings_table = "_No visual defects detected in this run._"
+
+    diff_content = patch.get("diff", "No patch diff available.")
+    diff_block = f"```diff\n{diff_content}\n```" if patch.get("diff") else "_No patch generated._"
+
+    md_output = f"""# 🔍 OmniSight Visual QA Report: `{run_id}`
+
+* **Target URL**: {target}
+* **Execution Timestamp**: `{start_time}`
+* **Final Status**: `{status_val}`
+* **PR Link**: {r.get('pr_url') or '_None_'}
+
+---
+
+## 📋 Detected Visual Defects
+{findings_table}
+
+---
+
+## 🛠️ Applied Patch Diff
+* **Target File**: `{patch.get('target_file', 'N/A')}`
+* **Validation Passed**: `{patch.get('validation_status', False)}`
+
+{diff_block}
+"""
+    return {"run_id": run_id, "markdown": md_output}
+
+
+
 @app.put(
     "/runs/{run_id}",
     status_code=status.HTTP_200_OK,

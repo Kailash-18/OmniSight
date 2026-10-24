@@ -31,7 +31,7 @@ page containing `root`, so the dashboard stays off those ports to avoid being mi
 | `live` | `GET /runs` and `GET /runs/{run_id}` on the backend (`127.0.0.1:8000`) | "Live API" pill, no mock labels |
 
 - **Proxy:** in live mode the dev server forwards `/api/*` to the backend (`/api/runs` → `:8000/runs`).
-  The backend has no CORS settings, so this keeps calls same-origin without changing backend code.
+  Calls stay same-origin, so the dashboard never hardcodes the backend URL (the backend also allows CORS now).
 - **Evidence files:** live runs reference files like `artifacts/runs/<id>/screenshots/x.png`. The dev server serves
   the repo's `artifacts/` folder at `/artifacts/...` (PNG and JSON only, no path traversal). This is dev-only; long term
   the backend should serve evidence.

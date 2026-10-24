@@ -537,6 +537,58 @@ def test_list_runs_advanced_filtering(client: TestClient):
     assert "run-filter-alpha" not in ids_clean
 
 
+def test_runs_metrics_summary_calculation(client: TestClient):
+    """Verify /runs/metrics/summary computes accurate totals, categories, and percentages."""
+    # Seed explicit test data in runs_db
+    runs_db.clear()
+
+    runs_db["run-m1"] = {
+        "run_id": "run-m1",
+        "start_time": "2026-10-24T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "issue_count": 1,
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/1",
+        "findings": [{"id": "f1", "category": "element_clipping"}]
+    }
+    runs_db["run-m2"] = {
+        "run_id": "run-m2",
+        "start_time": "2026-10-24T11:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "running",
+        "issue_count": 2,
+        "pr_url": None,
+        "findings": [
+            {"id": "f2", "category": "element_clipping"},
+            {"id": "f3", "category": "contrast_issue"}
+        ]
+    }
+    runs_db["run-m3"] = {
+        "run_id": "run-m3",
+        "start_time": "2026-10-24T12:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "audited",
+        "issue_count": 0,
+        "pr_url": None,
+        "findings": []
+    }
+
+    response = client.get("/runs/metrics/summary")
+    assert response.status_code == 200
+    metrics = response.json()
+
+    assert metrics["total_runs"] == 3
+    assert metrics["active_runs"] == 1  # run-m2 is running
+    assert metrics["fixed_runs"] == 1   # run-m1 is fixed
+    assert metrics["prs_opened"] == 1   # run-m1 has pr_url
+    assert metrics["total_defects_detected"] == 3
+    assert metrics["defects_by_category"]["element_clipping"] == 2
+    assert metrics["defects_by_category"]["contrast_issue"] == 1
+    # 2 out of 3 runs are clean or resolved (run-m1 fixed, run-m3 0 issues) -> 66.7%
+    assert metrics["clean_run_rate_percent"] == 66.7
+
+
+
 
 
 

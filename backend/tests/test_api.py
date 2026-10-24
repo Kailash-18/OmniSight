@@ -482,6 +482,62 @@ def test_github_webhook_unmatched_run_processed_gracefully(client: TestClient):
     assert response.json()["matched_run_id"] is None
 
 
+def test_list_runs_advanced_filtering(client: TestClient):
+    """Verify list_runs filters by branch, scenario, target, has_pr, and has_issues."""
+    # Seed specific runs
+    runs_db["run-filter-alpha"] = {
+        "run_id": "run-filter-alpha",
+        "start_time": "2026-10-24T14:00:00Z",
+        "target": "http://localhost:5173",
+        "branch": "feat/checkout-redesign",
+        "scenario": "checkout_flow",
+        "status": "pr_opened",
+        "issue_count": 2,
+        "findings": [{"id": "d1"}, {"id": "d2"}],
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/77"
+    }
+    runs_db["run-filter-beta"] = {
+        "run_id": "run-filter-beta",
+        "start_time": "2026-10-24T13:00:00Z",
+        "target": "http://127.0.0.1:5173",
+        "branch": "main",
+        "scenario": "product_browsing",
+        "status": "fixed",
+        "issue_count": 0,
+        "findings": [],
+        "pr_url": None
+    }
+
+    # Filter by branch
+    r_branch = client.get("/runs?branch=feat/checkout-redesign")
+    assert r_branch.status_code == 200
+    ids_branch = [r["run_id"] for r in r_branch.json()]
+    assert "run-filter-alpha" in ids_branch
+    assert "run-filter-beta" not in ids_branch
+
+    # Filter by scenario
+    r_scenario = client.get("/runs?scenario=product_browsing")
+    assert r_scenario.status_code == 200
+    ids_scenario = [r["run_id"] for r in r_scenario.json()]
+    assert "run-filter-beta" in ids_scenario
+    assert "run-filter-alpha" not in ids_scenario
+
+    # Filter by has_pr=true
+    r_pr = client.get("/runs?has_pr=true")
+    assert r_pr.status_code == 200
+    ids_pr = [r["run_id"] for r in r_pr.json()]
+    assert "run-filter-alpha" in ids_pr
+    assert "run-filter-beta" not in ids_pr
+
+    # Filter by has_issues=false
+    r_clean = client.get("/runs?has_issues=false")
+    assert r_clean.status_code == 200
+    ids_clean = [r["run_id"] for r in r_clean.json()]
+    assert "run-filter-beta" in ids_clean
+    assert "run-filter-alpha" not in ids_clean
+
+
+
 
 
 

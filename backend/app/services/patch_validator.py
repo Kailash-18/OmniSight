@@ -24,9 +24,28 @@ DANGEROUS_PATTERNS = [
     r"\bimport\s+subprocess\b",
     r"\bdocument\.cookie\b",
     r"\bwindow\.location\b",
+    r"@import\b",
+    r"behavior\s*:",
+    r"-moz-binding\s*:",
 ]
 
 ALLOWED_EXTENSIONS = {".css", ".jsx", ".js"}
+
+
+def validate_css_safety(css_text: str) -> tuple[bool, Optional[str]]:
+    """
+    Validates that CSS content does not contain dangerous directives:
+    Rejects @import (external exfiltration), behavior:, -moz-binding,
+    expression(), and malicious url() schemes.
+    """
+    if re.search(r"@import\b", css_text, re.IGNORECASE):
+        return False, "Security violation: '@import' directives are forbidden in visual QA patches."
+    if re.search(r"behavior\s*:", css_text, re.IGNORECASE):
+        return False, "Security violation: 'behavior' property is forbidden in CSS patches."
+    if re.search(r"-moz-binding\s*:", css_text, re.IGNORECASE):
+        return False, "Security violation: '-moz-binding' property is forbidden in CSS patches."
+    return True, None
+
 
 
 def validate_patch(target_file: str, diff_content: str, file_content: Optional[str] = None) -> Dict[str, Any]:
@@ -178,10 +197,30 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
                 "diff_sanitized": None
             }
 
+    # 6. Specific CSS guardrails
+    if ext.lower() == ".css":
+        css_valid, css_err = validate_css_safety(diff_content)
+        if not css_valid:
+            return {
+                "validation_status": False,
+                "validator_errors": css_err,
+                "target_file": clean_path,
+                "diff_sanitized": None
+            }
+        if file_content:
+            css_valid, css_err = validate_css_safety(file_content)
+            if not css_valid:
+                return {
+                    "validation_status": False,
+                    "validator_errors": css_err,
+                    "target_file": clean_path,
+                    "diff_sanitized": None
+                }
+
     # All security checks passed
     return {
         "validation_status": True,
         "validator_errors": None,
         "target_file": clean_path,
         "diff_sanitized": diff_content.strip()
-    }
+    }

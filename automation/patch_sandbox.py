@@ -23,9 +23,11 @@ from automation.visual_diff import VisualComparator, DiffResult
 
 ALLOWED_PATCH_TARGETS: Set[str] = {
     "app-under-test/src/styles/defects.css",
+    "app-under-test/src/styles/base.css",
     "app-under-test/src/App.css",
     "app-under-test/src/index.css",
-    "app-under-test/src/styles/base.css",
+    "app-under-test/src/components/",
+    "app-under-test/src/App.jsx",
 }
 
 
@@ -49,7 +51,17 @@ def validate_patch_target(target_path: str, repo_root: Optional[Path] = None) ->
             f"Security violation: path traversal detected in '{target_path}'"
         )
 
-    if clean_target not in ALLOWED_PATCH_TARGETS:
+    is_allowed = False
+    for allowed in ALLOWED_PATCH_TARGETS:
+        if allowed.endswith("/"):
+            if clean_target.startswith(allowed):
+                is_allowed = True
+                break
+        elif clean_target == allowed:
+            is_allowed = True
+            break
+
+    if not is_allowed:
         raise ValueError(
             f"Target file '{target_path}' is outside the authorized allowlist: {sorted(ALLOWED_PATCH_TARGETS)}"
         )

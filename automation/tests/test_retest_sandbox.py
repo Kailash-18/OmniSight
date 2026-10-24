@@ -32,6 +32,12 @@ def test_allowlist_validation_with_git_prefixes():
     resolved_b = validate_patch_target("b/app-under-test/src/App.css")
     assert "App.css" in str(resolved_b)
 
+    resolved_comp = validate_patch_target("app-under-test/src/components/ProductCard.jsx")
+    assert "ProductCard.jsx" in str(resolved_comp)
+
+    resolved_app = validate_patch_target("app-under-test/src/App.jsx")
+    assert "App.jsx" in str(resolved_app)
+
 
 def test_allowlist_disallowed_target_rejected():
     with pytest.raises(ValueError, match="outside the authorized allowlist"):

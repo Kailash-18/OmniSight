@@ -38,7 +38,7 @@ export default defineConfig({
   server: {
     port: 5180,
     strictPort: true,
-    // Backend has no CORS; proxy keeps API calls same-origin. /api/runs -> :8000/runs
+    // Same-origin API calls; backend URL lives only here. /api/runs -> :8000/runs
     proxy: {
       '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, '') },
     },

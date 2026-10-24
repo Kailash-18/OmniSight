@@ -17,6 +17,7 @@ from app.schemas import (
     BuildWebhookPayload,
     RunTriggerPayload,
     PatchSubmitPayload,
+    GitHubWebhookPayload,
     VLMParseRequest,
     VLMParseResponse,
     RunRecordUpdatePayload,
@@ -160,6 +161,47 @@ def receive_build_webhook(payload: BuildWebhookPayload):
         "run_id": run_id,
         "status": RunStatus.QUEUED.value,
         "message": "Build event accepted and queued for browser audit."
+    }
+
+
+@app.post(
+    "/webhook/github",
+    status_code=status.HTTP_200_OK,
+    tags=["CI/CD Webhook"],
+    summary="Ingest GitHub PR and Review Webhook Events"
+)
+def receive_github_webhook(payload: GitHubWebhookPayload):
+    """
+    Ingests GitHub pull_request and review webhook events.
+    Updates the matching run record status when PRs are merged or closed.
+    """
+    event_action = payload.action.lower()
+    matched_run_id = None
+
+    if payload.pull_request:
+        pr_url = payload.pull_request.html_url
+        is_merged = payload.pull_request.merged
+        head_ref = payload.pull_request.head_ref or ""
+
+        # Find matching run in runs_db
+        for r_id, run_data in runs_db.items():
+            if run_data.get("pr_url") == pr_url or (head_ref and r_id in head_ref):
+                matched_run_id = r_id
+                if event_action == "closed":
+                    if is_merged:
+                        run_data["status"] = RunStatus.FIXED.value
+                        run_data.setdefault("steps", []).append("github_pr_merged")
+                    else:
+                        run_data["status"] = RunStatus.NEEDS_REVIEW.value
+                        run_data.setdefault("steps", []).append("github_pr_closed_unmerged")
+                elif event_action in ("opened", "reopened"):
+                    run_data["status"] = RunStatus.PR_OPENED.value
+                break
+
+    return {
+        "status": "processed",
+        "action": event_action,
+        "matched_run_id": matched_run_id
     }
 
 

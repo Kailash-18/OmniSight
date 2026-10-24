@@ -190,6 +190,26 @@ class PatchSubmitPayload(BaseModel):
     labels: List[str] = Field(default_factory=lambda: ["omnisight", "automated-fix"], description="GitHub labels to attach to created PR")
 
 
+class GitHubPullRequestInfo(BaseModel):
+    """Details of the PR associated with a GitHub webhook event."""
+    html_url: str = Field(..., description="Web URL of the pull request")
+    number: int = Field(..., description="GitHub pull request number")
+    state: str = Field(default="open", description="State: open or closed")
+    merged: bool = Field(default=False, description="True if the PR was merged")
+    merged_at: Optional[str] = Field(default=None, description="ISO timestamp of merge")
+    title: Optional[str] = Field(default=None, description="PR title")
+    head_ref: Optional[str] = Field(default=None, description="Source branch name")
+
+
+class GitHubWebhookPayload(BaseModel):
+    """Webhook payload sent by GitHub for pull_request and review events."""
+    action: str = Field(..., description="Action event (e.g. opened, closed, reopened, review_submitted)")
+    number: Optional[int] = Field(default=None, description="PR number")
+    pull_request: Optional[GitHubPullRequestInfo] = Field(default=None, description="PR metadata if pull_request event")
+    repository: Optional[Dict[str, Any]] = Field(default=None, description="Repository metadata")
+    sender: Optional[Dict[str, Any]] = Field(default=None, description="Sender metadata")
+
+
 
 class VLMParseRequest(BaseModel):
     """Payload containing raw VLM natural language or JSON text for Action Engine parsing."""

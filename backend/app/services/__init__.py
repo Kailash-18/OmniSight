@@ -9,6 +9,8 @@ from app.services.action_engine import action_engine, ActionEngine
 from app.services.github_service import (
     create_pull_request_for_fix,
     generate_pr_markdown_description,
+    add_pr_comment_with_retest_evidence,
+    update_pull_request_verification_proof,
 )
 
 __all__ = [
@@ -17,5 +19,7 @@ __all__ = [
     "ActionEngine",
     "create_pull_request_for_fix",
     "generate_pr_markdown_description",
+    "add_pr_comment_with_retest_evidence",
+    "update_pull_request_verification_proof",
 ]
 

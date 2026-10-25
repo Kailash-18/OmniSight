@@ -3,7 +3,7 @@ Unit Tests for Patch Security Validator (Member 1).
 Verifies path traversal protection, file allowlist, extension boundaries, and code injection defenses.
 """
 
-from app.services.patch_validator import validate_patch
+from app.services.patch_validator import validate_patch, validate_css_safety
 
 
 def test_valid_css_patch_accepted():
@@ -222,5 +222,46 @@ def test_accept_valid_responsive_css_media_queries():
     res = validate_patch(target, diff)
     assert res["validation_status"] is True
     assert res["validator_errors"] is None
+
+
+def test_reject_css_expression_directive():
+    """Verify CSS expression() execution is rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+.btn { width: expression(alert(1)); }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "expression" in res["validator_errors"]
+
+    valid, err = validate_css_safety(".btn { width: expression(alert(1)); }")
+    assert valid is False
+    assert "expression" in err
+
+
+def test_reject_css_javascript_url_scheme():
+    """Verify javascript: protocol inside url() is rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+.hero { background: url('javascript:alert(1)'); }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "javascript" in res["validator_errors"]
+
+    valid, err = validate_css_safety(".hero { background: url('javascript:alert(1)'); }")
+    assert valid is False
+    assert "javascript:" in err
+
+
+def test_reject_css_data_html_url_scheme():
+    """Verify data:text/html protocol inside url() is rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+.hero { background: url('data:text/html,malicious'); }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "data" in res["validator_errors"]
+
+    valid, err = validate_css_safety(".hero { background: url('data:text/html,payload'); }")
+    assert valid is False
+    assert "data:text/html" in err
+
+
 
 

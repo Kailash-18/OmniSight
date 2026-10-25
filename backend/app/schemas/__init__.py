@@ -21,6 +21,11 @@ from app.schemas.run_schema import (
     RunSummaryResponse,
     RunDetailResponse,
     RunMetricsSummaryResponse,
+    RetestResultPayload,
+    RetestResultResponse,
+    FindingStatusUpdatePayload,
+    TimelineEvent,
+    ForensicBundleResponse,
 )
 
 __all__ = [
@@ -41,5 +46,10 @@ __all__ = [
     "RunSummaryResponse",
     "RunDetailResponse",
     "RunMetricsSummaryResponse",
+    "RetestResultPayload",
+    "RetestResultResponse",
+    "FindingStatusUpdatePayload",
+    "TimelineEvent",
+    "ForensicBundleResponse",
 ]
 

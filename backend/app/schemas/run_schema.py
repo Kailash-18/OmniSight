@@ -211,6 +211,22 @@ class GitHubWebhookPayload(BaseModel):
 
 
 
+class RetestResultPayload(BaseModel):
+    """Payload reporting verification retest results from sandbox execution."""
+    passed: bool = Field(..., description="True if visual retest verified defect was cleared")
+    visual_diff_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Visual difference ratio (0.0 = identical)")
+    retest_viewport: Optional[str] = Field(default=None, description="Viewport used during sandbox verification")
+    retest_screenshots: Dict[str, str] = Field(default_factory=dict, description="Artifact paths for retest screenshots")
+    notes: Optional[str] = Field(default=None, description="Optional diagnostic notes or execution details")
+
+
+class FindingStatusUpdatePayload(BaseModel):
+    """Payload for updating the remediation status of a specific finding."""
+    status: str = Field(..., description="Target status: detected, fixed, verified, or needs_review")
+    suggested_change: Optional[str] = Field(default=None, description="Updated suggested correction if refined")
+    notes: Optional[str] = Field(default=None, description="Resolution rationale or explanation")
+
+
 class VLMParseRequest(BaseModel):
     """Payload containing raw VLM natural language or JSON text for Action Engine parsing."""
     raw_vlm_output: str = Field(..., description="Raw text response returned by VLM")
@@ -278,4 +294,33 @@ class RunMetricsSummaryResponse(BaseModel):
     total_defects_detected: int = Field(..., description="Total visual anomalies detected")
     clean_run_rate_percent: float = Field(..., description="Percentage of runs clean or resolved")
     defects_by_category: Dict[str, int] = Field(default_factory=dict, description="Count per defect category")
-    runs_by_status: Dict[str, int] = Field(default_factory=dict, description="Count per run lifecycle status")
+    runs_by_status: Dict[str, int] = Field(default_factory=dict, description="Count per run lifecycle status")
+
+
+class TimelineEvent(BaseModel):
+    """Chronological event log item tracking run progression."""
+    event_id: str = Field(..., description="Unique event identifier")
+    timestamp: str = Field(..., description="ISO 8601 UTC timestamp")
+    event_type: str = Field(..., description="Classification (e.g. webhook_received, vlm_parsed, patch_validated, retest_verified, pr_opened)")
+    description: str = Field(..., description="Human-readable event summary")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Contextual payload or metrics")
+
+
+class RetestResultResponse(BaseModel):
+    """Response confirming ingestion of sandbox verification retest."""
+    run_id: str
+    status: RunStatus
+    passed: bool
+    message: str
+    visual_diff_score: Optional[float] = None
+
+
+class ForensicBundleResponse(BaseModel):
+    """Complete forensic bundle for audit archiving and compliance review."""
+    run_id: str
+    generated_at: str
+    summary: RunSummaryResponse
+    detail: RunDetailResponse
+    timeline: List[TimelineEvent] = Field(default_factory=list)
+    retest_outcome: Optional[Dict[str, Any]] = None
+

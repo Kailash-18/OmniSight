@@ -215,3 +215,51 @@ def test_run_detail_response_serialization():
     assert "screenshots" in data["evidence_paths"]
 
 
+def test_retest_result_payload_validation():
+    """Verify RetestResultPayload constraints and defaults."""
+    from app.schemas.run_schema import RetestResultPayload
+
+    payload = RetestResultPayload(
+        passed=True,
+        visual_diff_score=0.02,
+        retest_viewport="mobile_375x667",
+        retest_screenshots={"after": "artifacts/retest.png"},
+        notes="Visual mismatch resolved"
+    )
+    assert payload.passed is True
+    assert payload.visual_diff_score == 0.02
+    assert payload.retest_viewport == "mobile_375x667"
+    assert "after" in payload.retest_screenshots
+
+
+def test_timeline_event_schema_serialization():
+    """Verify TimelineEvent creation and dictionary dump."""
+    from app.schemas.run_schema import TimelineEvent
+
+    event = TimelineEvent(
+        event_id="evt-101",
+        timestamp="2026-10-25T11:00:00Z",
+        event_type="retest_verified",
+        description="Sandbox visual verification passed",
+        metadata={"diff_score": 0.0}
+    )
+    dumped = event.model_dump()
+    assert dumped["event_id"] == "evt-101"
+    assert dumped["event_type"] == "retest_verified"
+    assert dumped["metadata"]["diff_score"] == 0.0
+
+
+def test_finding_status_update_payload():
+    """Verify FindingStatusUpdatePayload validation."""
+    from app.schemas.run_schema import FindingStatusUpdatePayload
+
+    update = FindingStatusUpdatePayload(
+        status="verified",
+        suggested_change="padding: 12px;",
+        notes="Verified against mobile viewport"
+    )
+    assert update.status == "verified"
+    assert update.suggested_change == "padding: 12px;"
+
+
+

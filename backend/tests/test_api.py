@@ -633,6 +633,199 @@ def test_export_run_evidence_markdown_not_found(client: TestClient):
     assert "not found" in response.json()["detail"].lower()
 
 
+def test_retest_result_success_transitions_run_to_fixed(client: TestClient):
+    """Verify posting a passed retest result updates status to FIXED and stores visual diff score."""
+    run_id = "run-retest-pass-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-25T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "verifying",
+        "evidence_paths": {},
+        "findings": []
+    }
+    payload = {
+        "passed": True,
+        "visual_diff_score": 0.0,
+        "retest_viewport": "mobile_375x667",
+        "retest_screenshots": {"after": "artifacts/retest_after.png"},
+        "notes": "Button clipping resolved"
+    }
+    res = client.post(f"/runs/{run_id}/retest-result", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "fixed"
+    assert data["passed"] is True
+    assert data["visual_diff_score"] == 0.0
+    assert runs_db[run_id]["status"] == "fixed"
+    assert runs_db[run_id]["evidence_paths"]["retest_screenshots"]["after"] == "artifacts/retest_after.png"
+
+
+def test_retest_result_failure_transitions_to_needs_review(client: TestClient):
+    """Verify posting a failed retest result updates status to NEEDS_REVIEW."""
+    run_id = "run-retest-fail-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-25T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "verifying",
+        "evidence_paths": {},
+        "findings": []
+    }
+    payload = {
+        "passed": False,
+        "visual_diff_score": 0.15,
+        "retest_viewport": "desktop_1440x900",
+        "notes": "Modal overlap remains after patch"
+    }
+    res = client.post(f"/runs/{run_id}/retest-result", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "needs_review"
+    assert data["passed"] is False
+    assert runs_db[run_id]["status"] == "needs_review"
+
+
+def test_update_pr_verification_success(client: TestClient):
+    """Verify update PR verification creates comment and returns success."""
+    run_id = "run-pr-verify-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-25T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/55",
+        "retest_outcome": {
+            "passed": True,
+            "visual_diff_score": 0.001,
+            "retest_viewport": "mobile_375x667",
+            "notes": "Clipped element cleared"
+        }
+    }
+    res = client.post(f"/runs/{run_id}/update-pr-verification")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert data["pr_number"] == 55
+    assert data["comment_posted"] is True
+
+
+def test_run_timeline_ordered_event_history(client: TestClient):
+    """Verify run timeline returns chronological events with unique IDs."""
+    run_id = "run-timeline-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-25T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "audited",
+        "timeline": [
+            {
+                "event_id": "evt-1",
+                "timestamp": "2026-10-25T10:00:01Z",
+                "event_type": "build_webhook_received",
+                "description": "Triggered from CI",
+                "metadata": {}
+            },
+            {
+                "event_id": "evt-2",
+                "timestamp": "2026-10-25T10:00:05Z",
+                "event_type": "vlm_parsed",
+                "description": "Defect detected",
+                "metadata": {"count": 1}
+            }
+        ]
+    }
+    res = client.get(f"/runs/{run_id}/timeline")
+    assert res.status_code == 200
+    events = res.json()
+    assert len(events) == 2
+    assert events[0]["event_type"] == "build_webhook_received"
+    assert events[1]["event_type"] == "vlm_parsed"
+
+
+def test_update_finding_status_remediated(client: TestClient):
+    """Verify patching individual finding status updates the run record."""
+    run_id = "run-finding-update-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-25T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "audited",
+        "findings": [
+            {
+                "id": "defect-checkout-btn",
+                "category": "element_clipping",
+                "severity": "high",
+                "description": "Button clipped",
+                "viewport": "mobile_375x667",
+                "confidence": 0.95,
+                "suggested_change": "width: 100%",
+                "status": "detected"
+            }
+        ]
+    }
+    update_payload = {
+        "status": "remediated",
+        "suggested_change": "width: 100%; max-width: 100%;",
+        "notes": "Resolved via responsive media query fix"
+    }
+    res = client.patch(f"/runs/{run_id}/findings/defect-checkout-btn", json=update_payload)
+    assert res.status_code == 200
+    assert res.json()["status"] == "remediated"
+    assert runs_db[run_id]["findings"][0]["status"] == "remediated"
+
+
+def test_export_run_forensic_bundle(client: TestClient):
+    """Verify export forensic bundle compiles comprehensive audit archive."""
+    run_id = "run-bundle-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-25T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/77",
+        "findings": [
+            {
+                "id": "def-1",
+                "category": "contrast_issue",
+                "severity": "medium",
+                "description": "Contrast below WCAG AA",
+                "viewport": "desktop_1440x900",
+                "confidence": 0.89,
+                "suggested_change": "color: #111827",
+                "status": "fixed"
+            }
+        ],
+        "patch": {
+            "target_file": "app-under-test/src/styles/defects.css",
+            "diff": "-color: #ccc;\n+color: #111827;",
+            "validation_status": True
+        },
+        "retest_outcome": {
+            "passed": True,
+            "visual_diff_score": 0.0
+        },
+        "timeline": [
+            {
+                "event_id": "evt-1",
+                "timestamp": "2026-10-25T10:00:00Z",
+                "event_type": "audit_started",
+                "description": "Audit started",
+                "metadata": {}
+            }
+        ]
+    }
+    res = client.get(f"/runs/{run_id}/export-bundle")
+    assert res.status_code == 200
+    bundle = res.json()
+    assert bundle["run_id"] == run_id
+    assert bundle["summary"]["status"] == "fixed"
+    assert bundle["detail"]["findings"][0]["category"] == "contrast_issue"
+    assert len(bundle["timeline"]) == 1
+    assert bundle["retest_outcome"]["passed"] is True
+
+
+
 
 
 

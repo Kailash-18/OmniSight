@@ -25,12 +25,17 @@ class BackendClient:
     def __init__(
         self,
         base_url: str | None = None,
-        timeout: float = 5.0,
+        timeout: float = 3.0,
         test_client: Any | None = None,
     ):
         self.base_url = (base_url or config.backend_url).rstrip("/")
         self.timeout = timeout
         self.test_client = test_client
+        self._is_available: bool | None = None
+
+    @property
+    def is_available(self) -> bool | None:
+        return self._is_available
 
     def _request(
         self,
@@ -38,11 +43,16 @@ class BackendClient:
         endpoint: str,
         json_data: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        force_probe: bool = False,
     ) -> dict[str, Any] | None:
         """
         Executes an HTTP request to the backend service.
         Supports both live network requests and in-memory FastAPI TestClient.
+        Fails fast if the gateway has already been detected as offline.
         """
+        if self.test_client is None and self._is_available is False and not force_probe:
+            return None
+
         url = f"{self.base_url}{endpoint}"
 
         if self.test_client is not None:
@@ -56,6 +66,7 @@ class BackendClient:
 
                 response = fn(endpoint, **kwargs)
                 if response.status_code in (200, 201, 202):
+                    self._is_available = True
                     return response.json()
                 logger.warning(
                     "Backend error %d from %s: %s",
@@ -92,17 +103,26 @@ class BackendClient:
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 if resp.status in (200, 201, 202):
+                    self._is_available = True
                     content = resp.read().decode("utf-8")
                     return json.loads(content) if content else {}
                 return None
         except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError) as e:
+            self._is_available = False
             logger.debug("Backend request failed for %s %s: %s", method, full_url, e)
             return None
 
     def check_health(self) -> bool:
-        """Verifies if the backend gateway is healthy and accessible."""
-        res = self._request("GET", "/health")
-        return res is not None and res.get("status") == "healthy"
+        """Verifies if the backend gateway is healthy and accessible with a quick probe."""
+        orig_timeout = self.timeout
+        try:
+            self.timeout = min(orig_timeout, 1.5)
+            res = self._request("GET", "/health", force_probe=True)
+            healthy = res is not None and res.get("status") == "healthy"
+            self._is_available = healthy
+            return healthy
+        finally:
+            self.timeout = orig_timeout
 
     def register_run(
         self,

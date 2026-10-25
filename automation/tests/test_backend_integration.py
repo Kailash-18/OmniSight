@@ -213,3 +213,49 @@ def test_orchestrator_closed_loop_backend_sync(
     assert len(backend_details["findings"]) > 0
     assert backend_details["patch"] is not None
     assert backend_details["patch"]["validation_status"] is True
+
+
+def test_backend_client_register_run_with_scenario(backend_client: BackendClient):
+    run_id = backend_client.register_run(
+        target_url="http://127.0.0.1:5173",
+        scenario="custom_checkout_scenario",
+        viewports=["desktop_1440x900"],
+    )
+    assert run_id is not None
+    details = backend_client.get_run_details(run_id)
+    assert details is not None
+    assert details["target"] == "http://127.0.0.1:5173"
+
+
+def test_backend_client_offline_circuit_breaker():
+    client = BackendClient(base_url="http://127.0.0.1:59998", timeout=0.1)
+    # First health probe sets _is_available to False
+    assert client.check_health() is False
+    assert client.is_available is False
+
+    # Subsequent request fails fast immediately without attempting network
+    assert client._request("GET", "/health") is None
+
+
+def test_cli_scenario_argument(monkeypatch: pytest.MonkeyPatch):
+    from automation import cli
+
+    executed = {}
+
+    def mock_run_full_remediation_loop(self, **kwargs):
+        executed.update(kwargs)
+        return {"run_id": "test-cli-run", "status": "fixed", "findings": []}
+
+    monkeypatch.setattr(
+        "automation.orchestrator.Orchestrator.run_full_remediation_loop",
+        mock_run_full_remediation_loop,
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        ["cli.py", "--scenario", "promo_banner_journey", "--json-output"],
+    )
+
+    exit_code = cli.main()
+    assert exit_code == 0
+    assert executed.get("scenario") == "promo_banner_journey"
+

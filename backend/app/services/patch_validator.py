@@ -36,7 +36,7 @@ def validate_css_safety(css_text: str) -> tuple[bool, Optional[str]]:
     """
     Validates that CSS content does not contain dangerous directives:
     Rejects @import (external exfiltration), behavior:, -moz-binding,
-    expression(), and malicious url() schemes.
+    expression(), and malicious url() schemes (javascript:, data:text/html).
     """
     if re.search(r"@import\b", css_text, re.IGNORECASE):
         return False, "Security violation: '@import' directives are forbidden in visual QA patches."
@@ -44,7 +44,14 @@ def validate_css_safety(css_text: str) -> tuple[bool, Optional[str]]:
         return False, "Security violation: 'behavior' property is forbidden in CSS patches."
     if re.search(r"-moz-binding\s*:", css_text, re.IGNORECASE):
         return False, "Security violation: '-moz-binding' property is forbidden in CSS patches."
+    if re.search(r"expression\s*\(", css_text, re.IGNORECASE):
+        return False, "Security violation: CSS 'expression()' execution is forbidden in visual QA patches."
+    if re.search(r"url\s*\(\s*['\"]?\s*javascript\s*:", css_text, re.IGNORECASE):
+        return False, "Security violation: 'javascript:' URI schemes are forbidden in CSS patches."
+    if re.search(r"url\s*\(\s*['\"]?\s*data:\s*text\/html", css_text, re.IGNORECASE):
+        return False, "Security violation: 'data:text/html' URI schemes are forbidden in CSS patches."
     return True, None
+
 
 
 

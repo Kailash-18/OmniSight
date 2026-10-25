@@ -9,8 +9,7 @@ import argparse
 from typing import List
 from automation.config import config
 from automation.orchestrator import Orchestrator
-from automation.vlm_adapter import MockVLMAdapter
-from automation.vlm_client import LiveVLMAdapter
+from automation.vlm_adapter import MockVLMAdapter, LiveVLMAdapter
 
 
 def main() -> int:
@@ -22,6 +21,12 @@ def main() -> int:
         type=str,
         default=config.app_url,
         help=f"Target web app URL (default: {config.app_url})",
+    )
+    parser.add_argument(
+        "--scenario",
+        type=str,
+        default="checkout_flow",
+        help="Target journey scenario to execute (default: checkout_flow)",
     )
     parser.add_argument(
         "--viewports",
@@ -80,6 +85,7 @@ def main() -> int:
         print("  OmniSight Autonomous Visual QA & RPA Agent")
         print("=" * 60)
         print(f"Target URL: {args.target}")
+        print(f"Scenario:   {args.scenario}")
         print(f"Engine:     Playwright Chromium (Headless: {config.headless})")
         print(f"VLM:        {'Live Multimodal API' if args.use_live_vlm else 'Deterministic Mock'}")
         print(f"Retest:     {'Disabled' if args.no_retest else 'Sandboxed Verification Enabled'}")
@@ -89,6 +95,7 @@ def main() -> int:
 
     result = orchestrator.run_full_remediation_loop(
         target_url=args.target,
+        scenario=args.scenario,
         viewports=args.viewports,
         auto_retest=not args.no_retest,
     )

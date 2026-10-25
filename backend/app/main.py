@@ -92,6 +92,18 @@ def _append_timeline_event(
     return None
 
 
+def _normalize_evidence_paths(ev: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Ensures both 'screenshots' and 'before_screenshots' alias keys are populated to match API contract."""
+    if not ev:
+        return {}
+    res = dict(ev)
+    if "screenshots" in res and "before_screenshots" not in res:
+        res["before_screenshots"] = res["screenshots"]
+    elif "before_screenshots" in res and "screenshots" not in res:
+        res["screenshots"] = res["before_screenshots"]
+    return res
+
+
 def _validate_target_host(target_url: str) -> str:
     """Enforces target URL restriction and scheme validation to prevent SSRF against internal services."""
     try:
@@ -428,7 +440,7 @@ def get_run_details(run_id: str):
         target=r["target"],
         status=RunStatus(r["status"]),
         steps=r.get("steps", []),
-        evidence_paths=r.get("evidence_paths", {}),
+        evidence_paths=_normalize_evidence_paths(r.get("evidence_paths", {})),
         findings=r.get("findings", []),
         patch=r.get("patch"),
         retry_count=r.get("retry_count", 0),
@@ -541,7 +553,7 @@ def update_run_record(run_id: str, payload: RunRecordUpdatePayload):
     if payload.steps is not None:
         run_entry["steps"] = payload.steps
     if payload.evidence_paths is not None:
-        run_entry["evidence_paths"] = payload.evidence_paths
+        run_entry["evidence_paths"] = _normalize_evidence_paths(payload.evidence_paths)
     if payload.findings is not None:
         run_entry["findings"] = [f.model_dump() for f in payload.findings]
         run_entry["issue_count"] = len(payload.findings)
@@ -921,7 +933,7 @@ def export_run_forensic_bundle(run_id: str):
         target=r["target"],
         status=RunStatus(r["status"]),
         steps=r.get("steps", []),
-        evidence_paths=r.get("evidence_paths", {}),
+        evidence_paths=_normalize_evidence_paths(r.get("evidence_paths", {})),
         findings=r.get("findings", []),
         patch=r.get("patch"),
         retry_count=r.get("retry_count", 0),

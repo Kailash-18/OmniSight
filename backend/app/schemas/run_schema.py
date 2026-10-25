@@ -244,6 +244,18 @@ class RunRecordUpdatePayload(BaseModel):
     pr_url: Optional[str] = None
     error: Optional[str] = None
 
+    @field_validator("evidence_paths", mode="before")
+    @classmethod
+    def normalize_evidence_paths(cls, v: Any) -> Any:
+        if isinstance(v, dict):
+            res = dict(v)
+            if "screenshots" in res and "before_screenshots" not in res:
+                res["before_screenshots"] = res["screenshots"]
+            elif "before_screenshots" in res and "screenshots" not in res:
+                res["screenshots"] = res["before_screenshots"]
+            return res
+        return v
+
 
 # ---------------------------------------------------------------------------
 # Response Models
@@ -283,6 +295,18 @@ class RunDetailResponse(BaseModel):
     retry_count: int = 0
     pr_url: Optional[str] = None
     error: Optional[str] = None
+
+    @field_validator("evidence_paths", mode="before")
+    @classmethod
+    def normalize_evidence_paths(cls, v: Any) -> Any:
+        if isinstance(v, dict):
+            res = dict(v)
+            if "screenshots" in res and "before_screenshots" not in res:
+                res["before_screenshots"] = res["screenshots"]
+            elif "before_screenshots" in res and "screenshots" not in res:
+                res["screenshots"] = res["before_screenshots"]
+            return res
+        return v
 
 
 class RunMetricsSummaryResponse(BaseModel):

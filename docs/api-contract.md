@@ -72,6 +72,11 @@ Returns complete forensic details, evidence links, findings, and patch status fo
     "status": "fixed",
     "steps": ["navigate_home", "add_item", "open_cart", "navigate_checkout"],
     "evidence_paths": {
+      "screenshots": [
+        "artifacts/runs/run-1729418400/desktop_1440x900_home.png",
+        "artifacts/runs/run-1729418400/mobile_375x667_cart.png",
+        "artifacts/runs/run-1729418400/desktop_1280x800_checkout.png"
+      ],
       "before_screenshots": [
         "artifacts/runs/run-1729418400/desktop_1440x900_home.png",
         "artifacts/runs/run-1729418400/mobile_375x667_cart.png",
@@ -121,3 +126,8 @@ Values must remain identical across backend, automation, and frontend:
 * `needs_review`: AI confidence low or retest failed; human escalation required.
 * `pr_opened`: Automated GitHub Pull Request created with evidence.
 * `failed`: Execution failed due to network, runtime, or timeout error.
+
+### Evidence Paths Schema
+* `screenshots` (primary) / `before_screenshots` (alias): Baseline screenshots captured before remediation. Both keys are supported and normalized across the backend and QA dashboard.
+* `after_screenshots`: Verification screenshots captured after sandbox patch application during retesting.
+* `dom_snapshot`: Path to the captured DOM structure snapshot.

@@ -117,6 +117,7 @@ def test_update_run_record(client: TestClient):
     update_payload = {
         "status": "audited",
         "steps": ["navigate_home", "open_cart", "navigate_checkout"],
+        "evidence_paths": {"screenshots": ["artifacts/home.png"]},
         "retry_count": 1
     }
     put_res = client.put(f"/runs/{run_id}", json=update_payload)
@@ -126,6 +127,9 @@ def test_update_run_record(client: TestClient):
     assert detail["status"] == "audited"
     assert detail["steps"] == ["navigate_home", "open_cart", "navigate_checkout"]
     assert detail["retry_count"] == 1
+    assert "screenshots" in detail["evidence_paths"]
+    assert "before_screenshots" in detail["evidence_paths"]
+    assert detail["evidence_paths"]["before_screenshots"] == ["artifacts/home.png"]
 
 
 def test_action_engine_parse_endpoint(client: TestClient):

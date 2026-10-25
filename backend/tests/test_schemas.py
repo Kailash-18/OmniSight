@@ -213,6 +213,20 @@ def test_run_detail_response_serialization():
     assert data["run_id"] == "run-test-detail-1"
     assert data["status"] == "audited"
     assert "screenshots" in data["evidence_paths"]
+    assert "before_screenshots" in data["evidence_paths"]
+    assert data["evidence_paths"]["before_screenshots"] == ["desktop.png"]
+
+    # Verify reverse alias: before_screenshots populates screenshots
+    detail_alias = RunDetailResponse(
+        run_id="run-test-detail-2",
+        start_time="2026-10-22T20:00:00Z",
+        target="http://localhost:5173",
+        status=RunStatus.AUDITED,
+        steps=["nav", "audit"],
+        evidence_paths={"before_screenshots": ["mobile.png"]}
+    )
+    alias_data = detail_alias.model_dump()
+    assert alias_data["evidence_paths"]["screenshots"] == ["mobile.png"]
 
 
 def test_retest_result_payload_validation():

@@ -72,7 +72,7 @@ Returns complete forensic details, evidence links, findings, and patch status fo
     "status": "fixed",
     "steps": ["navigate_home", "add_item", "open_cart", "navigate_checkout"],
     "evidence_paths": {
-      "before_screenshots": [
+      "screenshots": [
         "artifacts/runs/run-1729418400/desktop_1440x900_home.png",
         "artifacts/runs/run-1729418400/mobile_375x667_cart.png",
         "artifacts/runs/run-1729418400/desktop_1280x800_checkout.png"

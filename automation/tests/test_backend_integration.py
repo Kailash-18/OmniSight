@@ -259,3 +259,65 @@ def test_cli_scenario_argument(monkeypatch: pytest.MonkeyPatch):
     assert exit_code == 0
     assert executed.get("scenario") == "promo_banner_journey"
 
+
+def test_orchestrator_no_retest_returns_audited_status(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    from PIL import Image
+
+    dummy_shot = tmp_path / "mobile_375x667_checkout.png"
+    img = Image.new("RGB", (375, 667), color=(255, 255, 255))
+    img.save(dummy_shot)
+
+    def mock_journey(*args, **kwargs):
+        return {
+            "run_id": "run-no-retest",
+            "target_url": "http://127.0.0.1:5173",
+            "viewports_evaluated": ["mobile_375x667"],
+            "screenshots": [str(dummy_shot)],
+            "dom_snapshots": [],
+            "steps_completed": ["navigate_home", "checkout"],
+        }
+
+    monkeypatch.setattr(
+        "automation.orchestrator.run_visual_audit_journey", mock_journey
+    )
+
+    orchestrator = Orchestrator(vlm_adapter=MockVLMAdapter())
+    result = orchestrator.run_full_remediation_loop(
+        target_url="http://127.0.0.1:5173",
+        auto_retest=False,
+    )
+
+    assert result["status"] == "audited"
+    assert orchestrator.state == AgentState.AUDITING
+    assert result.get("retest_verification") is None
+    assert len(result["findings"]) > 0
+
+
+def test_cli_no_retest_argument(monkeypatch: pytest.MonkeyPatch):
+    from automation import cli
+
+    executed = {}
+
+    def mock_run_full_remediation_loop(self, **kwargs):
+        executed.update(kwargs)
+        return {
+            "run_id": "test-cli-no-retest",
+            "status": "audited",
+            "findings": [{"category": "element_clipping", "severity": "high", "description": "clip", "viewport": "mobile_375x667", "suggested_change": "fix"}],
+            "retest_verification": None,
+        }
+
+    monkeypatch.setattr(
+        "automation.orchestrator.Orchestrator.run_full_remediation_loop",
+        mock_run_full_remediation_loop,
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        ["cli.py", "--no-retest", "--json-output"],
+    )
+
+    exit_code = cli.main()
+    assert exit_code == 0
+    assert executed.get("auto_retest") is False
+
+

@@ -136,7 +136,7 @@ uvicorn app.main:app --app-dir backend --reload --port 8000
 # Terminal 3: Run Automation Visual QA Runner (Standalone or Synced with Backend Gateway)
 python -m automation.cli --target http://localhost:5173 --sync-backend
 
-# Run Full Test Suite (72 unit, security, and integration tests)
+# Run Full Test Suite (76 unit, security, and integration tests)
 python -m pytest
 ```
 

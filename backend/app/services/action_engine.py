@@ -75,11 +75,19 @@ class ActionEngine:
     def extract_json_object(cls, text: str) -> Tuple[Optional[Any], List[str]]:
         """
         Robustly extracts the primary JSON object or list from raw VLM output.
-        Handles pure JSON, markdown fenced JSON, and JSON surrounded by natural language.
+        Handles pure JSON, markdown fenced JSON, single-quoted dicts, and smart quotes.
         Uses strict=False to tolerate literal control characters in diff strings.
         """
+        import ast
         errors = []
-        cleaned_text = text.strip()
+        # Normalize Unicode smart/curly quotes to standard ASCII quotes
+        cleaned_text = (
+            text.strip()
+            .replace("“", '"')
+            .replace("”", '"')
+            .replace("‘", "'")
+            .replace("’", "'")
+        )
 
         # Strategy 1: Check for ```json ... ``` or generic ``` ... ``` markdown block
         code_blocks = cls.extract_code_blocks(cleaned_text)
@@ -90,7 +98,13 @@ class ActionEngine:
                     if isinstance(data, (dict, list)):
                         return data, errors
                 except json.JSONDecodeError:
-                    continue
+                    # Try single-quoted python literal fallback
+                    try:
+                        data = ast.literal_eval(block["code"])
+                        if isinstance(data, (dict, list)):
+                            return data, errors
+                    except Exception:
+                        continue
 
         # Strategy 2: Direct JSON parse
         try:
@@ -117,8 +131,14 @@ class ActionEngine:
                         data = json.loads(sanitized, strict=False)
                         if isinstance(data, (dict, list)):
                             return data, errors
-                    except json.JSONDecodeError as err:
-                        errors.append(f"Failed to decode embedded JSON structure: {str(err)}")
+                    except json.JSONDecodeError:
+                        # Strategy 4: Try ast.literal_eval on candidate for single-quoted structures
+                        try:
+                            data = ast.literal_eval(candidate)
+                            if isinstance(data, (dict, list)):
+                                return data, errors
+                        except Exception as err:
+                            errors.append(f"Failed to decode embedded JSON structure: {str(err)}")
 
         errors.append("No valid JSON structure could be isolated from model response.")
         return None, errors

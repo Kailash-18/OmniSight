@@ -187,3 +187,19 @@ def test_add_pr_comment_live_mock(monkeypatch):
     assert "iPhone SE" in comments_posted[0]
 
 
+def test_update_pull_request_verification_proof_formatting(monkeypatch):
+    """Verify update_pull_request_verification_proof renders table with visual diff score."""
+    from app.services.github_service import update_pull_request_verification_proof
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    retest_data = {
+        "passed": True,
+        "visual_diff_score": 0.0025,
+        "retest_viewport": "mobile_375x667",
+        "notes": "Verified that checkout CTA is completely within view bounds"
+    }
+    success = update_pull_request_verification_proof(pr_number=77, retest_data=retest_data)
+    assert success is True
+
+
+

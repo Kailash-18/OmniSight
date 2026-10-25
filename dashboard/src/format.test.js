@@ -78,6 +78,25 @@ test('store links: only http(s), defect page derived from evidence', () => {
   assert.equal(defectPage('http://localhost:5173', {}, undefined), null) // no evidence
 })
 
+test('live backend shape: evidence_paths.screenshots with absolute paths, every page per viewport', () => {
+  const root = '/Users/me/OmniSight/artifacts/runs/run-1/screenshots/'
+  const vps = ['desktop_1440x900', 'desktop_1280x800', 'mobile_390x844', 'mobile_375x667']
+  const evidence = { screenshots: vps.flatMap((v) => ['home', 'cart', 'checkout'].map((p) => `${root}${v}_${p}.png`)), dom_snapshots: [] }
+  const pairs = pairEvidence(evidence)
+  assert.equal(pairs.length, 12)
+  assert.ok(pairs.every((p) => p.before && p.after === null))
+  assert.equal(evidenceUrl(pairs[0].before), '/artifacts/runs/run-1/screenshots/desktop_1440x900_home.png')
+  // 3 pages at that viewport: don't guess a page, but keep the viewport
+  const clipped = defectPage('http://localhost:5173', { viewport: 'mobile_375x667' }, evidence)
+  assert.equal(clipped.page, null)
+  assert.equal(clipped.size, '375×667')
+  assert.deepEqual(clipped.steps, [])
+  // viewport "all" across 12 shots: no page, no size
+  const all = defectPage('http://localhost:5173', { viewport: 'all' }, evidence)
+  assert.equal(all.page, null)
+  assert.equal(all.size, null)
+})
+
 test('summary, diff and validator helpers', () => {
   const s = toSummary(runs.find((r) => r.run_id === 'mock-run-1001'))
   assert.deepEqual(Object.keys(s), ['run_id', 'start_time', 'target', 'status', 'issue_count', 'pr_url'])

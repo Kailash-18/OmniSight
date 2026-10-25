@@ -36,7 +36,9 @@ page containing `root`, so the dashboard stays off those ports to avoid being mi
   the repo's `artifacts/` folder at `/artifacts/...` (PNG and JSON only, no path traversal). This is dev-only; long term
   the backend should serve evidence.
 
-Fields follow `docs/api-contract.md`. Fields that only some producers send (`target_element`, `error`,
+Fields follow `docs/api-contract.md`. The live backend sends the baseline screenshots as `evidence_paths.screenshots`
+(absolute paths) instead of the contract's `before_screenshots`; both are accepted. When the evidence covers several
+pages at a finding's viewport, the defect link says "Open store" rather than guessing the page. Fields that only some producers send (`target_element`, `error`,
 `retest_verification.mismatch_percentage`, `patch.validation_status`/`validator_errors`) are optional and only shown
 when present. Unknown status values still render as a neutral badge. Only `http(s)` targets become links; anything
 else (e.g. `javascript:`) is shown as plain text.

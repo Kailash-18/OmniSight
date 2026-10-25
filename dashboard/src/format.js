@@ -37,9 +37,10 @@ export function parseShot(path) {
 }
 
 // Pair before/after screenshots by viewport + page. Unmatched sides stay null.
+// The contract names the baseline list before_screenshots; the live backend sends it as screenshots.
 export function pairEvidence(evidence) {
   const pairs = new Map()
-  for (const p of evidence?.before_screenshots || []) {
+  for (const p of evidence?.before_screenshots || evidence?.screenshots || []) {
     pairs.set(parseShot(p).key, { ...parseShot(p), before: p, after: null })
   }
   for (const p of evidence?.after_screenshots || []) {
@@ -70,24 +71,28 @@ export function safeUrl(target) {
 
 const PAGES = { home: 'Products', cart: 'Cart', checkout: 'Checkout' }
 
-// Where a finding shows up in the store. The page comes from its evidence screenshot
-// (same viewport, else the first one). Cart and checkout need items first and the store's cart is
-// in memory, so a deep link would open empty: those link to the store home with steps instead.
+// Where a finding shows up in the store, taken from its evidence screenshots. Only name a page when the
+// evidence points to exactly one (live runs capture every page at every viewport, so don't guess).
+// Cart and checkout need items first and the store's cart is in memory, so a deep link would open empty:
+// the link always goes to the store home, with steps to reach the page.
 export function defectPage(target, finding, evidence) {
   const base = safeUrl(target)
   const pairs = pairEvidence(evidence)
-  const pair = pairs.find((p) => p.viewport === finding?.viewport) || pairs[0]
-  if (!base || !pair) return null
-  const viewport = pair.viewport || finding?.viewport
+  if (!base || pairs.length === 0) return null
+  const sameViewport = pairs.filter((p) => p.viewport === finding?.viewport)
+  const candidates = sameViewport.length ? sameViewport : pairs
+  const pages = [...new Set(candidates.map((p) => p.page))]
+  const page = pages.length === 1 ? pages[0] : null
+  const viewport = sameViewport.length ? finding.viewport : candidates.length === 1 ? candidates[0].viewport : null
   const size = viewport?.match(/(\d+)x(\d+)$/)
   const steps = {
     home: [],
     cart: ['Add any product', 'Open Cart'],
     checkout: ['Add any product', 'Open Cart', 'Continue to checkout'],
-  }[pair.page] || []
+  }[page] || []
   return {
     url: base, // store home; every journey starts here
-    page: PAGES[pair.page] || pair.page,
+    page: page ? PAGES[page] || page : null, // null = evidence doesn't pin down one page
     viewport,
     size: size ? `${size[1]}×${size[2]}` : null,
     steps,

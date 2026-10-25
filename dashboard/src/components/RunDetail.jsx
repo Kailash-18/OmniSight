@@ -11,12 +11,13 @@ function DefectLink({ link, id }) {
   return (
     <div className="defect-link" data-testid={`defect-link-${id}`}>
       <a href={link.url} target="_blank" rel="noreferrer" className="btn btn-small">
-        Open {link.page} page ↗<span className="visually-hidden"> (opens the store in a new tab)</span>
+        {link.page ? `Open ${link.page} page` : 'Open store'} ↗<span className="visually-hidden"> (opens the store in a new tab)</span>
       </a>
       <ol className="defect-steps small muted" data-testid="defect-steps">
         {link.size && <li>Set the browser to {link.size} (DevTools device mode)</li>}
-        {link.steps.map((s) => <li key={s}>{s}</li>)}
-        {link.steps.length === 0 && <li>The defect is visible on load</li>}
+        {link.page && link.steps.map((s) => <li key={s}>{s}</li>)}
+        {link.page === 'Products' && <li>The defect is visible on load</li>}
+        {!link.page && <li>Page not identified from the evidence; compare with the screenshots below</li>}
       </ol>
     </div>
   )

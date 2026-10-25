@@ -37,6 +37,7 @@ build/
 artifacts/
 *.png
 !app-under-test/public/*.png
+!dashboard/public/fixtures/*.png
 *.log
 
 # OS & Editor Files

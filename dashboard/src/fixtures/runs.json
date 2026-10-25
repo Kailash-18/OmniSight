@@ -1,0 +1,163 @@
+[
+  {
+    "run_id": "mock-run-1006",
+    "start_time": "2026-10-22T10:25:00Z",
+    "target": "http://localhost:5173",
+    "status": "running",
+    "steps": ["navigate_home"],
+    "evidence_paths": { "before_screenshots": [], "after_screenshots": [], "dom_snapshot": null },
+    "findings": [],
+    "patch": null,
+    "retry_count": 0,
+    "pr_url": null
+  },
+  {
+    "run_id": "mock-run-1005",
+    "start_time": "2026-10-22T10:20:00Z",
+    "target": "http://localhost:5173",
+    "status": "failed",
+    "steps": [],
+    "evidence_paths": { "before_screenshots": [], "after_screenshots": [], "dom_snapshot": null },
+    "findings": [],
+    "patch": null,
+    "retry_count": 0,
+    "pr_url": null,
+    "error": "Mock store not reachable at http://127.0.0.1:5173. Start it with: npm run dev --prefix app-under-test"
+  },
+  {
+    "run_id": "mock-run-1004",
+    "start_time": "2026-10-22T10:15:00Z",
+    "target": "http://localhost:5173",
+    "status": "patch_rejected",
+    "steps": ["navigate_home"],
+    "evidence_paths": {
+      "before_screenshots": ["fixtures/desktop_1440x900_home.png"],
+      "after_screenshots": [],
+      "dom_snapshot": null
+    },
+    "findings": [
+      {
+        "id": "defect-home-heading-overlap",
+        "category": "element_overlap",
+        "severity": "medium",
+        "description": "Hero heading overlaps the top of the first product card",
+        "viewport": "desktop_1440x900",
+        "target_element": "hero-title",
+        "confidence": 0.88,
+        "suggested_change": "Move the hero heading markup outside the product grid",
+        "rationale": "Bounding box of hero-title extends 56px into product-card-mug",
+        "status": "detected"
+      }
+    ],
+    "patch": {
+      "target_file": "app-under-test/src/App.jsx",
+      "diff": "-      <main className=\"container page\">\n+      <main className=\"container page page--spaced\">",
+      "validation_status": false,
+      "validator_errors": ["Target file 'app-under-test/src/App.jsx' is not in the allowlist (allowed: app-under-test/src/styles/defects.css)"]
+    },
+    "retry_count": 0,
+    "pr_url": null
+  },
+  {
+    "run_id": "mock-run-1003",
+    "start_time": "2026-10-22T10:10:00Z",
+    "target": "http://localhost:5173",
+    "status": "fixed",
+    "steps": ["navigate_home"],
+    "evidence_paths": {
+      "before_screenshots": ["fixtures/desktop_1440x900_home.png"],
+      "after_screenshots": ["fixtures/desktop_1440x900_home_after.png"],
+      "dom_snapshot": null
+    },
+    "findings": [
+      {
+        "id": "defect-home-heading-overlap",
+        "category": "element_overlap",
+        "severity": "medium",
+        "description": "Hero heading overlaps the top of the first product card",
+        "viewport": "desktop_1440x900",
+        "target_element": "hero-title",
+        "confidence": 0.91,
+        "suggested_change": "Remove the negative bottom margin on .hero-title",
+        "rationale": "Bounding box of hero-title extends 56px into product-card-mug; z-index paints the heading over the card",
+        "status": "remediated"
+      }
+    ],
+    "patch": {
+      "target_file": "app-under-test/src/styles/defects.css",
+      "diff": " @media (min-width: 1024px) {\n   .hero-title {\n-    position: relative;\n-    z-index: 2;\n-    margin-bottom: -96px;\n   }\n }",
+      "validation_status": true,
+      "validator_errors": null
+    },
+    "retry_count": 1,
+    "pr_url": null
+  },
+  {
+    "run_id": "mock-run-1002",
+    "start_time": "2026-10-22T10:05:00Z",
+    "target": "http://localhost:5173",
+    "status": "needs_review",
+    "steps": ["navigate_home", "add_product_mug", "navigate_to_cart"],
+    "evidence_paths": {
+      "before_screenshots": ["fixtures/mobile_390x844_cart.png"],
+      "after_screenshots": ["fixtures/mobile_390x844_cart_after.png"],
+      "dom_snapshot": null
+    },
+    "findings": [
+      {
+        "id": "defect-cart-checkout-button-clipped",
+        "category": "element_clipping",
+        "severity": "high",
+        "description": "Continue to checkout button is cut off at the right edge of the cart summary card",
+        "viewport": "mobile_390x844",
+        "target_element": "continue-to-checkout",
+        "confidence": 0.71,
+        "suggested_change": "Remove min-width on .checkout-cta and overflow: clip on .cart-summary",
+        "rationale": "Button box extends 123px past cart-summary, whose overflow is clip",
+        "status": "needs_review"
+      }
+    ],
+    "patch": {
+      "target_file": "app-under-test/src/styles/defects.css",
+      "diff": " @media (max-width: 480px) {\n   .cart-summary {\n-    overflow: clip;\n   }\n   .checkout-cta {\n-    min-width: 460px;\n   }\n }",
+      "validation_status": true,
+      "validator_errors": null
+    },
+    "retry_count": 1,
+    "pr_url": null
+  },
+  {
+    "run_id": "mock-run-1001",
+    "start_time": "2026-10-22T10:00:00Z",
+    "target": "http://localhost:5173",
+    "status": "fixed",
+    "steps": ["navigate_home", "add_product_mug", "navigate_to_cart", "continue_to_checkout", "fill_checkout_form"],
+    "evidence_paths": {
+      "before_screenshots": ["fixtures/desktop_1280x800_checkout.png"],
+      "after_screenshots": ["fixtures/desktop_1280x800_checkout_after.png"],
+      "dom_snapshot": null
+    },
+    "findings": [
+      {
+        "id": "defect-checkout-submit-obstructed",
+        "category": "element_obstruction",
+        "severity": "high",
+        "description": "Submit order button is covered by the free-shipping promo banner",
+        "viewport": "desktop_1280x800",
+        "target_element": "submit-order",
+        "confidence": 0.96,
+        "suggested_change": "Return .promo-banner to normal flow (remove absolute positioning)",
+        "rationale": "promo-banner box fully contains submit-order and has a higher z-index",
+        "status": "remediated"
+      }
+    ],
+    "patch": {
+      "target_file": "app-under-test/src/styles/defects.css",
+      "diff": " .promo-banner {\n-  position: absolute;\n-  inset: 0;\n-  z-index: 2;\n-  display: flex;\n-  align-items: center;\n-  justify-content: center;\n-  pointer-events: none;\n }",
+      "validation_status": true,
+      "validator_errors": null
+    },
+    "retry_count": 1,
+    "pr_url": null
+  }
+]

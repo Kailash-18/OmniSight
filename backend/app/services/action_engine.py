@@ -4,6 +4,7 @@ Parses natural language and multimodal responses from VLMs, isolates structured 
 and executable code blocks, and validates patches against strict security guardrails.
 """
 
+import ast
 import json
 import re
 from typing import Dict, Any, List, Optional, Tuple
@@ -71,15 +72,38 @@ class ActionEngine:
         except ValueError:
             return Severity.MEDIUM, f"Unknown severity '{sev_val}', normalized to medium."
 
+    @staticmethod
+    def _normalize_quotes(text: str) -> str:
+        """
+        Normalizes smart/curly quotes (U+201C, U+201D, U+2018, U+2019)
+        and other Unicode quote anomalies commonly produced by LLMs/VLMs.
+        """
+        if not text:
+            return text
+        replacements = {
+            "\u201c": '"',
+            "\u201d": '"',
+            "\u2018": "'",
+            "\u2019": "'",
+            "\u00ab": '"',
+            "\u00bb": '"',
+            "\u2032": "'",
+            "\u2033": '"',
+        }
+        for orig, repl in replacements.items():
+            text = text.replace(orig, repl)
+        return text
+
     @classmethod
     def extract_json_object(cls, text: str) -> Tuple[Optional[Any], List[str]]:
         """
         Robustly extracts the primary JSON object or list from raw VLM output.
         Handles pure JSON, markdown fenced JSON, and JSON surrounded by natural language.
+        Normalizes smart quotes and recovers Python single-quoted dictionary literals.
         Uses strict=False to tolerate literal control characters in diff strings.
         """
         errors = []
-        cleaned_text = text.strip()
+        cleaned_text = cls._normalize_quotes(text.strip())
 
         # Strategy 1: Check for ```json ... ``` or generic ``` ... ``` markdown block
         code_blocks = cls.extract_code_blocks(cleaned_text)
@@ -90,7 +114,12 @@ class ActionEngine:
                     if isinstance(data, (dict, list)):
                         return data, errors
                 except json.JSONDecodeError:
-                    continue
+                    try:
+                        parsed_literal = ast.literal_eval(block["code"])
+                        if isinstance(parsed_literal, (dict, list)):
+                            return parsed_literal, errors
+                    except Exception:
+                        continue
 
         # Strategy 2: Direct JSON parse
         try:
@@ -98,7 +127,12 @@ class ActionEngine:
             if isinstance(data, (dict, list)):
                 return data, errors
         except json.JSONDecodeError:
-            pass
+            try:
+                parsed_literal = ast.literal_eval(cleaned_text)
+                if isinstance(parsed_literal, (dict, list)):
+                    return parsed_literal, errors
+            except Exception:
+                pass
 
         # Strategy 3: Find outermost balanced curly braces or brackets in prose
         for start_char, end_char in [("{", "}"), ("[", "]")]:
@@ -111,14 +145,18 @@ class ActionEngine:
                     if isinstance(data, (dict, list)):
                         return data, errors
                 except json.JSONDecodeError:
-                    # Attempt light sanitization (remove trailing commas before closing brackets)
                     sanitized = re.sub(r",\s*([\]}])", r"\1", candidate)
                     try:
                         data = json.loads(sanitized, strict=False)
                         if isinstance(data, (dict, list)):
                             return data, errors
-                    except json.JSONDecodeError as err:
-                        errors.append(f"Failed to decode embedded JSON structure: {str(err)}")
+                    except json.JSONDecodeError:
+                        try:
+                            parsed_literal = ast.literal_eval(candidate)
+                            if isinstance(parsed_literal, (dict, list)):
+                                return parsed_literal, errors
+                        except Exception:
+                            pass
 
         errors.append("No valid JSON structure could be isolated from model response.")
         return None, errors

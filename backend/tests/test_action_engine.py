@@ -245,3 +245,52 @@ def test_action_engine_infers_diff_header_target():
     assert result.proposed_patch.target_file == "app-under-test/src/styles/base.css"
     assert result.validation_status is True
 
+
+def test_action_engine_single_quoted_json_like_dict():
+    raw_vlm = """Here is the audit result:
+{
+    'findings': [
+        {
+            'id': 'sq-1',
+            'category': 'element_overlap',
+            'severity': 'high',
+            'description': 'Single quoted dictionary test',
+            'viewport': 'desktop',
+            'confidence': 0.88,
+            'suggested_change': 'z-index: 20',
+            'rationale': 'Element overlaps header'
+        }
+    ],
+    'summary': 'Single quote test'
+}
+"""
+    result = action_engine.parse_vlm_response(raw_vlm)
+    assert result.is_valid is True
+    assert len(result.findings) == 1
+    assert result.findings[0].id == "sq-1"
+    assert result.findings[0].category.value == "element_overlap"
+    assert result.findings[0].confidence == 0.88
+
+
+def test_action_engine_smart_curly_quotes_normalization():
+    raw_vlm = """Here is the VLM output with unicode curly quotes:
+“findings”: [
+    {
+        “id”: “smart-1”,
+        “category”: “element_clipping”,
+        “severity”: “critical”,
+        “description”: “Clipped checkout button”,
+        “viewport”: “mobile”,
+        “confidence”: “95%”,
+        “suggested_change”: “overflow: visible;”,
+        “rationale”: “Text clipped on mobile”
+    }
+]
+"""
+    result = action_engine.parse_vlm_response(raw_vlm)
+    assert result.is_valid is True
+    assert len(result.findings) == 1
+    assert result.findings[0].id == "smart-1"
+    assert result.findings[0].confidence == 0.95
+
+

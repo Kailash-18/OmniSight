@@ -5,7 +5,7 @@ Handles build webhooks, manual audit triggers, run lifecycle, and VLM patch vali
 
 import uuid
 try:
-    from datetime import UTC, datetime
+    from datetime import UTC, datetime, timezone
 except ImportError:
     from datetime import datetime, timezone
     UTC = timezone.utc

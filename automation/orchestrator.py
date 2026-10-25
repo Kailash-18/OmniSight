@@ -116,6 +116,7 @@ class Orchestrator:
         target_url: Optional[str] = None,
         viewports: Optional[List[str]] = None,
         auto_retest: bool = True,
+        scenario: str = "checkout_flow",
     ) -> Dict[str, Any]:
         """
         Executes the closed remediation loop:
@@ -140,7 +141,8 @@ class Orchestrator:
             run_results = run_visual_audit_journey(
                 app_url=app_url,
                 viewports=viewports,
-                evidence=evidence
+                evidence=evidence,
+                scenario=scenario,
             )
 
             self.state = AgentState.AUDITING
@@ -240,11 +242,11 @@ class Orchestrator:
                             self.state = AgentState.FIXED
                             final_status = AgentState.FIXED.value
                 else:
-                    self.state = AgentState.FIXED
-                    final_status = AgentState.FIXED.value
+                    self.state = AgentState.AUDITING
+                    final_status = AgentState.AUDITING.value
             elif audit_report.proposed_patch:
-                self.state = AgentState.FIXED
-                final_status = AgentState.FIXED.value
+                self.state = AgentState.AUDITING
+                final_status = AgentState.AUDITING.value
             else:
                 self.state = AgentState.NEEDS_REVIEW
                 final_status = AgentState.NEEDS_REVIEW.value

@@ -51,10 +51,10 @@ flowchart LR
 
 | Component | Owner | Deliverable Summary | Health | Tests |
 | :--- | :--- | :--- | :---: | :---: |
-| **Automation & Retest** | **Team Lead (Kailash)** | Multi-viewport runner, spatial anomaly detector, visual diff comparator, patch sandbox, CLI with `--sync-backend`, and `BackendClient`. | Healthy | 32 passed |
+| **Automation & Retest** | **Team Lead (Kailash)** | Multi-viewport runner, spatial anomaly detector, visual diff comparator, patch sandbox, CLI with `--sync-backend` and `--scenario`, and `BackendClient`. | Healthy | 36 passed |
 | **Backend & Action Engine** | **Member 1 (Sri Khyathi)** | FastAPI CI/CD gateway, `/action-engine/parse`, zero-trust patch validator, run lifecycle management, CORS, and `/api/milestones`. | Healthy | 40 passed |
 | **App Under Test** | **Member 2 (Jahnavi Alluri)** | Mock store (`everyday.`) with products/cart/checkout flow and 3 deterministic visual bugs (`defects.css`). | Healthy | 1 passed |
-| **Total Test Suite** | **OmniSight Team** | Complete end-to-end unit, security, integration, and UI verification. | **100% Pass** | **73 passed** |
+| **Total Test Suite** | **OmniSight Team** | Complete end-to-end unit, security, integration, and UI verification. | **100% Pass** | **77 passed** |
 
 ---
 
@@ -104,6 +104,15 @@ The zero-trust guardrails in `automation/patch_sandbox.py` and `backend/app/serv
 6. **Backend Documentation Drift**:
    * *Issue*: Stale Terraform commands and duplicate API headers were present in `backend/README.md`.
    * *Resolution*: Cleaned duplicate sections, clarified that Terraform is staged for Week 4, and updated backend test badges to reflect all 40 tests.
+7. **Architectural Consolidation (Elimination of Micro-File Proliferation)**:
+   * *Issue*: Scaffolding created numerous fragmented micro-files (`browser.py`, `health_check.py`, `journey.py`, `logger.py`, `dom_extractor.py`, `manifest.py`, `vlm_client.py`, `prompts/`).
+   * *Resolution*: Refactored into cohesive developer modules: `browser_runner.py` (browser RPA & health check), `evidence.py` (DOM & manifest), `vlm_adapter.py` (prompts & live/mock adapters), and `config.py` (viewports & settings).
+8. **Offline Gateway Circuit Breaker**:
+   * *Issue*: When `--sync-backend` was passed with an offline gateway, each lifecycle step stalled for a 5-second socket timeout (25+ seconds total).
+   * *Resolution*: Implemented connection state caching in `BackendClient` to fail fast and fallback locally without latency.
+9. **Context-Aware Unified Diff Patching**:
+   * *Issue*: Pure line additions in unified diffs without deletions appended to EOF rather than targeting context anchors.
+   * *Resolution*: Added context anchor resolution to `apply_unified_diff` in `patch_sandbox.py`.
 
 ---
 
@@ -115,16 +124,16 @@ $ python -m pytest
 platform win32 -- Python 3.14.2, pytest-9.1.1, pluggy-1.7.0
 rootdir: C:\Users\Kailash\Downloads\Code\Antigravity\Omnisight
 
-automation\tests\test_backend_integration.py .........                   [ 12%]
-automation\tests\test_config_and_viewports.py ...                        [ 16%]
-automation\tests\test_retest_sandbox.py .........                        [ 29%]
-automation\tests\test_spatial_and_diff.py .........                      [ 41%]
-automation\tests\test_vlm_pipeline.py ..                                 [ 44%]
-backend\tests\test_action_engine.py ...........                          [ 59%]
-backend\tests\test_api.py ..................                             [ 84%]
+automation\tests\test_backend_integration.py ............                [ 15%]
+automation\tests\test_config_and_viewports.py ...                        [ 19%]
+automation\tests\test_retest_sandbox.py ..........                       [ 32%]
+automation\tests\test_spatial_and_diff.py .........                      [ 44%]
+automation\tests\test_vlm_pipeline.py ..                                 [ 47%]
+backend\tests\test_action_engine.py ...........                          [ 61%]
+backend\tests\test_api.py ..................                             [ 85%]
 backend\tests\test_patch_validator.py ...........                        [100%]
 
-======================== 72 passed, 1 warning in 5.78s ========================
+======================== 76 passed, 1 warning in 2.16s ========================
 ```
 
 ---

@@ -1,0 +1,9 @@
+# ==============================================================================
+# OmniSight Workspace Python Dependencies
+# ==============================================================================
+
+# Automation & Retest Engine (Team Lead - Kailash)
+-r automation/requirements.txt
+
+# Backend Gateway & Action Engine (Member 1 - Sri Khyathi)
+-r backend/requirements.txt

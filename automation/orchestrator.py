@@ -116,6 +116,7 @@ class Orchestrator:
         target_url: Optional[str] = None,
         viewports: Optional[List[str]] = None,
         auto_retest: bool = True,
+        scenario: str = "checkout_flow",
     ) -> Dict[str, Any]:
         """
         Executes the closed remediation loop:
@@ -140,7 +141,8 @@ class Orchestrator:
             run_results = run_visual_audit_journey(
                 app_url=app_url,
                 viewports=viewports,
-                evidence=evidence
+                evidence=evidence,
+                scenario=scenario,
             )
 
             self.state = AgentState.AUDITING

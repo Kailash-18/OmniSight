@@ -4,7 +4,11 @@ Handles build webhooks, manual audit triggers, run lifecycle, and VLM patch vali
 """
 
 import uuid
-from datetime import datetime, timezone
+try:
+    from datetime import UTC, datetime, timezone
+except ImportError:
+    from datetime import datetime, timezone
+    UTC = timezone.utc
 from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional
 

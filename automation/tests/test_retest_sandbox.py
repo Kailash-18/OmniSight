@@ -85,6 +85,22 @@ def test_apply_unified_diff():
     assert "footer {" in patched
 
 
+def test_apply_unified_diff_with_context_and_additions():
+    original = "header {\n  color: blue;\n}\nfooter {\n  margin: 10px;\n}\n"
+    diff = (
+        "--- a/file.css\n"
+        "+++ b/file.css\n"
+        "@@ -1,3 +1,4 @@\n"
+        " header {\n"
+        "+  display: flex;\n"
+        "   color: blue;\n"
+        " }\n"
+    )
+    patched = apply_unified_diff(original, diff)
+    assert "display: flex;" in patched
+    assert "header {\n  display: flex;\n  color: blue;" in patched
+
+
 def test_patch_sandbox_guaranteed_restoration(tmp_path: Path):
     target_file = tmp_path / "styles.css"
     initial_text = "body { background: white; }\n.broken { display: none; }\n"

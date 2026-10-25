@@ -106,7 +106,10 @@ def main() -> int:
         status = result.get("status", "unknown")
         print("-" * 60)
         print(f"Run Completed: {result.get('run_id')}")
-        print(f"Final Status:  {status.upper()}")
+        if args.no_retest and status == "audited":
+            print("Final Status:  AUDITED (Retest skipped via --no-retest)")
+        else:
+            print(f"Final Status:  {status.upper()}")
         if result.get("error"):
             print(f"Error:         {result['error']}")
         print(f"Screenshots:   {result.get('screenshots_count', 0)} files saved")

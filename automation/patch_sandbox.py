@@ -114,23 +114,48 @@ def apply_unified_diff(original_text: str, diff_text: str) -> str:
     for hunk in hunks:
         del_lines: List[str] = []
         add_lines: List[str] = []
+        ctx_before: List[str] = []
+        ctx_after: List[str] = []
+        has_changes = False
 
         for hline in hunk["lines"]:
             if hline.startswith("-"):
                 del_lines.append(hline[1:])
+                has_changes = True
             elif hline.startswith("+"):
                 add_lines.append(hline[1:])
+                has_changes = True
+            elif hline.startswith(" "):
+                if not has_changes:
+                    ctx_before.append(hline[1:])
+                else:
+                    ctx_after.append(hline[1:])
 
         if del_lines:
             found_idx = -1
             num_del = len(del_lines)
-            for i in range(len(result_lines) - num_del + 1):
-                if all(
-                    result_lines[i + j].rstrip() == del_lines[j].rstrip()
-                    for j in range(num_del)
-                ):
-                    found_idx = i
-                    break
+
+            # Try matching with context before + deletions
+            if ctx_before:
+                full_match = ctx_before + del_lines
+                num_full = len(full_match)
+                for i in range(len(result_lines) - num_full + 1):
+                    if all(
+                        result_lines[i + j].rstrip() == full_match[j].rstrip()
+                        for j in range(num_full)
+                    ):
+                        found_idx = i + len(ctx_before)
+                        break
+
+            # If not found with context, match deletions alone
+            if found_idx == -1:
+                for i in range(len(result_lines) - num_del + 1):
+                    if all(
+                        result_lines[i + j].rstrip() == del_lines[j].rstrip()
+                        for j in range(num_del)
+                    ):
+                        found_idx = i
+                        break
 
             if found_idx != -1:
                 result_lines = (
@@ -146,7 +171,23 @@ def apply_unified_diff(original_text: str, diff_text: str) -> str:
                 else:
                     raise ValueError("Failed to match deletion hunk in target file content")
         elif add_lines:
-            result_lines.extend(add_lines)
+            if ctx_before:
+                # Find anchor context line in file
+                num_ctx = len(ctx_before)
+                anchor_idx = -1
+                for i in range(len(result_lines) - num_ctx + 1):
+                    if all(
+                        result_lines[i + j].rstrip() == ctx_before[j].rstrip()
+                        for j in range(num_ctx)
+                    ):
+                        anchor_idx = i + num_ctx
+                        break
+                if anchor_idx != -1:
+                    result_lines = result_lines[:anchor_idx] + add_lines + result_lines[anchor_idx:]
+                else:
+                    result_lines.extend(add_lines)
+            else:
+                result_lines.extend(add_lines)
 
     trailing_nl = "\n" if original_text.endswith("\n") else ""
     return "\n".join(result_lines) + trailing_nl

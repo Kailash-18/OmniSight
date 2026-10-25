@@ -4,7 +4,7 @@
 > **Author**: Member 1 (Sri Khyathi)  
 > **Status**: Completed (97 Passing Tests, 100% Pass Rate)  
 > **Date**: October 25, 2026  
-> **Python Target**: Python 3.11+  
+> **Python Target**: Python 3.10+ (compatible with Python 3.10 – 3.13+)  
 > **Scope**: Complete Week 2 roadmap covering multimodal VLM parsing, zero-trust CSS guardrails, automated PR lifecycle, verification retest synchronization, chronological event timeline, and forensic bundle archiving.
 
 ---
@@ -95,7 +95,7 @@ flowchart TD
 * Hardened `validate_css_safety` against CSS `expression()`, dangerous `javascript:` URI schemes, and `data:text/html` injection payloads.
 * Enhanced `ActionEngine` with smart quote normalization (`“`, `”`, `‘`, `’`) and Python single-quoted dictionary recovery (`ast.literal_eval`).
 * Implemented complete forensic audit bundle export (`GET /runs/{run_id}/export-bundle`) containing run summaries, findings, diffs, validation logs, retest metrics, and timeline events in a unified JSON archive.
-* Standardized timezone handling for Python 3.11+ using `timezone.utc` with fallback resilience.
+* Standardized timezone handling for Python 3.10+ using `timezone.utc` with universal cross-version compatibility.
 * Finalized system milestone registry at `GET /api/milestones`.
 
 ---
@@ -132,8 +132,8 @@ backend\tests\test_schemas.py .................                          [100%]
 ## 4. Verification Checkpoints
 
 1. **Python Compatibility**:
-   - Backend requires and targets **Python 3.11+**.
-   - Timezone operations use `timezone.utc` ensuring zero deprecation warnings and cross-version compatibility.
+   - Backend targets **Python 3.10+** (fully verified across Python 3.10 – 3.13+).
+   - Timezone operations use standard `timezone.utc` ensuring zero deprecation warnings and cross-version compatibility without importing `datetime.UTC`.
 2. **Quote Resilience**:
    - Action Engine successfully parses standard JSON double quotes, single-quoted Python dictionaries, and rich Unicode curly quotes.
 3. **Zero Hardcoded Secrets**:

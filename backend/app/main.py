@@ -4,13 +4,12 @@ Handles build webhooks, manual audit triggers, run lifecycle, and VLM patch vali
 """
 
 import uuid
-try:
-    from datetime import UTC, datetime, timezone
-except ImportError:
-    from datetime import datetime, timezone
-    UTC = timezone.utc
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional
+
+# Standard UTC timezone reference compatible across Python 3.10+
+UTC = timezone.utc
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -155,7 +154,7 @@ def get_milestone_status():
         "week_1_foundation": "completed",
         "week_2_full_deliverables": "completed",
         "backend_tests_passed": 97,
-        "python_runtime": "3.11+",
+        "python_runtime": "3.10+",
         "allowed_targets": settings.ALLOWED_TARGET_HOSTS,
         "allowed_patch_files": settings.ALLOWED_PATCH_FILES,
     }

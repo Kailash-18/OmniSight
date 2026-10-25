@@ -2,15 +2,15 @@
 Unit Tests for Automation Configuration and Viewport Matrix.
 """
 
-from automation.config import config
-from automation.viewports import (
+from automation.config import (
+    config,
     STANDARD_VIEWPORTS,
     get_viewport,
     get_desktop_viewports,
     get_mobile_viewports,
-    ViewportSpec
+    ViewportSpec,
 )
-from automation.manifest import RunManifest
+from automation.evidence import RunManifest
 
 
 def test_standard_viewports_exist():

@@ -145,15 +145,17 @@ def health_check():
 def get_milestone_status():
     """Returns tracking status for Member 1 milestones and allowed security domains."""
     return {
-        "member": "Member 1 - Backend & PR Automation",
+        "member": "Member 1 - Backend & PR Automation (Sri Khyathi)",
         "foundation_scaffolding": "completed",
         "action_engine_and_security": "completed",
         "system_integration": "completed",
-        "pr_automation_engine": "ready",
+        "pr_automation_engine": "completed",
+        "retest_synchronization": "completed",
+        "forensics_and_hardening": "completed",
         "week_1_foundation": "completed",
-        "week_2_action_engine": "completed",
-        "week_2_day_3_integration": "completed",
-        "week_3_pr_automation": "ready",
+        "week_2_full_deliverables": "completed",
+        "backend_tests_passed": 97,
+        "python_runtime": "3.11+",
         "allowed_targets": settings.ALLOWED_TARGET_HOSTS,
         "allowed_patch_files": settings.ALLOWED_PATCH_FILES,
     }

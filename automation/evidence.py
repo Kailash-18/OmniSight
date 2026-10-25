@@ -4,10 +4,109 @@ Stores structured visual proof, DOM trees, and run metadata per audit session.
 """
 
 import json
+import os
+import platform
 import time
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
+from playwright.sync_api import Page
 from automation.config import config
+
+
+@dataclass
+class RunManifest:
+    """Standardized run.json artifact for backend ingestion and QA inspection."""
+    run_id: str
+    target_url: str
+    status: str
+    start_time: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    end_time: Optional[str] = None
+    viewports: List[str] = field(default_factory=list)
+    screenshots: List[str] = field(default_factory=list)
+    dom_snapshots: List[str] = field(default_factory=list)
+    issue_count: int = 0
+    environment: Dict[str, str] = field(
+        default_factory=lambda: {
+            "os": platform.system(),
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+        }
+    )
+
+    def finalize(self, status: str = "audited", issue_count: int = 0) -> None:
+        self.status = status
+        self.issue_count = issue_count
+        self.end_time = datetime.now(timezone.utc).isoformat()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+def extract_dom_context(page: Page) -> Dict[str, Any]:
+    """
+    Evaluates key interactive and visual elements in the current page,
+    returning structured geometry and semantic identifiers.
+    """
+    script = """
+    () => {
+        const elements = [];
+        const targets = document.querySelectorAll(
+            '[data-testid], h1, h2, h3, button, a, form, input, textarea, .promo-banner, .hero-title, .cart-summary'
+        );
+
+        targets.forEach((el) => {
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            
+            if (rect.width > 0 || rect.height > 0) {
+                elements.push({
+                    tag: el.tagName.toLowerCase(),
+                    test_id: el.getAttribute('data-testid') || null,
+                    classes: Array.from(el.classList),
+                    text: (el.innerText || el.textContent || '').trim().slice(0, 100),
+                    box: {
+                        x: Math.round(rect.x),
+                        y: Math.round(rect.y),
+                        width: Math.round(rect.width),
+                        height: Math.round(rect.height)
+                    },
+                    computed: {
+                        display: style.display,
+                        position: style.position,
+                        zIndex: style.zIndex,
+                        overflow: style.overflow,
+                        visibility: style.visibility,
+                        pointerEvents: style.pointerEvents
+                    }
+                });
+            }
+        });
+
+        return {
+            url: window.location.href,
+            viewport: {
+                width: window.innerWidth,
+                height: window.innerHeight
+            },
+            element_count: elements.length,
+            elements: elements
+        };
+    }
+    """
+    try:
+        return page.evaluate(script)
+    except Exception as e:
+        return {
+            "url": page.url,
+            "error": f"Failed to extract DOM context: {str(e)}",
+            "elements": []
+        }
+
 
 
 class EvidenceCollector:

@@ -2,7 +2,7 @@
 
 > **Autonomous Multimodal UI Self-Healing & Visual QA Agent**
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-Browser%20Automation-45ba4b.svg)](https://playwright.dev/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-CI%2FCD%20Gateway-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18%2B-61DAFB.svg)](https://react.dev/)
@@ -92,7 +92,7 @@ OmniSight/
 │   │   ├── services/github_service.py  # Branch, commit, and PR engine
 │   │   └── main.py                     # API endpoints (/webhook/build, /runs, etc.)
 │   ├── terraform/                      # IaC deployment configuration
-│   └── tests/                          # 67 passing unit & integration tests
+│   └── tests/                          # 97 passing unit & integration tests
 ├── app-under-test/                     # Mock React shop with intentional bugs
 └── artifacts/                          # Local run evidence (before/after screenshots)
 ```
@@ -143,11 +143,12 @@ uvicorn app.main:app --app-dir backend --reload --port 8000
 # Terminal 3: Run Automation Visual QA Runner
 python -m automation.cli --target http://localhost:5173
 
-# Run Backend Test Suite (67 tests)
+# Run Backend Test Suite (97 tests)
 python -m pytest backend/tests/ -v
 
 # Run Automation Test Suite
 python -m pytest automation/tests/
+```
 ```
 
 ---

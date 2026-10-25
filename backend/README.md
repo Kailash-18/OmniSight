@@ -2,9 +2,10 @@
 
 > **Member 1 Ownership**: FastAPI CI/CD Gateway, Action Engine, Zero-Trust Patch Validator, and GitHub Pull Request Automation.
 
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-2.0%2B-e92063.svg)](https://docs.pydantic.dev/)
-[![Pytest](https://img.shields.io/badge/Pytest-82%20Backend%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
+[![Pytest](https://img.shields.io/badge/Pytest-97%20Backend%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
 [![Terraform](https://img.shields.io/badge/Terraform-Secured-844FBA.svg)](https://www.terraform.io/)
 
 
@@ -14,9 +15,10 @@
 
 The OmniSight Backend service acts as the central intelligence and security clearinghouse for the autonomous visual self-healing loop:
 1. **CI/CD Gateway (`/webhook/build`)**: Ingests build events from external CI/CD pipelines (or manual QA triggers) and schedules browser audit runs.
-2. **Action Engine (`/action-engine/parse`)**: Parses multimodal Vision-Language Model (VLM) outputs, extracting structured findings, rationale, confidence scores, and unified git diff code patches from natural language and markdown code blocks.
-3. **Zero-Trust Patch Validator**: Verifies that proposed fixes conform to strict security allowlists, rejecting path traversals (`..`), URL-encoded traversal (`%2e%2e`), null bytes (`\x00`), absolute paths, unauthorized file modifications, oversized diffs, and script injection payloads.
+2. **Action Engine (`/action-engine/parse`)**: Parses multimodal Vision-Language Model (VLM) outputs, extracting structured findings, rationale, confidence scores, and unified git diff code patches from natural language, markdown code blocks, single-quoted JSON dicts, and smart quotes.
+3. **Zero-Trust Patch Validator**: Verifies that proposed fixes conform to strict security allowlists, rejecting path traversals (`..`), URL-encoded traversal (`%2e%2e`), null bytes (`\x00`), absolute paths, unauthorized file modifications, oversized diffs, script injection payloads, CSS expressions, and dangerous URI schemes.
 4. **GitHub PR Automation**: Once a patch passes automated re-testing in an isolated sandbox, creates a feature branch, commits the approved changes, and opens an evidence-backed Pull Request.
+5. **Retest Synchronization & Forensics**: Synchronizes sandbox retest verification proofs, updates PR review comments with visual diff scores, logs chronological execution timelines, and exports forensic compliance archives.
 
 ---
 
@@ -25,9 +27,10 @@ The OmniSight Backend service acts as the central intelligence and security clea
 | Module | Core Responsibility | Status | Technical Implementation |
 | :--- | :--- | :---: | :--- |
 | **API Gateway & Ingestion Engine** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/webhook/github`, `/runs`, `/runs/metrics/summary`, shared Pydantic data schemas. |
-| **Multimodal Action Engine** | VLM Parsing & Code Block Extraction | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), natural language isolation, and structured findings. |
-| **Zero-Trust Security Validator** | Safe Code Modification Guardrails | ✅ Completed | Path traversal defense, allowlist checks, CSS directive filters (`@import`, `behavior`), and 82 passing tests. |
+| **Multimodal Action Engine** | VLM Parsing & Code Block Extraction | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), single-quote & smart-quote recovery, natural language isolation, and structured findings. |
+| **Zero-Trust Security Validator** | Safe Code Modification Guardrails | ✅ Completed | Path traversal defense, allowlist checks, CSS directive filters (`@import`, `behavior`, `expression`, `javascript:`), and 97 passing tests. |
 | **Pull Request Automation Service** | Bounded Self-Healing & Evidence PRs | ✅ Completed | Automated PR creation, PR labeling, lifecycle webhook tracking, retest comments, and markdown evidence export. |
+| **Retest Sync & Forensic Engine** | Verification Sync & Compliance Logs | ✅ Completed | Retest result ingestion (`/runs/{run_id}/retest-result`), PR proof updater, event timeline, finding status patch, and forensic JSON bundle. |
 | **Cloud Infrastructure as Code** | Production Hardening & Cloud Deploy | ✅ Prepared | Terraform parameterized infrastructure module (`backend/terraform/`) with zero hardcoded credentials. |
 
 
@@ -278,6 +281,61 @@ To ensure the AI cannot harm repository integrity or internal network services, 
   }
   ```
 
+### 11. Ingest Verification Retest Result
+* **Endpoint**: `POST /runs/{run_id}/retest-result`
+* **Request**:
+  ```json
+  {
+    "passed": true,
+    "visual_diff_score": 0.0,
+    "retest_viewport": "mobile_375x667",
+    "retest_screenshots": { "after": "artifacts/retest_after.png" },
+    "notes": "Button clipping resolved"
+  }
+  ```
+* **Response (200 OK)**:
+  ```json
+  {
+    "run_id": "run-1729418400",
+    "status": "fixed",
+    "passed": true,
+    "message": "Verification retest confirmed visual fix.",
+    "visual_diff_score": 0.0
+  }
+  ```
+
+### 12. Update Pull Request with Verification Retest Evidence
+* **Endpoint**: `POST /runs/{run_id}/update-pr-verification`
+* **Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "pr_number": 12,
+    "comment_posted": true
+  }
+  ```
+
+### 13. Audit Run Event Timeline
+* **Endpoint**: `GET /runs/{run_id}/timeline`
+* **Response (200 OK)**:
+  Returns chronological array of lifecycle events (`webhook_received`, `vlm_parsed`, `patch_submitted`, `retest_verified`, `pr_opened`).
+
+### 14. Update Individual Finding Status
+* **Endpoint**: `PATCH /runs/{run_id}/findings/{finding_id}`
+* **Request**:
+  ```json
+  {
+    "status": "remediated",
+    "suggested_change": "width: 100%; max-width: 100%;",
+    "notes": "Verified via mobile viewport"
+  }
+  ```
+
+### 15. Export Forensic Audit Bundle
+* **Endpoint**: `GET /runs/{run_id}/export-bundle`
+* **Response (200 OK)**:
+  Returns complete structured JSON bundle containing run summary, detailed findings, unified diff, validation status, retest outcome, and timeline events.
+
 ---
 
 ## 🛠️ Environment Configuration & Zero Hardcoding
@@ -339,7 +397,7 @@ Interactive Swagger docs: `http://localhost:8000/docs`
 ```bash
 python -m pytest backend/tests/ -v
 ```
-All **67 backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, idempotency, OpenAPI schema generation, and PR automation.
+All **97 backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, CSS AST safety, idempotency, OpenAPI schema generation, verification retest ingestion, and PR automation.
 
 ### 4. Quick API Smoke Test via cURL
 ```bash
@@ -365,8 +423,12 @@ curl -X GET http://localhost:8000/runs
 | Area | Component | Verification Status | Test Coverage |
 | :--- | :--- | :---: | :--- |
 | **SSRF Defense** | Target Host & Scheme Filtering | PASSED | `test_build_webhook_rejects_disallowed_target_host`, `test_build_webhook_rejects_disallowed_scheme` |
-| **Multimodal Parser** | VLM Markdown & JSON Parsing | PASSED | `test_action_engine_markdown_fenced_json`, `test_action_engine_code_block_extraction` |
-| **Zero-Trust Validator** | Path Traversal & Script Filtering | PASSED | `test_reject_path_traversal`, `test_reject_script_injection_in_file_content` |
+| **Multimodal Parser** | VLM Markdown & JSON Parsing | PASSED | `test_action_engine_markdown_fenced_json`, `test_action_engine_code_block_extraction`, `test_action_engine_single_quoted_python_dict_json` |
+| **Zero-Trust Validator** | Path Traversal & Script Filtering | PASSED | `test_reject_path_traversal`, `test_reject_script_injection_in_file_content`, `test_reject_css_expression_directive` |
+| **CSS Safety Guardrails** | AST Directives & Protocol Checks | PASSED | `test_reject_css_import_directive`, `test_reject_css_behavior_directive`, `test_reject_css_javascript_url_scheme` |
 | **State Persistence** | Idempotent Run Updates & Queries | PASSED | `test_update_run_upserts_if_not_present`, `test_runs_reverse_chronological_ordering` |
 | **OpenAPI Contract** | OpenAPI 3.0 Documentation & Tags | PASSED | `test_openapi_spec_tags_and_endpoint_metadata` |
 | **PR Automation** | Automated Branch & PR Generation | PASSED | `test_submit_valid_patch_opens_pr`, `test_mock_github_fallback_when_mock_enabled`, `test_create_pull_request_deterministic_mock_url` |
+| **Retest Verification** | Sandbox Result Sync & PR Badge | PASSED | `test_retest_result_success_transitions_run_to_fixed`, `test_update_pr_verification_success` |
+| **Audit Forensics** | Event Timeline & Bundle Export | PASSED | `test_run_timeline_ordered_event_history`, `test_export_run_forensic_bundle` |
+

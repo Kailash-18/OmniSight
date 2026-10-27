@@ -1241,11 +1241,17 @@ def export_run_forensic_bundle(run_id: str):
     )
     raw_timeline = r.get("timeline", [])
     timeline_events = [TimelineEvent(**evt) if isinstance(evt, dict) else evt for evt in raw_timeline]
+
+    import hashlib
+    raw_payload_str = f"{run_id}:{summary.model_dump_json()}:{detail.model_dump_json()}"
+    digest = hashlib.sha256(raw_payload_str.encode("utf-8")).hexdigest()
+
     return ForensicBundleResponse(
         run_id=run_id,
         generated_at=datetime.now(timezone.utc).isoformat(),
         summary=summary,
         detail=detail,
         timeline=timeline_events,
-        retest_outcome=r.get("retest_outcome")
+        retest_outcome=r.get("retest_outcome"),
+        bundle_sha256=digest
     )

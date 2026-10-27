@@ -1,13 +1,27 @@
+# -*- coding: utf-8 -*-
 """
 GitHub PR Automation Service for OmniSight.
 Creates isolated remediation branches, commits validated patches, and opens evidence-backed PRs.
 """
 
+import sys
 import logging
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
+
+# Ensure backend root directory is in sys.path for direct imports or root executions
+_backend_root = str(Path(__file__).resolve().parent.parent.parent)
+if _backend_root not in sys.path:
+    sys.path.insert(0, _backend_root)
+
 from github import Github, GithubException
-from app.core.config import settings
+
+try:
+    from app.core.config import settings
+except ImportError:
+    from backend.app.core.config import settings
+
 
 logger = logging.getLogger("omnisight.backend.github")
 

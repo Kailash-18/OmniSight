@@ -1313,4 +1313,58 @@ def export_run_forensic_bundle(run_id: str):
         timeline=timeline_events,
         retest_outcome=r.get("retest_outcome"),
         bundle_sha256=digest
-    )
+    )
+
+
+@app.get(
+    "/runs/export/csv",
+    tags=["Audit Runs"],
+    summary="Export Audit Runs Summary Table (CSV)"
+)
+def export_runs_csv():
+    """
+    Exports a tabular CSV summary of all visual audit runs for compliance and spreadsheet analysis.
+    """
+    import csv
+    import io
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "run_id",
+        "start_time",
+        "target",
+        "branch",
+        "scenario",
+        "status",
+        "issue_count",
+        "retry_count",
+        "pr_url",
+        "retest_passed"
+    ])
+
+    for r_id, r in runs_db.items():
+        retest_passed = ""
+        if r.get("retest_outcome") and isinstance(r["retest_outcome"], dict):
+            retest_passed = str(r["retest_outcome"].get("passed", ""))
+
+        writer.writerow([
+            r.get("run_id", r_id),
+            r.get("start_time", ""),
+            r.get("target", ""),
+            r.get("branch", ""),
+            r.get("scenario", ""),
+            r.get("status", ""),
+            r.get("issue_count", len(r.get("findings", []))),
+            r.get("retry_count", 0),
+            r.get("pr_url", "") or "",
+            retest_passed
+        ])
+
+    csv_data = output.getvalue()
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=omnisight_audit_runs.csv"}
+    )
+

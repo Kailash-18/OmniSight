@@ -471,6 +471,7 @@ def get_runs_metrics_summary():
     prs_opened = 0
     total_defects = 0
     clean_runs = 0
+    remediation_durations: List[float] = []
     defects_by_cat: Dict[str, int] = {}
     runs_by_stat: Dict[str, int] = {}
 
@@ -482,6 +483,17 @@ def get_runs_metrics_summary():
             active_runs += 1
         if stat == RunStatus.FIXED.value:
             fixed_runs += 1
+            start_str = r.get("start_time")
+            verified_at = (r.get("retest_outcome") or {}).get("verified_at")
+            if start_str and verified_at:
+                try:
+                    t_start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+                    t_end = datetime.fromisoformat(verified_at.replace("Z", "+00:00"))
+                    delta = (t_end - t_start).total_seconds()
+                    if delta >= 0:
+                        remediation_durations.append(delta)
+                except Exception:
+                    pass
         if r.get("pr_url"):
             prs_opened += 1
 
@@ -497,6 +509,7 @@ def get_runs_metrics_summary():
             defects_by_cat[cat_str] = defects_by_cat.get(cat_str, 0) + 1
 
     clean_rate = round((clean_runs / total_runs) * 100.0, 1)
+    mttr = round(sum(remediation_durations) / len(remediation_durations), 1) if remediation_durations else None
 
     return RunMetricsSummaryResponse(
         total_runs=total_runs,
@@ -506,7 +519,9 @@ def get_runs_metrics_summary():
         total_defects_detected=total_defects,
         clean_run_rate_percent=clean_rate,
         defects_by_category=defects_by_cat,
-        runs_by_status=runs_by_stat
+        runs_by_status=runs_by_stat,
+        mean_time_to_remediation_seconds=mttr,
+        resolved_runs_count=len(remediation_durations)
     )
 
 

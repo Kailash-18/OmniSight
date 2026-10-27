@@ -1,12 +1,20 @@
+# -*- coding: utf-8 -*-
 """
 Action Engine for OmniSight.
 Parses natural language and multimodal responses from VLMs, isolates structured findings
 and executable code blocks, and validates patches against strict security guardrails.
 """
 
+import sys
 import json
 import re
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
+
+_backend_root = str(Path(__file__).resolve().parent.parent.parent)
+if _backend_root not in sys.path:
+    sys.path.insert(0, _backend_root)
+
 from app.schemas.run_schema import (
     FindingSchema,
     PatchObject,
@@ -24,9 +32,10 @@ class ActionEngine:
     def extract_code_blocks(text: str) -> List[Dict[str, str]]:
         """
         Extracts all markdown-fenced code blocks from prose text.
-        Returns a list of dicts with 'lang' and 'code'.
+        Supports both backtick (```) and tilde (~~~) fences with LF or CRLF endings.
+        Returns a list of dicts with 'lang' (lowercase) and 'code'.
         """
-        pattern = r"```([a-zA-Z0-9_\-\+]*)\s*\n(.*?)```"
+        pattern = r"(?:```|~~~)([a-zA-Z0-9_\-\+]*)[^\S\r\n]*(?:\r?\n)(.*?)(?:```|~~~)"
         matches = re.findall(pattern, text, re.DOTALL)
         blocks = []
         for lang, code in matches:

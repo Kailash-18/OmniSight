@@ -229,7 +229,14 @@ def update_pull_request_verification_proof(
     passed = retest_data.get("passed", False)
     badge = "✅ **VERIFIED FIXED**" if passed else "⚠️ **RETEST FAILED**"
     diff_score = retest_data.get("visual_diff_score")
-    score_text = f"{diff_score:.2%}" if diff_score is not None else "0.00% (Pixel-Identical)"
+    if diff_score is None:
+        score_text = "0.00% (Pixel-Identical)"
+    else:
+        try:
+            score_float = float(diff_score)
+            score_text = f"{score_float:.2%}"
+        except (ValueError, TypeError):
+            score_text = str(diff_score)
     viewport = retest_data.get("retest_viewport", "all")
     notes = retest_data.get("notes", "Automated sandbox visual verification completed.")
 

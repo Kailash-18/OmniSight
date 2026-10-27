@@ -219,7 +219,8 @@ def test_get_milestones_status(client: TestClient):
     assert data["action_engine_and_security"] == "completed"
     assert data["system_integration"] == "completed"
     assert data["remediation_mttr_and_checksum_verification"] == "completed"
-    assert data["backend_tests_passed"] >= 123
+    assert data["telemetry_and_compliance_export"] == "completed"
+    assert data["backend_tests_passed"] >= 130
     assert "allowed_targets" in data
     assert "allowed_patch_files" in data
 

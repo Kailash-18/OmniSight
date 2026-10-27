@@ -202,4 +202,38 @@ def test_update_pull_request_verification_proof_formatting(monkeypatch):
     assert success is True
 
 
+def test_sanitize_git_branch_name():
+    """Verify git branch name sanitization strips illegal characters."""
+    from app.services.github_service import sanitize_git_branch_name
+
+    assert sanitize_git_branch_name("run:123/feat~1^2?*[]") == "run-123/feat-1-2"
+    assert sanitize_git_branch_name("  omnisight   test  ") == "omnisight-test"
+    assert sanitize_git_branch_name("...test/branch...") == "test/branch"
+    assert sanitize_git_branch_name("") == "omnisight-fix"
+    assert sanitize_git_branch_name("---") == "omnisight-fix"
+
+
+def test_update_pull_request_verification_proof_handles_string_score(monkeypatch):
+    """Verify update_pull_request_verification_proof tolerates string or None scores."""
+    from app.services.github_service import update_pull_request_verification_proof
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    retest_data_str = {
+        "passed": True,
+        "visual_diff_score": "0.05",
+        "retest_viewport": "desktop_1440x900",
+        "notes": "Verified layout"
+    }
+    assert update_pull_request_verification_proof(pr_number=12, retest_data=retest_data_str) is True
+
+    retest_data_none = {
+        "passed": False,
+        "visual_diff_score": None,
+        "retest_viewport": "tablet_768x1024",
+        "notes": "Score unavailable"
+    }
+    assert update_pull_request_verification_proof(pr_number=13, retest_data=retest_data_none) is True
+
+
+
 

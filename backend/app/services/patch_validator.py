@@ -41,19 +41,19 @@ WINDOWS_RESERVED_NAMES = {
 def validate_css_safety(css_text: str) -> tuple[bool, Optional[str]]:
     """
     Validates that CSS content does not contain dangerous directives:
-    Rejects @import (external exfiltration), behavior:, -moz-binding,
-    expression(), and malicious url() schemes (javascript:, data:text/html).
+    Rejects @import (external exfiltration), behavior:, -moz-binding / -webkit-binding,
+    expression(), and malicious url() schemes (javascript:, vbscript:, data:text/html).
     """
     if re.search(r"@import\b", css_text, re.IGNORECASE):
         return False, "Security violation: '@import' directives are forbidden in visual QA patches."
-    if re.search(r"behavior\s*:", css_text, re.IGNORECASE):
+    if re.search(r"(?:-moz-|-ms-)?behavior\s*:", css_text, re.IGNORECASE):
         return False, "Security violation: 'behavior' property is forbidden in CSS patches."
-    if re.search(r"-moz-binding\s*:", css_text, re.IGNORECASE):
-        return False, "Security violation: '-moz-binding' property is forbidden in CSS patches."
+    if re.search(r"-(?:moz|webkit)-binding\s*:", css_text, re.IGNORECASE):
+        return False, "Security violation: binding properties are forbidden in CSS patches."
     if re.search(r"expression\s*\(", css_text, re.IGNORECASE):
         return False, "Security violation: CSS 'expression()' execution is forbidden in visual QA patches."
-    if re.search(r"url\s*\(\s*['\"]?\s*javascript\s*:", css_text, re.IGNORECASE):
-        return False, "Security violation: 'javascript:' URI schemes are forbidden in CSS patches."
+    if re.search(r"url\s*\(\s*['\"]?\s*(?:java\s*script|vb\s*script)\s*:", css_text, re.IGNORECASE):
+        return False, "Security violation: 'javascript:' or 'vbscript:' URI schemes are forbidden in CSS patches."
     if re.search(r"url\s*\(\s*['\"]?\s*data:\s*text\/html", css_text, re.IGNORECASE):
         return False, "Security violation: 'data:text/html' URI schemes are forbidden in CSS patches."
     return True, None

@@ -263,5 +263,40 @@ def test_reject_css_data_html_url_scheme():
     assert "data:text/html" in err
 
 
+def test_reject_windows_reserved_device_names():
+    """Verify target files containing Windows reserved device names are rejected."""
+    for dev in ("con.css", "prn.css", "aux.css", "nul.css", "com1.css", "lpt1.css"):
+        res = validate_patch(f"app-under-test/src/styles/{dev}", "+.test {}")
+        assert res["validation_status"] is False
+        assert "Windows reserved device name" in res["validator_errors"]
+
+
+def test_reject_css_vbscript_url_scheme():
+    """Verify vbscript: protocol inside url() is rejected."""
+    valid, err = validate_css_safety(".card { background: url('vbscript:msgbox(1)'); }")
+    assert valid is False
+    assert "vbscript:" in err
+
+
+def test_assess_patch_risk_scoring():
+    """Verify assess_patch_risk returns appropriate risk classifications."""
+    from app.services.patch_validator import assess_patch_risk
+
+    low_risk = assess_patch_risk(
+        "app-under-test/src/styles/defects.css",
+        "+.btn { padding: 10px; }\n-.btn { padding: 0; }"
+    )
+    assert low_risk["risk_level"] == "low"
+    assert low_risk["auto_merge_eligible"] is True
+
+    high_risk_jsx = assess_patch_risk(
+        "app-under-test/src/App.jsx",
+        "+<button onClick={handleClick}>Submit</button>"
+    )
+    assert high_risk_jsx["risk_level"] == "high"
+    assert high_risk_jsx["auto_merge_eligible"] is False
+
+
+
 
 

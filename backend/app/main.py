@@ -365,17 +365,22 @@ def list_runs(
     scenario: Optional[str] = None,
     target: Optional[str] = None,
     has_pr: Optional[bool] = None,
-    has_issues: Optional[bool] = None
+    has_issues: Optional[bool] = None,
+    start_after: Optional[str] = None,
+    start_before: Optional[str] = None,
+    min_severity: Optional[Severity] = None,
 ):
     """
     Returns summaries of recorded test runs in reverse chronological order with optional filtering.
-    Supports filtering by status, branch, scenario, target host, PR presence, and detected visual defects.
+    Supports filtering by status, branch, scenario, target host, PR presence, date ranges, and defect severity.
     """
     sorted_runs = sorted(
         runs_db.values(),
         key=lambda r: r.get("start_time", ""),
         reverse=True
     )
+
+    severity_order = {Severity.LOW: 1, Severity.MEDIUM: 2, Severity.HIGH: 3, Severity.CRITICAL: 4}
 
     summaries = []
     for r in sorted_runs:
@@ -387,6 +392,28 @@ def list_runs(
             continue
         if target and target.lower() not in r.get("target", "").lower():
             continue
+        if start_after and r.get("start_time", "") < start_after:
+            continue
+        if start_before and r.get("start_time", "") > start_before:
+            continue
+        if min_severity is not None:
+            min_rank = severity_order.get(min_severity, 1)
+            findings = r.get("findings", [])
+            max_finding_rank = 0
+            for f in findings:
+                sev_str = f.get("severity") if isinstance(f, dict) else getattr(f, "severity", None)
+                if isinstance(sev_str, str):
+                    try:
+                        s_enum = Severity(sev_str.lower())
+                    except ValueError:
+                        s_enum = Severity.LOW
+                elif isinstance(sev_str, Severity):
+                    s_enum = sev_str
+                else:
+                    s_enum = Severity.LOW
+                max_finding_rank = max(max_finding_rank, severity_order.get(s_enum, 1))
+            if max_finding_rank < min_rank:
+                continue
         if has_pr is not None:
             pr_present = bool(r.get("pr_url"))
             if pr_present != has_pr:

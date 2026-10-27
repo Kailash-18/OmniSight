@@ -827,6 +827,8 @@ def test_export_run_forensic_bundle(client: TestClient):
     assert bundle["detail"]["findings"][0]["category"] == "contrast_issue"
     assert len(bundle["timeline"]) == 1
     assert bundle["retest_outcome"]["passed"] is True
+    assert "bundle_sha256" in bundle
+    assert len(bundle["bundle_sha256"]) == 64
 
 
 def test_get_run_status_lightweight(client: TestClient):

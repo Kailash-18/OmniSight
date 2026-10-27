@@ -829,6 +829,119 @@ def test_export_run_forensic_bundle(client: TestClient):
     assert bundle["retest_outcome"]["passed"] is True
 
 
+def test_get_run_status_lightweight(client: TestClient):
+    """Verify GET /runs/{run_id}/status returns concise status summary."""
+    run_id = "run-status-poll-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-26T12:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "running",
+        "issue_count": 2,
+        "retry_count": 1,
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/55",
+        "error": None
+    }
+
+    res = client.get(f"/runs/{run_id}/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["run_id"] == run_id
+    assert data["status"] == "running"
+    assert data["issue_count"] == 2
+    assert data["retry_count"] == 1
+    assert data["has_pr"] is True
+    assert data["pr_url"] == "https://github.com/Kailash-18/OmniSight/pull/55"
+
+    # Nonexistent run
+    res_404 = client.get("/runs/nonexistent-run/status")
+    assert res_404.status_code == 404
+
+
+def test_retry_audit_run_endpoint(client: TestClient):
+    """Verify POST /runs/{run_id}/retry increments count and bounds retries."""
+    run_id = "run-retry-test-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-26T12:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "verifying",
+        "retry_count": 0,
+        "timeline": []
+    }
+
+    # 1. First retry succeeds
+    res1 = client.post(f"/runs/{run_id}/retry", json={"reason": "visual defect persists", "max_retries": 2})
+    assert res1.status_code == 200
+    data1 = res1.json()
+    assert data1["retry_allowed"] is True
+    assert data1["retry_count"] == 1
+    assert data1["status"] == "running"
+
+    # 2. Second retry succeeds
+    res2 = client.post(f"/runs/{run_id}/retry", json={"max_retries": 2})
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["retry_allowed"] is True
+    assert data2["retry_count"] == 2
+
+    # 3. Third retry is rejected (exhausted bound)
+    res3 = client.post(f"/runs/{run_id}/retry", json={"max_retries": 2})
+    assert res3.status_code == 200
+    data3 = res3.json()
+    assert data3["retry_allowed"] is False
+    assert data3["status"] == "needs_review"
+    assert "Maximum retry limit" in data3["message"]
+
+
+def test_delete_run_endpoint(client: TestClient):
+    """Verify DELETE /runs/{run_id} removes run from database."""
+    run_id = "run-delete-me-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-26T12:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed"
+    }
+
+    res = client.delete(f"/runs/{run_id}")
+    assert res.status_code == 200
+    assert res.json()["deleted"] is True
+    assert run_id not in runs_db
+
+    # Subsequent GET returns 404
+    get_res = client.get(f"/runs/{run_id}")
+    assert get_res.status_code == 404
+
+    # Deleting again returns 404
+    del_again = client.delete(f"/runs/{run_id}")
+    assert del_again.status_code == 404
+
+
+def test_get_run_pr_status_endpoint(client: TestClient, monkeypatch):
+    """Verify GET /runs/{run_id}/pr-status queries live PR info."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    run_id = "run-pr-sync-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-26T12:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "pr_opened",
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/123",
+        "timeline": []
+    }
+
+    res = client.get(f"/runs/{run_id}/pr-status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["run_id"] == run_id
+    assert data["pr_info"]["pr_number"] == 123
+    assert data["pr_info"]["state"] == "open"
+
+
+
 
 
 

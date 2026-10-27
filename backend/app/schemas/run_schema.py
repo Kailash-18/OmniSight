@@ -319,6 +319,8 @@ class RunMetricsSummaryResponse(BaseModel):
     clean_run_rate_percent: float = Field(..., description="Percentage of runs clean or resolved")
     defects_by_category: Dict[str, int] = Field(default_factory=dict, description="Count per defect category")
     runs_by_status: Dict[str, int] = Field(default_factory=dict, description="Count per run lifecycle status")
+    mean_time_to_remediation_seconds: Optional[float] = Field(default=None, description="Average seconds from audit trigger to verified fix")
+    resolved_runs_count: int = Field(default=0, description="Total verified fixed runs contributing to MTTR")
 
 
 class TimelineEvent(BaseModel):

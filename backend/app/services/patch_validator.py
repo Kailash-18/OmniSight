@@ -247,4 +247,38 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
         "validator_errors": None,
         "target_file": clean_path,
         "diff_sanitized": normalized_diff
-    }
+    }
+
+
+def assess_patch_risk(target_file: str, diff_content: str) -> Dict[str, Any]:
+    """
+    Assesses blast radius and risk score of an approved patch.
+    Pure CSS style patches with small line footprints are eligible for auto-merge.
+    JS/JSX patches or extensive diffs require mandatory human review.
+    """
+    clean_target = (target_file or "").replace("\\", "/").strip()
+    _, ext = os.path.splitext(clean_target)
+    lines = [l for l in (diff_content or "").splitlines() if l.startswith(("+", "-")) and not l.startswith(("+++", "---"))]
+    line_count = len(lines)
+
+    if ext.lower() == ".css" and line_count <= 40:
+        risk_level = "low"
+        auto_merge = True
+        rationale = "Constrained CSS style modification with small blast radius."
+    elif ext.lower() == ".css" and line_count <= 100:
+        risk_level = "medium"
+        auto_merge = False
+        rationale = "CSS patch modifies significant number of layout rules; human QA recommended."
+    else:
+        risk_level = "high"
+        auto_merge = False
+        rationale = "Modifies executable application structure or contains large diff footprint."
+
+    return {
+        "risk_level": risk_level,
+        "auto_merge_eligible": auto_merge,
+        "modified_lines_count": line_count,
+        "target_file": clean_target,
+        "rationale": rationale
+    }
+

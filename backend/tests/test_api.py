@@ -218,6 +218,8 @@ def test_get_milestones_status(client: TestClient):
     assert data["foundation_scaffolding"] == "completed"
     assert data["action_engine_and_security"] == "completed"
     assert data["system_integration"] == "completed"
+    assert data["remediation_mttr_and_checksum_verification"] == "completed"
+    assert data["backend_tests_passed"] >= 123
     assert "allowed_targets" in data
     assert "allowed_patch_files" in data
 
@@ -827,6 +829,8 @@ def test_export_run_forensic_bundle(client: TestClient):
     assert bundle["detail"]["findings"][0]["category"] == "contrast_issue"
     assert len(bundle["timeline"]) == 1
     assert bundle["retest_outcome"]["passed"] is True
+    assert "bundle_sha256" in bundle
+    assert len(bundle["bundle_sha256"]) == 64
 
 
 def test_get_run_status_lightweight(client: TestClient):

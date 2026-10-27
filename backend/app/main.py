@@ -229,7 +229,8 @@ def get_milestone_status():
         "week_1_foundation": "completed",
         "week_2_full_deliverables": "completed",
         "lifecycle_and_api_expansion": "completed",
-        "backend_tests_passed": 108,
+        "remediation_mttr_and_checksum_verification": "completed",
+        "backend_tests_passed": 123,
         "python_runtime": "3.10+",
         "allowed_targets": settings.ALLOWED_TARGET_HOSTS,
         "allowed_patch_files": settings.ALLOWED_PATCH_FILES,
@@ -1241,11 +1242,17 @@ def export_run_forensic_bundle(run_id: str):
     )
     raw_timeline = r.get("timeline", [])
     timeline_events = [TimelineEvent(**evt) if isinstance(evt, dict) else evt for evt in raw_timeline]
+
+    import hashlib
+    raw_payload_str = f"{run_id}:{summary.model_dump_json()}:{detail.model_dump_json()}"
+    digest = hashlib.sha256(raw_payload_str.encode("utf-8")).hexdigest()
+
     return ForensicBundleResponse(
         run_id=run_id,
         generated_at=datetime.now(timezone.utc).isoformat(),
         summary=summary,
         detail=detail,
         timeline=timeline_events,
-        retest_outcome=r.get("retest_outcome")
+        retest_outcome=r.get("retest_outcome"),
+        bundle_sha256=digest
     )

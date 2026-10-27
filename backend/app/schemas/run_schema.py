@@ -349,6 +349,7 @@ class ForensicBundleResponse(BaseModel):
     detail: RunDetailResponse
     timeline: List[TimelineEvent] = Field(default_factory=list)
     retest_outcome: Optional[Dict[str, Any]] = None
+    bundle_sha256: Optional[str] = Field(default=None, description="SHA-256 cryptographic digest of bundle payload")
 
 
 class RunStatusResponse(BaseModel):

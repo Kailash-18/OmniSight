@@ -253,3 +253,19 @@ def test_close_pull_request_mock(monkeypatch):
     monkeypatch.setattr(settings, "MOCK_GITHUB", True)
 
     assert close_pull_request(pr_number=101, reason="Remediation superseded") is True
+
+
+def test_revert_pull_request_patch_mock(monkeypatch):
+    """Verify revert_pull_request_patch generates correct revert branch in mock mode."""
+    from app.services.github_service import revert_pull_request_patch
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    res = revert_pull_request_patch(
+        run_id="run-1729000-abc",
+        target_file="app-under-test/src/styles/defects.css"
+    )
+    assert res["reverted"] is True
+    assert res["revert_branch"] == "revert/run-1729000-abc"
+    assert res["target_file"] == "app-under-test/src/styles/defects.css"
+    assert res["simulated"] is True
+

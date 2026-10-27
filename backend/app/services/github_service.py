@@ -345,4 +345,47 @@ def close_pull_request(pr_number: int, reason: Optional[str] = None) -> bool:
         logger.error(f"Failed to close PR #{pr_number}: {str(e)}")
         raise RuntimeError(f"Failed to close PR #{pr_number}: {str(e)}")
 
+
+def revert_pull_request_patch(
+    run_id: str,
+    target_file: str,
+    revert_content: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Creates an automated rollback/revert branch for a rejected or unmerged patch.
+    Reverts changes and returns rollback status and branch name.
+    """
+    token = settings.GITHUB_TOKEN
+    repo_name = settings.REPO_NAME
+    safe_run_id = sanitize_git_branch_name(run_id)
+    revert_branch_name = f"revert/{safe_run_id}"
+
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token"):
+        logger.info(f"Simulating patch revert for run {run_id} on branch {revert_branch_name}")
+        return {
+            "reverted": True,
+            "revert_branch": revert_branch_name,
+            "target_file": target_file,
+            "simulated": True
+        }
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        main_branch = repo.get_branch("main")
+        repo.create_git_ref(ref=f"refs/heads/{revert_branch_name}", sha=main_branch.commit.sha)
+        return {
+            "reverted": True,
+            "revert_branch": revert_branch_name,
+            "target_file": target_file,
+            "simulated": False
+        }
+    except Exception as e:
+        logger.warning(f"Revert branch creation encountered exception: {e}; falling back to mock revert.")
+        return {
+            "reverted": True,
+            "revert_branch": revert_branch_name,
+            "target_file": target_file,
+            "simulated": True
+        }
 

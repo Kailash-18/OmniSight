@@ -941,13 +941,38 @@ def test_get_run_pr_status_endpoint(client: TestClient, monkeypatch):
     assert data["pr_info"]["state"] == "open"
 
 
+def test_correlation_id_middleware_generated_and_propagated(client: TestClient):
+    """Verify X-Correlation-ID is generated if missing and preserved if provided."""
+    # 1. Generated when missing
+    res1 = client.get("/health")
+    assert res1.status_code == 200
+    assert "X-Correlation-ID" in res1.headers
+    assert res1.headers["X-Correlation-ID"].startswith("req-")
+    assert "X-Response-Time-Ms" in res1.headers
+
+    # 2. Preserved when provided
+    custom_cid = "custom-test-correlation-uuid-999"
+    res2 = client.get("/health", headers={"X-Correlation-ID": custom_cid})
+    assert res2.status_code == 200
+    assert res2.headers["X-Correlation-ID"] == custom_cid
 
 
+def test_liveness_probe_endpoint(client: TestClient):
+    """Verify GET /live returns alive status and uptime."""
+    res = client.get("/live")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "alive"
+    assert "uptime_seconds" in data
+    assert data["uptime_seconds"] >= 0
+    assert "timestamp" in data
 
 
-
-
-
-
-
-
+def test_readiness_probe_endpoint(client: TestClient):
+    """Verify GET /ready returns ready status and connected state."""
+    res = client.get("/ready")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ready"
+    assert data["database"] == "connected"
+    assert "active_runs" in data

@@ -1042,3 +1042,26 @@ def test_revert_run_patch_not_found(client: TestClient):
     res = client.post("/runs/run-revert-unknown-999/revert")
     assert res.status_code == 404
 
+
+def test_runs_metrics_summary_mttr_calculation(client: TestClient):
+    """Verify get_runs_metrics_summary computes mean time to remediation."""
+    run_id = "run-mttr-test-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-27T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "findings": [{"id": "f1", "category": "element_clipping"}],
+        "retest_outcome": {
+            "passed": True,
+            "verified_at": "2026-10-27T10:02:30Z"  # 150 seconds
+        }
+    }
+
+    res = client.get("/runs/metrics/summary")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["resolved_runs_count"] >= 1
+    assert data["mean_time_to_remediation_seconds"] is not None
+    assert data["mean_time_to_remediation_seconds"] > 0
+

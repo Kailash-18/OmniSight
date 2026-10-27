@@ -276,4 +276,23 @@ def test_finding_status_update_payload():
     assert update.suggested_change == "padding: 12px;"
 
 
+def test_metrics_summary_schema_with_mttr():
+    """Verify RunMetricsSummaryResponse accepts and serializes MTTR fields."""
+    from app.schemas.run_schema import RunMetricsSummaryResponse
 
+    metrics = RunMetricsSummaryResponse(
+        total_runs=10,
+        active_runs=2,
+        fixed_runs=8,
+        prs_opened=5,
+        total_defects_detected=12,
+        clean_run_rate_percent=80.0,
+        defects_by_category={"element_clipping": 8, "contrast_issue": 4},
+        runs_by_status={"fixed": 8, "running": 2},
+        mean_time_to_remediation_seconds=145.5,
+        resolved_runs_count=8
+    )
+    dumped = metrics.model_dump()
+    assert dumped["mean_time_to_remediation_seconds"] == 145.5
+    assert dumped["resolved_runs_count"] == 8
+    assert dumped["clean_run_rate_percent"] == 80.0

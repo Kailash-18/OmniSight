@@ -1009,3 +1009,59 @@ def test_list_runs_date_range_and_severity_filters(client: TestClient):
     assert "run-temp-2" in ids_crit
     assert "run-temp-1" not in ids_crit
 
+
+def test_revert_run_patch_endpoint(client: TestClient, monkeypatch):
+    """Verify POST /runs/{run_id}/revert creates revert branch and transitions status to patch_reverted."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    run_id = "run-revert-test-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-26T12:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "needs_review",
+        "patch": {
+            "target_file": "app-under-test/src/styles/defects.css",
+            "diff": "-.btn { color: red; }\n+.btn { color: blue; }"
+        },
+        "timeline": []
+    }
+
+    res = client.post(f"/runs/{run_id}/revert")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["run_id"] == run_id
+    assert data["reverted"] is True
+    assert "revert/" in data["revert_branch"]
+    assert runs_db[run_id]["status"] == "patch_reverted"
+
+
+def test_revert_run_patch_not_found(client: TestClient):
+    """Verify POST /runs/{run_id}/revert returns 404 for unknown run."""
+    res = client.post("/runs/run-revert-unknown-999/revert")
+    assert res.status_code == 404
+
+
+def test_runs_metrics_summary_mttr_calculation(client: TestClient):
+    """Verify get_runs_metrics_summary computes mean time to remediation."""
+    run_id = "run-mttr-test-1"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-27T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "findings": [{"id": "f1", "category": "element_clipping"}],
+        "retest_outcome": {
+            "passed": True,
+            "verified_at": "2026-10-27T10:02:30Z"  # 150 seconds
+        }
+    }
+
+    res = client.get("/runs/metrics/summary")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["resolved_runs_count"] >= 1
+    assert data["mean_time_to_remediation_seconds"] is not None
+    assert data["mean_time_to_remediation_seconds"] > 0
+

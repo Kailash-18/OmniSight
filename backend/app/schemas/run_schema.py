@@ -381,4 +381,41 @@ class DeleteRunResponse(BaseModel):
     message: str
     deleted: bool
 
+
+class LivenessProbeResponse(BaseModel):
+    """Response returned by /live liveness probe."""
+    status: str
+    uptime_seconds: float
+    timestamp: str
+
+
+class ReadinessProbeResponse(BaseModel):
+    """Response returned by /ready readiness probe."""
+    status: str
+    database: str
+    active_runs: int
+    timestamp: str
+
+
+class RunFilterParams(BaseModel):
+    """Granular query filters for audit runs."""
+    status_filter: Optional[str] = None
+    branch: Optional[str] = None
+    scenario: Optional[str] = None
+    target: Optional[str] = None
+    has_pr: Optional[bool] = None
+    has_issues: Optional[bool] = None
+    min_severity: Optional[str] = None
+    start_after: Optional[str] = None
+    start_before: Optional[str] = None
+
+
+class PatchRevertResponse(BaseModel):
+    """Response payload confirming rollback of an unmerged or rejected patch."""
+    run_id: str
+    reverted: bool
+    revert_branch: Optional[str] = None
+    message: str
+    timestamp: str
+
 

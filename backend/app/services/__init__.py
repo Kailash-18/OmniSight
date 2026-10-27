@@ -25,6 +25,7 @@ from app.services.github_service import (
     sanitize_git_branch_name,
     check_pull_request_status,
     close_pull_request,
+    revert_pull_request_patch,
 )
 
 __all__ = [
@@ -40,5 +41,6 @@ __all__ = [
     "sanitize_git_branch_name",
     "check_pull_request_status",
     "close_pull_request",
+    "revert_pull_request_patch",
 ]
 

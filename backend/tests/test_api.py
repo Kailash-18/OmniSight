@@ -976,3 +976,36 @@ def test_readiness_probe_endpoint(client: TestClient):
     assert data["status"] == "ready"
     assert data["database"] == "connected"
     assert "active_runs" in data
+
+
+def test_list_runs_date_range_and_severity_filters(client: TestClient):
+    """Verify GET /runs filters correctly by start_after, start_before, and min_severity."""
+    runs_db["run-temp-1"] = {
+        "run_id": "run-temp-1",
+        "start_time": "2026-10-20T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "findings": [{"id": "f1", "severity": "low", "category": "element_clipping"}]
+    }
+    runs_db["run-temp-2"] = {
+        "run_id": "run-temp-2",
+        "start_time": "2026-10-25T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "findings": [{"id": "f2", "severity": "critical", "category": "element_clipping"}]
+    }
+
+    # 1. Date range filter
+    res_after = client.get("/runs?start_after=2026-10-22T00:00:00Z")
+    assert res_after.status_code == 200
+    ids_after = [r["run_id"] for r in res_after.json()]
+    assert "run-temp-2" in ids_after
+    assert "run-temp-1" not in ids_after
+
+    # 2. Min severity filter (critical only)
+    res_crit = client.get("/runs?min_severity=critical")
+    assert res_crit.status_code == 200
+    ids_crit = [r["run_id"] for r in res_crit.json()]
+    assert "run-temp-2" in ids_crit
+    assert "run-temp-1" not in ids_crit
+

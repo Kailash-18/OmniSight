@@ -41,19 +41,19 @@ WINDOWS_RESERVED_NAMES = {
 def validate_css_safety(css_text: str) -> tuple[bool, Optional[str]]:
     """
     Validates that CSS content does not contain dangerous directives:
-    Rejects @import (external exfiltration), behavior:, -moz-binding,
-    expression(), and malicious url() schemes (javascript:, data:text/html).
+    Rejects @import (external exfiltration), behavior:, -moz-binding / -webkit-binding,
+    expression(), and malicious url() schemes (javascript:, vbscript:, data:text/html).
     """
     if re.search(r"@import\b", css_text, re.IGNORECASE):
         return False, "Security violation: '@import' directives are forbidden in visual QA patches."
-    if re.search(r"behavior\s*:", css_text, re.IGNORECASE):
+    if re.search(r"(?:-moz-|-ms-)?behavior\s*:", css_text, re.IGNORECASE):
         return False, "Security violation: 'behavior' property is forbidden in CSS patches."
-    if re.search(r"-moz-binding\s*:", css_text, re.IGNORECASE):
-        return False, "Security violation: '-moz-binding' property is forbidden in CSS patches."
+    if re.search(r"-(?:moz|webkit)-binding\s*:", css_text, re.IGNORECASE):
+        return False, "Security violation: binding properties are forbidden in CSS patches."
     if re.search(r"expression\s*\(", css_text, re.IGNORECASE):
         return False, "Security violation: CSS 'expression()' execution is forbidden in visual QA patches."
-    if re.search(r"url\s*\(\s*['\"]?\s*javascript\s*:", css_text, re.IGNORECASE):
-        return False, "Security violation: 'javascript:' URI schemes are forbidden in CSS patches."
+    if re.search(r"url\s*\(\s*['\"]?\s*(?:java\s*script|vb\s*script)\s*:", css_text, re.IGNORECASE):
+        return False, "Security violation: 'javascript:' or 'vbscript:' URI schemes are forbidden in CSS patches."
     if re.search(r"url\s*\(\s*['\"]?\s*data:\s*text\/html", css_text, re.IGNORECASE):
         return False, "Security violation: 'data:text/html' URI schemes are forbidden in CSS patches."
     return True, None
@@ -175,7 +175,8 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
             "diff_sanitized": None
         }
 
-    diff_lines = diff_content.strip().splitlines()
+    normalized_diff = diff_content.replace("\r\n", "\n").replace("\r", "\n").strip()
+    diff_lines = normalized_diff.splitlines()
     if len(diff_lines) > settings.MAX_DIFF_LINES:
         return {
             "validation_status": False,
@@ -187,7 +188,7 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
             "diff_sanitized": None
         }
 
-    diff_bytes = len(diff_content.encode("utf-8"))
+    diff_bytes = len(normalized_diff.encode("utf-8"))
     if diff_bytes > settings.MAX_DIFF_BYTES:
         return {
             "validation_status": False,
@@ -201,7 +202,7 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
 
     # 5. Injection and dangerous payload checks
     for pattern in DANGEROUS_PATTERNS:
-        if re.search(pattern, diff_content, re.IGNORECASE):
+        if re.search(pattern, normalized_diff, re.IGNORECASE):
             return {
                 "validation_status": False,
                 "validator_errors": (
@@ -222,7 +223,7 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
 
     # 6. Specific CSS guardrails
     if ext.lower() == ".css":
-        css_valid, css_err = validate_css_safety(diff_content)
+        css_valid, css_err = validate_css_safety(normalized_diff)
         if not css_valid:
             return {
                 "validation_status": False,
@@ -245,5 +246,39 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
         "validation_status": True,
         "validator_errors": None,
         "target_file": clean_path,
-        "diff_sanitized": diff_content.strip()
-    }
+        "diff_sanitized": normalized_diff
+    }
+
+
+def assess_patch_risk(target_file: str, diff_content: str) -> Dict[str, Any]:
+    """
+    Assesses blast radius and risk score of an approved patch.
+    Pure CSS style patches with small line footprints are eligible for auto-merge.
+    JS/JSX patches or extensive diffs require mandatory human review.
+    """
+    clean_target = (target_file or "").replace("\\", "/").strip()
+    _, ext = os.path.splitext(clean_target)
+    lines = [l for l in (diff_content or "").splitlines() if l.startswith(("+", "-")) and not l.startswith(("+++", "---"))]
+    line_count = len(lines)
+
+    if ext.lower() == ".css" and line_count <= 40:
+        risk_level = "low"
+        auto_merge = True
+        rationale = "Constrained CSS style modification with small blast radius."
+    elif ext.lower() == ".css" and line_count <= 100:
+        risk_level = "medium"
+        auto_merge = False
+        rationale = "CSS patch modifies significant number of layout rules; human QA recommended."
+    else:
+        risk_level = "high"
+        auto_merge = False
+        rationale = "Modifies executable application structure or contains large diff footprint."
+
+    return {
+        "risk_level": risk_level,
+        "auto_merge_eligible": auto_merge,
+        "modified_lines_count": line_count,
+        "target_file": clean_target,
+        "rationale": rationale
+    }
+

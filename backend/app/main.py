@@ -51,6 +51,7 @@ from app.services.action_engine import action_engine
 from app.services.github_service import (
     create_pull_request_for_fix,
     add_pr_comment_with_retest_evidence,
+    check_pull_request_status,
 )
 
 
@@ -956,6 +957,54 @@ def update_pr_verification(run_id: str):
         metadata={"pr_number": pr_number, "success": success}
     )
     return {"status": "success", "pr_number": pr_number, "comment_posted": success}
+
+
+@app.get(
+    "/runs/{run_id}/pr-status",
+    tags=["Audit Runs"],
+    summary="Query Live GitHub PR Status for Run"
+)
+def get_run_pr_status(run_id: str):
+    """
+    Queries live GitHub PR status for a run with an open PR,
+    updating the run status to 'fixed' if the PR has been merged.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    r = runs_db[run_id]
+    pr_url = r.get("pr_url")
+    if not pr_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Run '{run_id}' does not have an associated Pull Request."
+        )
+
+    try:
+        pr_number = int(pr_url.rstrip("/").split("/")[-1])
+    except (ValueError, IndexError):
+        pr_number = 1
+
+    pr_info = check_pull_request_status(pr_number)
+    if pr_info.get("merged"):
+        r["status"] = RunStatus.FIXED.value
+        _append_timeline_event(
+            run_id=run_id,
+            event_type="pr_merged_verified",
+            description=f"GitHub PR #{pr_number} verified merged.",
+            metadata=pr_info
+        )
+    elif pr_info.get("state") == "closed":
+        r["status"] = RunStatus.NEEDS_REVIEW.value
+
+    return {
+        "run_id": run_id,
+        "pr_info": pr_info,
+        "run_status": r["status"]
+    }
+
 
 
 @app.get(

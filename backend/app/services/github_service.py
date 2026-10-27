@@ -22,8 +22,23 @@ try:
 except ImportError:
     from backend.app.core.config import settings
 
+import re
 
 logger = logging.getLogger("omnisight.backend.github")
+
+
+def sanitize_git_branch_name(name: str) -> str:
+    """
+    Sanitizes arbitrary run IDs or labels into compliant git branch names according to git-check-ref-format.
+    Replaces disallowed characters (~^:?*[]\\@{}), collapses duplicate separators, and trims edges.
+    """
+    if not name:
+        return "omnisight-fix"
+    sanitized = re.sub(r"[\s~^:?*\[\]\\@{}]", "-", str(name))
+    sanitized = re.sub(r"-+", "-", sanitized)
+    sanitized = re.sub(r"/+", "/", sanitized)
+    sanitized = sanitized.strip("-./")
+    return sanitized or "omnisight-fix"
 
 
 def generate_pr_markdown_description(
@@ -106,7 +121,8 @@ def create_pull_request_for_fix(
         default_branch = repo.default_branch
         base_branch_ref = repo.get_branch(default_branch)
 
-        branch_name = f"omnisight-fix-{run_id}"
+        safe_id = sanitize_git_branch_name(run_id)
+        branch_name = f"omnisight-fix-{safe_id}"
 
         # 1. Create fix branch or reuse if existing (idempotent retries)
         try:
@@ -122,7 +138,7 @@ def create_pull_request_for_fix(
                     existing_ref.edit(sha=base_branch_ref.commit.sha, force=True)
                 except Exception:
                     # If updating fails, use a unique timestamped branch
-                    branch_name = f"omnisight-fix-{run_id}-{int(datetime.now(timezone.utc).timestamp())}"
+                    branch_name = f"omnisight-fix-{safe_id}-{int(datetime.now(timezone.utc).timestamp())}"
                     repo.create_git_ref(
                         ref=f"refs/heads/{branch_name}",
                         sha=base_branch_ref.commit.sha

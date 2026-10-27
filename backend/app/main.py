@@ -1,12 +1,19 @@
+# -*- coding: utf-8 -*-
 """
 FastAPI CI/CD Gateway and Action Engine API for OmniSight.
 Handles build webhooks, manual audit triggers, run lifecycle, and VLM patch validation.
 """
 
+import sys
 import uuid
+from pathlib import Path
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional
+
+_backend_root = str(Path(__file__).resolve().parent.parent)
+if _backend_root not in sys.path:
+    sys.path.insert(0, _backend_root)
 
 # Standard UTC timezone reference compatible across Python 3.10+
 UTC = timezone.utc
@@ -32,6 +39,10 @@ from app.schemas import (
     FindingStatusUpdatePayload,
     TimelineEvent,
     ForensicBundleResponse,
+    RunStatusResponse,
+    RetryRunPayload,
+    RetryRunResponse,
+    DeleteRunResponse,
     RunStatus,
     PatchObject,
 )
@@ -444,6 +455,34 @@ def get_run_details(run_id: str):
         findings=r.get("findings", []),
         patch=r.get("patch"),
         retry_count=r.get("retry_count", 0),
+        pr_url=r.get("pr_url"),
+        error=r.get("error")
+    )
+
+
+@app.get(
+    "/runs/{run_id}/status",
+    response_model=RunStatusResponse,
+    tags=["Audit Runs"],
+    summary="Get Lightweight Audit Run Status"
+)
+def get_run_status(run_id: str):
+    """
+    Returns lightweight execution status for rapid client/automation polling.
+    Avoids overhead of full screenshot/findings payload serialization.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    r = runs_db[run_id]
+    return RunStatusResponse(
+        run_id=r["run_id"],
+        status=RunStatus(r["status"]),
+        issue_count=r.get("issue_count", len(r.get("findings", []))),
+        retry_count=r.get("retry_count", 0),
+        has_pr=bool(r.get("pr_url")),
         pr_url=r.get("pr_url"),
         error=r.get("error")
     )

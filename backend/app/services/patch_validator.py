@@ -175,7 +175,8 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
             "diff_sanitized": None
         }
 
-    diff_lines = diff_content.strip().splitlines()
+    normalized_diff = diff_content.replace("\r\n", "\n").replace("\r", "\n").strip()
+    diff_lines = normalized_diff.splitlines()
     if len(diff_lines) > settings.MAX_DIFF_LINES:
         return {
             "validation_status": False,
@@ -187,7 +188,7 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
             "diff_sanitized": None
         }
 
-    diff_bytes = len(diff_content.encode("utf-8"))
+    diff_bytes = len(normalized_diff.encode("utf-8"))
     if diff_bytes > settings.MAX_DIFF_BYTES:
         return {
             "validation_status": False,
@@ -201,7 +202,7 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
 
     # 5. Injection and dangerous payload checks
     for pattern in DANGEROUS_PATTERNS:
-        if re.search(pattern, diff_content, re.IGNORECASE):
+        if re.search(pattern, normalized_diff, re.IGNORECASE):
             return {
                 "validation_status": False,
                 "validator_errors": (
@@ -222,7 +223,7 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
 
     # 6. Specific CSS guardrails
     if ext.lower() == ".css":
-        css_valid, css_err = validate_css_safety(diff_content)
+        css_valid, css_err = validate_css_safety(normalized_diff)
         if not css_valid:
             return {
                 "validation_status": False,
@@ -245,5 +246,5 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
         "validation_status": True,
         "validator_errors": None,
         "target_file": clean_path,
-        "diff_sanitized": diff_content.strip()
+        "diff_sanitized": normalized_diff
     }

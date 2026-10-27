@@ -149,21 +149,23 @@ def create_pull_request_for_fix(
         # 2. Update or create file on branch
         try:
             file_node = repo.get_contents(target_file, ref=branch_name)
+            node_sha = file_node[0].sha if isinstance(file_node, list) else file_node.sha
             repo.update_file(
                 path=target_file,
                 message=default_commit_msg,
                 content=file_content,
-                sha=file_node.sha,
+                sha=node_sha,
                 branch=branch_name
             )
         except GithubException:
             try:
                 base_node = repo.get_contents(target_file, ref=default_branch)
+                base_sha = base_node[0].sha if isinstance(base_node, list) else base_node.sha
                 repo.update_file(
                     path=target_file,
                     message=default_commit_msg,
                     content=file_content,
-                    sha=base_node.sha,
+                    sha=base_sha,
                     branch=branch_name
                 )
             except GithubException:
@@ -185,11 +187,19 @@ def create_pull_request_for_fix(
             )
         except GithubException as pr_err:
             if pr_err.status == 422:
-                # Check if a PR already exists for this head branch
-                pulls = repo.get_pulls(state="open", head=f"{repo.owner.login}:{branch_name}")
-                for p in pulls:
-                    pr_obj = p
-                    break
+                # Check if a PR already exists for this head branch (try both qualified and unqualified heads)
+                owner_login = getattr(getattr(repo, "owner", None), "login", "")
+                head_candidates = [f"{owner_login}:{branch_name}", branch_name] if owner_login else [branch_name]
+                for candidate in head_candidates:
+                    try:
+                        pulls = repo.get_pulls(state="open", head=candidate)
+                        for p in pulls:
+                            pr_obj = p
+                            break
+                        if pr_obj:
+                            break
+                    except Exception:
+                        continue
             if not pr_obj:
                 raise pr_err
 
@@ -269,4 +279,70 @@ def update_pull_request_verification_proof(
 > {notes}
 """
     return add_pr_comment_with_retest_evidence(pr_number, comment)
+
+
+def check_pull_request_status(pr_number: int) -> Dict[str, Any]:
+    """
+    Queries GitHub API to inspect the current state (open, closed, merged, mergeable)
+    of a Pull Request, returning standardized metadata.
+    """
+    token = settings.GITHUB_TOKEN
+    repo_name = settings.REPO_NAME
+
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token"):
+        logger.info(f"Simulated checking status for PR #{pr_number}")
+        return {
+            "pr_number": pr_number,
+            "state": "open",
+            "merged": False,
+            "mergeable": True,
+            "title": f"fix(ui): simulated PR #{pr_number}",
+            "html_url": f"https://github.com/{repo_name}/pull/{pr_number}"
+        }
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        pr = repo.get_pull(pr_number)
+        return {
+            "pr_number": pr.number,
+            "state": pr.state,
+            "merged": bool(pr.merged),
+            "mergeable": pr.mergeable,
+            "title": pr.title,
+            "html_url": pr.html_url
+        }
+    except Exception as e:
+        logger.error(f"Failed to query PR #{pr_number} status: {str(e)}")
+        raise RuntimeError(f"Failed to query PR #{pr_number} status: {str(e)}")
+
+
+def close_pull_request(pr_number: int, reason: Optional[str] = None) -> bool:
+    """
+    Closes an open Pull Request on GitHub and optionally posts an explanation comment.
+    Useful when a remediation run is rejected or superseded by newer fixes.
+    """
+    token = settings.GITHUB_TOKEN
+    repo_name = settings.REPO_NAME
+
+    if reason:
+        add_pr_comment_with_retest_evidence(
+            pr_number,
+            f"**OmniSight Notice**: PR closed automatically. Rationale: {reason}"
+        )
+
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token"):
+        logger.info(f"Simulated closing PR #{pr_number}. Reason: {reason}")
+        return True
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        pr = repo.get_pull(pr_number)
+        pr.edit(state="closed")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to close PR #{pr_number}: {str(e)}")
+        raise RuntimeError(f"Failed to close PR #{pr_number}: {str(e)}")
+
 

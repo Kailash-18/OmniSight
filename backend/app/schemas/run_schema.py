@@ -347,4 +347,38 @@ class ForensicBundleResponse(BaseModel):
     detail: RunDetailResponse
     timeline: List[TimelineEvent] = Field(default_factory=list)
     retest_outcome: Optional[Dict[str, Any]] = None
+
+
+class RunStatusResponse(BaseModel):
+    """Lightweight status response for rapid polling during browser execution."""
+    run_id: str
+    status: RunStatus
+    issue_count: int
+    retry_count: int
+    has_pr: bool
+    pr_url: Optional[str] = None
+    error: Optional[str] = None
+
+
+class RetryRunPayload(BaseModel):
+    """Request payload to initiate or record a retry iteration."""
+    reason: Optional[str] = Field(default=None, description="Reason for triggering the retry iteration")
+    max_retries: int = Field(default=2, ge=1, le=5, description="Upper bound on allowed retries")
+
+
+class RetryRunResponse(BaseModel):
+    """Response confirming retry registration."""
+    run_id: str
+    status: RunStatus
+    retry_count: int
+    retry_allowed: bool
+    message: str
+
+
+class DeleteRunResponse(BaseModel):
+    """Response confirming deletion of a run."""
+    run_id: str
+    message: str
+    deleted: bool
+
 

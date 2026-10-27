@@ -1,7 +1,9 @@
-"""
-OmniSight Schemas Package.
-Exposes data models, request/response schemas, and enums for runs and findings.
-"""
+import sys
+from pathlib import Path
+
+_backend_root = str(Path(__file__).resolve().parent.parent.parent)
+if _backend_root not in sys.path:
+    sys.path.insert(0, _backend_root)
 
 from app.schemas.run_schema import (
     RunStatus,
@@ -26,6 +28,10 @@ from app.schemas.run_schema import (
     FindingStatusUpdatePayload,
     TimelineEvent,
     ForensicBundleResponse,
+    RunStatusResponse,
+    RetryRunPayload,
+    RetryRunResponse,
+    DeleteRunResponse,
 )
 
 __all__ = [
@@ -51,5 +57,9 @@ __all__ = [
     "FindingStatusUpdatePayload",
     "TimelineEvent",
     "ForensicBundleResponse",
+    "RunStatusResponse",
+    "RetryRunPayload",
+    "RetryRunResponse",
+    "DeleteRunResponse",
 ]
 

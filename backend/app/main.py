@@ -608,6 +608,30 @@ def update_run_record(run_id: str, payload: RunRecordUpdatePayload):
     return {"message": f"Run '{run_id}' updated successfully.", "status": run_entry["status"]}
 
 
+@app.delete(
+    "/runs/{run_id}",
+    response_model=DeleteRunResponse,
+    tags=["Audit Runs"],
+    summary="Delete Recorded Audit Run"
+)
+def delete_run_record(run_id: str):
+    """
+    Deletes an audit run record and associated in-memory state.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    del runs_db[run_id]
+    return DeleteRunResponse(
+        run_id=run_id,
+        message=f"Run '{run_id}' successfully deleted.",
+        deleted=True
+    )
+
+
+
 @app.post(
     "/action-engine/parse",
     response_model=VLMParseResponse,

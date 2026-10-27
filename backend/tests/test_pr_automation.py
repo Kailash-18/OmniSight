@@ -235,5 +235,21 @@ def test_update_pull_request_verification_proof_handles_string_score(monkeypatch
     assert update_pull_request_verification_proof(pr_number=13, retest_data=retest_data_none) is True
 
 
+def test_check_pull_request_status_mock(monkeypatch):
+    """Verify check_pull_request_status in mock mode returns structured PR metadata."""
+    from app.services.github_service import check_pull_request_status
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    info = check_pull_request_status(pr_number=101)
+    assert info["pr_number"] == 101
+    assert info["state"] == "open"
+    assert info["merged"] is False
+    assert "https://github.com" in info["html_url"]
 
 
+def test_close_pull_request_mock(monkeypatch):
+    """Verify close_pull_request runs cleanly and records reason."""
+    from app.services.github_service import close_pull_request
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    assert close_pull_request(pr_number=101, reason="Remediation superseded") is True

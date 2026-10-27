@@ -1069,3 +1069,38 @@ def test_runs_metrics_summary_mttr_calculation(client: TestClient):
     assert data["mean_time_to_remediation_seconds"] is not None
     assert data["mean_time_to_remediation_seconds"] > 0
 
+
+def test_prometheus_metrics_scrape_endpoint(client: TestClient):
+    """Verify GET /metrics returns valid OpenMetrics formatted lines and headers."""
+    res = client.get("/metrics")
+    assert res.status_code == 200
+    assert "text/plain" in res.headers["content-type"]
+    text = res.text
+    assert "# HELP omnisight_runs_total" in text
+    assert "# TYPE omnisight_runs_total counter"
+    assert "omnisight_runs_total" in text
+    assert "omnisight_active_runs" in text
+    assert "omnisight_mttr_seconds" in text
+    assert "omnisight_uptime_seconds" in text
+
+
+def test_prometheus_metrics_reflects_run_counts(client: TestClient):
+    """Verify Prometheus metrics counters dynamically reflect runs_db states."""
+    test_run_id = "run-prom-test-99"
+    runs_db[test_run_id] = {
+        "run_id": test_run_id,
+        "start_time": "2026-10-27T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "timeline": [{"event": "run_fixed", "timestamp": "2026-10-27T10:01:00Z"}]
+    }
+    res = client.get("/metrics")
+    assert res.status_code == 200
+    text = res.text
+    assert 'omnisight_runs_by_status{status="fixed"}' in text
+    for line in text.splitlines():
+        if line.startswith('omnisight_runs_by_status{status="fixed"}'):
+            count = int(line.split()[1])
+            assert count >= 1
+
+

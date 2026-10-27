@@ -211,6 +211,64 @@ def readiness_probe():
 
 
 @app.get(
+    "/metrics",
+    tags=["System"],
+    summary="Prometheus / OpenMetrics Telemetry Metrics"
+)
+def prometheus_metrics():
+    """
+    Exposes system metrics in Prometheus / OpenMetrics text format for cloud-native scrapers.
+    """
+    total_runs = len(runs_db)
+    active_runs = sum(1 for r in runs_db.values() if r.get("status") in (RunStatus.QUEUED.value, RunStatus.RUNNING.value))
+    fixed_runs = sum(1 for r in runs_db.values() if r.get("status") == RunStatus.FIXED.value)
+    needs_review = sum(1 for r in runs_db.values() if r.get("status") == RunStatus.NEEDS_REVIEW.value)
+    pr_opened = sum(1 for r in runs_db.values() if r.get("status") == RunStatus.PR_OPENED.value)
+
+    resolution_times = []
+    for r in runs_db.values():
+        if r.get("status") == RunStatus.FIXED.value and r.get("start_time"):
+            try:
+                st = datetime.fromisoformat(r["start_time"])
+                timeline = r.get("timeline", [])
+                end_iso = None
+                for ev in reversed(timeline):
+                    if ev.get("event") in ("run_fixed", "github_pr_merged"):
+                        end_iso = ev.get("timestamp")
+                        break
+                if end_iso:
+                    et = datetime.fromisoformat(end_iso)
+                    dur = (et - st).total_seconds()
+                    if dur >= 0:
+                        resolution_times.append(dur)
+            except Exception:
+                pass
+    mttr = sum(resolution_times) / len(resolution_times) if resolution_times else 0.0
+
+    lines = [
+        "# HELP omnisight_runs_total Total visual audit runs recorded",
+        "# TYPE omnisight_runs_total counter",
+        f"omnisight_runs_total {total_runs}",
+        "# HELP omnisight_active_runs Current runs in progress or queued",
+        "# TYPE omnisight_active_runs gauge",
+        f"omnisight_active_runs {active_runs}",
+        "# HELP omnisight_runs_by_status Total runs segmented by status",
+        "# TYPE omnisight_runs_by_status gauge",
+        f'omnisight_runs_by_status{{status="fixed"}} {fixed_runs}',
+        f'omnisight_runs_by_status{{status="needs_review"}} {needs_review}',
+        f'omnisight_runs_by_status{{status="pr_opened"}} {pr_opened}',
+        "# HELP omnisight_mttr_seconds Mean time to visual remediation in seconds",
+        "# TYPE omnisight_mttr_seconds gauge",
+        f"omnisight_mttr_seconds {round(mttr, 2)}",
+        "# HELP omnisight_uptime_seconds Application process uptime in seconds",
+        "# TYPE omnisight_uptime_seconds counter",
+        f"omnisight_uptime_seconds {round(time.time() - SERVER_START_TIME, 2)}",
+        ""
+    ]
+    return Response(content="\n".join(lines), media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
+@app.get(
     "/api/milestones",
     status_code=status.HTTP_200_OK,
     tags=["System"],

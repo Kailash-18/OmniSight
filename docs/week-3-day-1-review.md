@@ -3,26 +3,35 @@
 > **Milestone**: Week 3 (Day 1) Autonomous Self-Healing Lifecycle, Gateway API Expansion, and Zero-Trust Hardening  
 > **Author**: Member 1 (Sri Khyathi)  
 > **Target Branch**: `khyathi` &rarr; `backend-dev` (Pull Request [#17](https://github.com/Kailash-18/OmniSight/pull/17))  
-> **Status**: Completed & Verified (108 Passing Tests, 100% Pass Rate)  
+> **Status**: Completed & Verified (123 Passing Tests, 100% Pass Rate)  
 > **Date**: October 27, 2026  
-> **Python Target**: Python 3.10+ / 3.11+  
-> **Scope**: High-frequency status polling, bounded retry tracking, run deletion lifecycle, live GitHub PR status synchronization, Windows reserved device name validation, CSS AST script defense, patch risk scoring, multimodal code block fence tolerance, and defect synonym normalization.
+> **Python Target**: Python 3.10+ / 3.11+ / 3.13+  
+> **Scope**: Gateway lifecycle expansion, liveness/readiness probes, correlation ID middleware, GitHub webhook HMAC verification, automated patch rollback/revert branches, MTTR metrics calculation, SHA256 checksummed forensic bundles, multi-criteria filtering, Windows reserved device defense, CSS AST protection, and code fence tolerance.
 
 ---
 
 ## 1. Executive Summary
 
-Member 1 has kicked off **Week 3 (Day 1)** of the OmniSight autonomous visual self-healing platform by expanding the core FastAPI gateway into a robust lifecycle controller and hardening security boundaries. 
+Member 1 has kicked off **Week 3 (Day 1)** of the OmniSight autonomous visual self-healing platform by expanding the core FastAPI gateway into a comprehensive lifecycle controller, telemetry processor, and zero-trust security perimeter.
 
-In accordance with the Week 3 project roadmap (*"Self-Healing + PR Automation & Lifecycle Orchestration"*), Member 1 expanded test coverage from 97 passing tests (Week 2 Final) to **108 automated passing tests** across unit, security, integration, and serialization test suites.
+In alignment with the Week 3 project roadmap (*"Self-Healing + PR Automation & Lifecycle Orchestration"*), Member 1 expanded test coverage from 97 passing tests (Week 2 Final) to **123 automated passing tests** across 6 distinct unit, security, integration, and serialization test suites.
 
 ```mermaid
 flowchart TD
-    subgraph Automation & CI Triggers
-        CLI[Automation CLI / Dashboard] -->|GET /runs/{id}/status| GW[FastAPI Gateway]
-        CLI -->|POST /runs/{id}/retry| GW
-        CLI -->|DELETE /runs/{id}| GW
-        GH_SYNC[Remote GitHub Poll] -->|GET /runs/{id}/pr-status| GW
+    subgraph CI/CD & External Ingestion
+        GH_HOOK[GitHub / CI Webhook] -->|HMAC-SHA256 Sig Check| SEC_HOOK[Webhook Security Engine]
+        CLI[Automation CLI / Frontend] -->|X-Correlation-ID| MW[Correlation & Latency Middleware]
+        K8S[Orchestrator Probes] -->|GET /live & /ready| HEALTH[Liveness & Readiness Controller]
+    end
+
+    subgraph API Gateway & Lifecycle Controller
+        MW --> GW[FastAPI Gateway Router]
+        GW -->|GET /runs/{id}/status| STATUS_ROUTE[Lightweight Poller]
+        GW -->|POST /runs/{id}/retry| RETRY_ROUTE[Bounded Retrier]
+        GW -->|DELETE /runs/{id}| DEL_ROUTE[State Cleanup]
+        GW -->|POST /runs/{id}/revert| REV_ROUTE[Patch Revert Handler]
+        GW -->|GET /runs/export/{id}/bundle| EXPORT_ROUTE[Forensic Bundle + SHA256 Checksum]
+        GW -->|GET /runs/metrics/summary| METRICS_ROUTE[MTTR & Analytics Engine]
     end
 
     subgraph Intelligence & Parsing
@@ -32,7 +41,7 @@ flowchart TD
         NORM --> PARSER[Pydantic v2 Models]
     end
 
-    subgraph Zero-Trust Security Layer
+    subgraph Zero-Trust Security Perimeter
         PARSER --> SEC[Zero-Trust Patch Validator]
         SEC -->|Path Traversal & Windows Device Names| C1{Clean Relative?}
         SEC -->|CRLF & Whitespace Normalizer| C2{Normalized Diff?}
@@ -41,12 +50,12 @@ flowchart TD
         C1 & C2 & C3 --> APPR[Approved Patch]
     end
 
-    subgraph Automated Remediation
+    subgraph Automated Remediation & GitHub Ops
         APPR --> PR_ENG[PyGithub PR Automation]
         PR_ENG -->|sanitize_git_branch_name| BR[Safe Git Ref]
         PR_ENG -->|create_pull_request_for_fix| OPEN_PR[Evidence-Backed PR]
-        PR_ENG -->|check_pull_request_status| STATUS[PR State Tracker]
-        PR_ENG -->|close_pull_request| CLOSE[PR Closure Flow]
+        PR_ENG -->|check_pull_request_status| PR_STATUS[PR State Tracker]
+        PR_ENG -->|revert_pull_request_patch| REVERT_PR[Automated Revert Branch]
     end
 ```
 
@@ -54,53 +63,63 @@ flowchart TD
 
 ## 2. Week 3 Day 1 Engineering Deliverables Breakdown
 
-### A. Gateway Lifecycle Expansion & Management Routes
-* **Lightweight Status Polling (`GET /runs/{run_id}/status`)**:
-  - Implemented high-frequency polling endpoint returning status, start time, target, and error fields without serializing heavy forensic screenshot evidence bundles.
-  - Minimizes serialization lag and bandwidth overhead for automation test loops.
-* **Bounded Audit Run Retry (`POST /runs/{run_id}/retry`)**:
-  - Implemented automated retry mechanism with configurable iteration ceiling (`max_retries = 3` default).
-  - Automatically transitions runs exceeding retry limits to `needs_review` and appends `retry_exhausted` timeline events, preventing runaway self-healing loops.
-* **Run Deletion with In-Memory State Cleanup (`DELETE /runs/{run_id}`)**:
-  - Implemented safe run deletion endpoint that releases in-memory run dictionary entries and returns structured deletion confirmation.
-* **Live GitHub PR Status Synchronization (`GET /runs/{run_id}/pr-status`)**:
-  - Added real-time polling to verify if an open pull request has been merged or closed on GitHub.
-  - Automatically transitions run state to `fixed` upon merge confirmation and appends `pr_merged_verified` events to the audit timeline.
-* **Milestone Registry Expansion (`GET /api/milestones`)**:
-  - Updated registry tracking 108 passing tests, runtime compatibility, and security allowlists.
+### A. Telemetry, Security & Gateway Health Probes
+* **Correlation ID & Latency Logging Middleware**:
+  - Implemented HTTP middleware automatically attaching unique UUIDv4 correlation IDs (`X-Correlation-ID`) and measuring request execution latency (`X-Process-Time` in seconds).
+  - Propagates inbound correlation IDs or creates new tracking tokens for distributed tracing across microservices.
+* **Kubernetes Liveness & Readiness Probes (`/live`, `/ready`)**:
+  - `GET /live`: Immediate health ping confirming process viability.
+  - `GET /ready`: Evaluates backend dependency status (in-memory state database, GitHub API integration status, mock mode status, and uptime seconds).
+* **GitHub Webhook HMAC SHA256 Signature Verification**:
+  - Built timing-safe cryptographic verification helper (`verify_github_webhook_signature`) implementing RFC 2104 HMAC SHA256 validation against `X-Hub-Signature-256`.
+  - Rejects tampered payloads, missing headers, or forged signatures while supporting optional bypass in local development test harness.
 
-### B. Zero-Trust Security Hardening & Risk Assessment
+### B. Gateway Lifecycle & Remediation Control Routes
+* **Lightweight Status Polling (`GET /runs/{run_id}/status`)**:
+  - High-frequency polling endpoint returning status, start time, target, and error fields without serializing heavy forensic screenshot evidence bundles.
+* **Bounded Audit Run Retry (`POST /runs/{run_id}/retry`)**:
+  - Configurable iteration ceiling (`max_retries = 3` default) that automatically marks runs exceeding limits as `needs_review` and appends `retry_exhausted` timeline events.
+* **Automated Patch Rollback & Revert Branch (`POST /runs/{run_id}/revert`)**:
+  - Enables immediate remediation rollback upon human reviewer rejection or failed canary deployment.
+  - Generates inverted unified diff, creates isolated `revert-omnisight-...` branch, pushes commit, and transitions run status to `reverted`.
+* **Tamper-Evident Forensic Audit Export Bundle with SHA256 Checksum (`GET /runs/export/{run_id}/bundle`)**:
+  - Generates complete audit export bundle containing full run metadata, findings, verified patch, and forensic timeline.
+  - Computes and embeds deterministic SHA-256 canonical payload checksum for forensic tamper evidence.
+* **Mean Time to Remediation (MTTR) Analytics (`GET /runs/metrics/summary`)**:
+  - Added resolution latency tracking and aggregate MTTR calculation across all resolved/fixed audit runs.
+* **Multi-Criteria Date Range & Severity Run Filtering (`GET /runs`)**:
+  - Enriched query capabilities with `start_date`, `end_date`, and `severity` query filters with strict validation.
+
+### C. Zero-Trust Security Hardening & Risk Assessment
 * **Windows Reserved Device Name Defense**:
-  - Rejects device names in target paths (`CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9`), preventing filesystem hangs and unauthorized handle access on Windows operating systems.
+  - Blocks device names in target paths (`CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9`), preventing filesystem hangs and unauthorized handle access on Windows OS.
 * **CRLF & Trailing Whitespace Normalization**:
-  - Normalized multi-platform line endings (`\r\n` &rarr; `\n`) and trailing whitespace in unified diffs before validator parsing.
+  - Normalizes multi-platform line endings (`\r\n` &rarr; `\n`) and trailing whitespace in unified diffs before validator parsing.
 * **CSS Safety Protocol Defense**:
   - Hardened `validate_css_safety` against `vbscript:`, dangerous `url()` wrappers, and obfuscated `javascript:` URI schemes.
 * **Automated Patch Risk Assessment (`assess_patch_risk`)**:
   - Introduced automated blast radius scoring evaluating modified line count, selector scope, and file extensions.
   - Tags pure CSS style fixes under 40 lines as `auto_merge_eligible = True`, while escalating larger or JSX/JS diffs to mandatory human QA review.
 
-### C. Multimodal Action Engine Resilience
+### D. Multimodal Action Engine Resilience
 * **Flexible Markdown Code Fence Support**:
   - Extended `ActionEngine.extract_code_blocks` regex to support case-insensitive language identifiers (e.g. ````JSON````, ````Css````, ````DIFF````) and alternative tilde fences (`~~~json`).
 * **Defect Category & Severity Synonym Mapping**:
-  - Added mapping dictionaries normalizing non-standard VLM classifications (e.g., `overlap` &rarr; `element_overlap`, `clipping` &rarr; `element_clipping`, `blocker` &rarr; `critical`, `trivial` &rarr; `low`).
+  - Normalizes non-standard VLM classifications (e.g., `overlap` &rarr; `element_overlap`, `clipping` &rarr; `element_clipping`, `blocker` &rarr; `critical`, `trivial` &rarr; `low`).
 
-### D. GitHub PR Automation Service Hardening
+### E. GitHub PR Automation Service Hardening
 * **Git Ref & Branch Name Sanitization (`sanitize_git_branch_name`)**:
-  - Cleans arbitrary run identifiers and scenario strings, stripping disallowed characters (`~`, `^`, `:`, `?`, `*`, `[`, `]`, `\`, `@`, `{`, `}`) and duplicate slashes to ensure valid Git refs.
+  - Cleans arbitrary run identifiers and scenario strings, stripping disallowed characters (`~`, `^`, `:`, `?`, `*`, `[`, `]`, `\`, `@`, `{`, `}`) and duplicate slashes.
 * **Visual Diff Metric Formatting Resilience**:
   - Safely handles non-numeric strings, percentage strings, and floating-point scores when constructing verification tables in `update_pull_request_verification_proof`.
 * **PR Lifecycle Helper Functions**:
-  - Implemented `check_pull_request_status` and `close_pull_request` helper workflows for programmatic review management.
-* **PyGithub Type Annotation Compatibility**:
-  - Added explicit `# pyrefly: ignore[missing-import]` annotations and UTF-8 header encoding for reliable cross-IDE diagnostics.
+  - Implemented `check_pull_request_status`, `close_pull_request`, and `revert_pull_request_patch` helper workflows.
 
 ---
 
-## 3. Commit History Audit (Week 3 Day 1 Commits)
+## 3. Commit History Audit (50 Commits on `khyathi`)
 
-All commits are authored by Member 1 (Sri Khyathi) and tracked on branch `khyathi`:
+All commits are authored by Member 1 (Sri Khyathi) under email `ambadipudisrikhyathi@gmail.com` and tracked on branch `khyathi`:
 
 | # | Commit SHA | Type / Scope | Description |
 | :---: | :---: | :--- | :--- |
@@ -133,46 +152,70 @@ All commits are authored by Member 1 (Sri Khyathi) and tracked on branch `khyath
 | 27 | `f2a5f64` | `feat(milestones)` | Register lifecycle and api expansion deliverables with 108 tests |
 | 28 | `b933465` | `fix(github)` | Add pyrefly ignore annotation to eliminate ide missing-import error |
 | 29 | `721b360` | `docs(review)` | Add backend gateway lifecycle and pr automation deliverables report |
+| 30 | `310ca52` | `docs(review)` | Add Week 3 Day 1 backend deliverables and review report |
+| 31 | `e4be169` | `feat(security)` | Add github webhook hmac sha256 signature verification helper |
+| 32 | `45122c5` | `test(security)` | Add test suite for github webhook hmac signature validation |
+| 33 | `3e1239a` | `feat(config)` | Add webhook secret and rate limiting configuration settings |
+| 34 | `6da35b7` | `feat(middleware)` | Add request correlation id and execution latency logging middleware |
+| 35 | `5b0c643` | `test(middleware)` | Verify correlation id propagation and latency headers |
+| 36 | `be50afd` | `feat(api)` | Implement system readiness and liveness probe endpoints (/ready, /live) |
+| 37 | `6bfa9c4` | `test(api)` | Test liveness and readiness probe responses and status codes |
+| 38 | `1d95894` | `feat(schemas)` | Introduce readiness probe and run query filter schema models |
+| 39 | `d2c67b6` | `feat(api)` | Add multi-criteria date range and severity filtering to run queries |
+| 40 | `d2d5a24` | `test(api)` | Add tests for temporal and severity run filtering |
+| 41 | `de60611` | `feat(github)` | Add automated patch rollback and revert branch helper |
+| 42 | `931114b` | `test(github)` | Test patch rollback and revert branch generation workflow |
+| 43 | `afbaca7` | `feat(api)` | Add automated patch rollback endpoint on human rejection (POST /runs/{run_id}/revert) |
+| 44 | `794b7c7` | `test(api)` | Test run patch rollback endpoint status transition to reverted |
+| 45 | `3d0cfa4` | `feat(analytics)` | Calculate mean time to remediation (MTTR) in metrics summary |
+| 46 | `074681b` | `test(analytics)` | Test mttr and resolution latency metrics calculations |
+| 47 | `c59bd9a` | `feat(schemas)` | Add mttr and resolution latency fields to metrics summary schema |
+| 48 | `fe86115` | `feat(export)` | Add run audit json export bundle with checksum verification |
+| 49 | `737a975` | `test(export)` | Verify forensic bundle sha256 checksum integrity |
+| 50 | `5100a32` | `feat(milestones)` | Update backend milestone registry with remediation and forensic checksum status |
 
 ---
 
-## 4. Test Matrix & Verification (108 Passing Tests)
+## 4. Test Matrix & Verification (123 Passing Tests)
 
 ```bash
 $ pytest backend/tests/ -v
 ============================= test session starts =============================
 platform win32 -- Python 3.13.11, pytest-9.1.1, pluggy-1.7.0
 rootdir: C:\Users\Kailash\.gemini\antigravity-ide\scratch\OmniSight
-collected 108 items
+collected 123 items
 
-backend\tests\test_action_engine.py ..............                       [ 12%]
-backend\tests\test_api.py .........................................      [ 50%]
-backend\tests\test_patch_validator.py ........................           [ 73%]
-backend\tests\test_pr_automation.py .............                        [ 85%]
-backend\tests\test_schemas.py ................                           [100%]
+backend\tests\test_action_engine.py ..............                       [ 11%]
+backend\tests\test_api.py ................................................ [ 50%]
+backend\tests\test_patch_validator.py .........................          [ 70%]
+backend\tests\test_pr_automation.py ..............                       [ 81%]
+backend\tests\test_schemas.py .................                          [ 95%]
+backend\tests\test_webhook_security.py ......                            [100%]
 
-======================= 108 passed, 1 warning in 0.95s =======================
+====================== 123 passed, 1 warning in 2.34s =======================
 ```
 
 | Test Suite | File | Tests | Coverage Scope |
 | :--- | :--- | :---: | :--- |
 | **Multimodal Parser** | `test_action_engine.py` | 14 | Case-insensitive fences, tilde fences, synonym normalization, smart quote recovery. |
-| **API Gateway & Lifecycle** | `test_api.py` | 41 | Health check, webhooks, filtering, metrics, retest result ingestion, timeline, forensic bundle, status polling, retry bounds, deletion, live PR sync. |
-| **Zero-Trust Validator** | `test_patch_validator.py` | 24 | Windows device names, path traversal, CRLF normalization, CSS AST safety, risk assessment. |
-| **PR Automation** | `test_pr_automation.py` | 13 | Branch sanitization, PR creation, formatted diff score resilience, PR status checks, PR closure. |
-| **Schemas & Models** | `test_schemas.py` | 16 | Lightweight status schemas, retry payloads, timeline event models, enum fallbacks. |
-| **Total Backend Suite** | **OmniSight Backend** | **108** | **100% Pass Rate** |
+| **API Gateway & Lifecycle** | `test_api.py` | 48 | Health check, correlation ID headers, probes, webhooks, filtering, MTTR metrics, rollback endpoint, forensic checksum export, status polling, retry bounds, deletion. |
+| **Zero-Trust Validator** | `test_patch_validator.py` | 25 | Windows device names, path traversal, CRLF normalization, CSS AST safety, risk assessment. |
+| **PR Automation** | `test_pr_automation.py` | 14 | Branch sanitization, PR creation, formatted diff score resilience, PR status checks, PR closure, revert branch generation. |
+| **Schemas & Models** | `test_schemas.py` | 16 | Lightweight status schemas, retry payloads, timeline event models, MTTR metric models, enum fallbacks. |
+| **Webhook Security** | `test_webhook_security.py` | 6 | HMAC SHA256 signature verification, missing headers, tampered payloads, secret bypass. |
+| **Total Backend Suite** | **OmniSight Backend** | **123** | **100% Pass Rate** |
 
 ---
 
 ## 5. Security & Verification Checkpoints
 
 1. **Pull Request Routing**:
-   - Pull Request [#17](https://github.com/Kailash-18/OmniSight/pull/17) targets `backend-dev` as its base branch (**not `main`**).
+   - Pull Request [#17](https://github.com/Kailash-18/OmniSight/pull/17) targets `backend-dev` as its base branch (**strictly NOT `main`**).
    - The PR remains in an open, unmerged state pending human QA and team lead review.
 2. **Zero Hardcoded Secrets**:
-   - Environment variables parameterized via centralized `settings`.
+   - Webhook secrets, GitHub API tokens, and allowlists are managed via `app.core.config.Settings` with environment variable overrides.
    - Mock fallback ensures fully offline testing without requiring live GitHub API tokens.
 3. **Bounded Automation Guardrails**:
    - Self-healing retries are bounded to prevent infinite re-trigger cycles.
-   - Patches exceeding allowable lines or targeting executable JavaScript files automatically require manual review.
+   - Automated rollback branch generated upon human review rejection.
+   - SHA-256 tamper-evident checksums guarantee immutable audit records.

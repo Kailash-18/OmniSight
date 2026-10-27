@@ -25,8 +25,13 @@ class Settings:
 
     # GitHub Service Configuration
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+    GITHUB_WEBHOOK_SECRET: str = os.getenv("GITHUB_WEBHOOK_SECRET", "")
     REPO_NAME: str = os.getenv("REPO_NAME", "Kailash-18/OmniSight")
     MOCK_GITHUB: bool = os.getenv("MOCK_GITHUB", "false").lower() in ("true", "1", "yes")
+
+    # Rate Limiting & Audit Observability
+    RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "120"))
+    ENABLE_AUDIT_LOGGING: bool = os.getenv("ENABLE_AUDIT_LOGGING", "true").lower() in ("true", "1", "yes")
 
     # Audit Journey Timeouts
     RUN_TIMEOUT_SECONDS: int = int(os.getenv("RUN_TIMEOUT_SECONDS", "300"))

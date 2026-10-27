@@ -15,10 +15,11 @@ _backend_root = str(Path(__file__).resolve().parent.parent)
 if _backend_root not in sys.path:
     sys.path.insert(0, _backend_root)
 
+import time
 # Standard UTC timezone reference compatible across Python 3.10+
 UTC = timezone.utc
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -77,6 +78,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_correlation_and_timing_middleware(request: Request, call_next):
+    correlation_id = request.headers.get("X-Correlation-ID") or f"req-{uuid.uuid4().hex[:10]}"
+    start_time = time.perf_counter()
+    response: Response = await call_next(request)
+    duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+    response.headers["X-Correlation-ID"] = correlation_id
+    response.headers["X-Response-Time-Ms"] = str(duration_ms)
+    return response
+
 
 # In-memory store for test runs (simulates persistence for development & demo)
 runs_db: Dict[str, Dict[str, Any]] = {}

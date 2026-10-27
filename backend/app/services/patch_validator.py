@@ -31,6 +31,12 @@ DANGEROUS_PATTERNS = [
 
 ALLOWED_EXTENSIONS = {".css", ".jsx", ".js"}
 
+WINDOWS_RESERVED_NAMES = {
+    "con", "prn", "aux", "nul",
+    *(f"com{i}" for i in range(1, 10)),
+    *(f"lpt{i}" for i in range(1, 10))
+}
+
 
 def validate_css_safety(css_text: str) -> tuple[bool, Optional[str]]:
     """
@@ -123,6 +129,16 @@ def validate_patch(target_file: str, diff_content: str, file_content: Optional[s
             "target_file": clean_path,
             "diff_sanitized": None
         }
+
+    for seg in path_segments:
+        stem = seg.split(".")[0].lower()
+        if stem in WINDOWS_RESERVED_NAMES:
+            return {
+                "validation_status": False,
+                "validator_errors": f"Security violation: Windows reserved device name '{seg}' detected in target path.",
+                "target_file": clean_path,
+                "diff_sanitized": None
+            }
 
     # 2. Path allowlist check (Checked first so arbitrary directories are immediately rejected)
     if not settings.is_path_allowed(clean_path):

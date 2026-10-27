@@ -1,15 +1,44 @@
+# -*- coding: utf-8 -*-
 """
 GitHub PR Automation Service for OmniSight.
 Creates isolated remediation branches, commits validated patches, and opens evidence-backed PRs.
 """
 
+import sys
 import logging
+from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List, Dict, Any, Union
+
+# Ensure backend root directory is in sys.path for direct imports or root executions
+_backend_root = str(Path(__file__).resolve().parent.parent.parent)
+if _backend_root not in sys.path:
+    sys.path.insert(0, _backend_root)
+
 from github import Github, GithubException
-from app.core.config import settings
+
+try:
+    from app.core.config import settings
+except ImportError:
+    from backend.app.core.config import settings
+
+import re
 
 logger = logging.getLogger("omnisight.backend.github")
+
+
+def sanitize_git_branch_name(name: str) -> str:
+    """
+    Sanitizes arbitrary run IDs or labels into compliant git branch names according to git-check-ref-format.
+    Replaces disallowed characters (~^:?*[]\\@{}), collapses duplicate separators, and trims edges.
+    """
+    if not name:
+        return "omnisight-fix"
+    sanitized = re.sub(r"[\s~^:?*\[\]\\@{}]", "-", str(name))
+    sanitized = re.sub(r"-+", "-", sanitized)
+    sanitized = re.sub(r"/+", "/", sanitized)
+    sanitized = sanitized.strip("-./")
+    return sanitized or "omnisight-fix"
 
 
 def generate_pr_markdown_description(
@@ -65,7 +94,7 @@ def create_pull_request_for_fix(
     commit_message: Optional[str] = None,
     pr_title: Optional[str] = None,
     pr_body: Optional[str] = None,
-    labels: Optional[list] = None
+    labels: Optional[List[str]] = None
 ) -> str:
     """
     Creates an isolated feature branch, commits the approved file patch, and opens a GitHub PR.
@@ -92,7 +121,8 @@ def create_pull_request_for_fix(
         default_branch = repo.default_branch
         base_branch_ref = repo.get_branch(default_branch)
 
-        branch_name = f"omnisight-fix-{run_id}"
+        safe_id = sanitize_git_branch_name(run_id)
+        branch_name = f"omnisight-fix-{safe_id}"
 
         # 1. Create fix branch or reuse if existing (idempotent retries)
         try:
@@ -108,7 +138,7 @@ def create_pull_request_for_fix(
                     existing_ref.edit(sha=base_branch_ref.commit.sha, force=True)
                 except Exception:
                     # If updating fails, use a unique timestamped branch
-                    branch_name = f"omnisight-fix-{run_id}-{int(datetime.now(timezone.utc).timestamp())}"
+                    branch_name = f"omnisight-fix-{safe_id}-{int(datetime.now(timezone.utc).timestamp())}"
                     repo.create_git_ref(
                         ref=f"refs/heads/{branch_name}",
                         sha=base_branch_ref.commit.sha
@@ -206,7 +236,7 @@ def add_pr_comment_with_retest_evidence(
 
 def update_pull_request_verification_proof(
     pr_number: int,
-    retest_data: dict
+    retest_data: Dict[str, Any]
 ) -> bool:
     """
     Generates structured verification retest proof table with visual diff score
@@ -215,7 +245,14 @@ def update_pull_request_verification_proof(
     passed = retest_data.get("passed", False)
     badge = "✅ **VERIFIED FIXED**" if passed else "⚠️ **RETEST FAILED**"
     diff_score = retest_data.get("visual_diff_score")
-    score_text = f"{diff_score:.2%}" if diff_score is not None else "0.00% (Pixel-Identical)"
+    if diff_score is None:
+        score_text = "0.00% (Pixel-Identical)"
+    else:
+        try:
+            score_float = float(diff_score)
+            score_text = f"{score_float:.2%}"
+        except (ValueError, TypeError):
+            score_text = str(diff_score)
     viewport = retest_data.get("retest_viewport", "all")
     notes = retest_data.get("notes", "Automated sandbox visual verification completed.")
 

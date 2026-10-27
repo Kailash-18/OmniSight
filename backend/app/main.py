@@ -827,6 +827,63 @@ def submit_retest_result(run_id: str, payload: RetestResultPayload):
 
 
 @app.post(
+    "/runs/{run_id}/retry",
+    response_model=RetryRunResponse,
+    tags=["Audit Runs"],
+    summary="Trigger Bounded Audit Run Retry"
+)
+def retry_audit_run(run_id: str, payload: Optional[RetryRunPayload] = None):
+    """
+    Registers a retry attempt for an audit run, enforcing maximum retry bounds
+    to prevent runaway self-healing loops.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+
+    r = runs_db[run_id]
+    current_retries = r.get("retry_count", 0)
+    max_retries = payload.max_retries if payload else 2
+    reason = payload.reason if payload and payload.reason else "Autonomous remediation retry"
+
+    if current_retries >= max_retries:
+        _append_timeline_event(
+            run_id=run_id,
+            event_type="retry_exhausted",
+            description=f"Retry bound reached ({current_retries}/{max_retries}). Transitioning to needs_review.",
+            metadata={"current_retries": current_retries, "max_retries": max_retries}
+        )
+        r["status"] = RunStatus.NEEDS_REVIEW.value
+        return RetryRunResponse(
+            run_id=run_id,
+            status=RunStatus.NEEDS_REVIEW,
+            retry_count=current_retries,
+            retry_allowed=False,
+            message=f"Maximum retry limit ({max_retries}) reached. Run requires human QA review."
+        )
+
+    new_retry_count = current_retries + 1
+    r["retry_count"] = new_retry_count
+    r["status"] = RunStatus.RUNNING.value
+    _append_timeline_event(
+        run_id=run_id,
+        event_type="retry_initiated",
+        description=f"Retry attempt {new_retry_count}/{max_retries} initiated: {reason}",
+        metadata={"retry_count": new_retry_count, "max_retries": max_retries, "reason": reason}
+    )
+
+    return RetryRunResponse(
+        run_id=run_id,
+        status=RunStatus.RUNNING,
+        retry_count=new_retry_count,
+        retry_allowed=True,
+        message=f"Retry iteration {new_retry_count}/{max_retries} registered successfully."
+    )
+
+
+@app.post(
     "/runs/{run_id}/update-pr-verification",
     tags=["Audit Runs"],
     summary="Update Pull Request with Verification Retest Evidence"

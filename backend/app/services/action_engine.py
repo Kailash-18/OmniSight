@@ -60,21 +60,53 @@ class ActionEngine:
         except (ValueError, TypeError):
             return 0.8
 
-    @staticmethod
-    def _normalize_category(cat_val: Any) -> Tuple[DefectCategory, Optional[str]]:
-        """Normalizes defect categories handling case and hyphens."""
+    CATEGORY_SYNONYMS = {
+        "overlap": DefectCategory.ELEMENT_OVERLAP,
+        "clipping": DefectCategory.ELEMENT_CLIPPING,
+        "clipped": DefectCategory.ELEMENT_CLIPPING,
+        "clip": DefectCategory.ELEMENT_CLIPPING,
+        "obstruction": DefectCategory.ELEMENT_OBSTRUCTION,
+        "obstructed": DefectCategory.ELEMENT_OBSTRUCTION,
+        "contrast": DefectCategory.CONTRAST_ISSUE,
+        "contrast_issue": DefectCategory.CONTRAST_ISSUE,
+        "color_contrast": DefectCategory.CONTRAST_ISSUE,
+        "overflow": DefectCategory.LAYOUT_OVERFLOW,
+        "layout_overflow": DefectCategory.LAYOUT_OVERFLOW,
+    }
+
+    SEVERITY_SYNONYMS = {
+        "crit": Severity.CRITICAL,
+        "critical": Severity.CRITICAL,
+        "blocker": Severity.CRITICAL,
+        "high": Severity.HIGH,
+        "major": Severity.HIGH,
+        "med": Severity.MEDIUM,
+        "medium": Severity.MEDIUM,
+        "normal": Severity.MEDIUM,
+        "low": Severity.LOW,
+        "minor": Severity.LOW,
+        "trivial": Severity.LOW,
+    }
+
+    @classmethod
+    def _normalize_category(cls, cat_val: Any) -> Tuple[DefectCategory, Optional[str]]:
+        """Normalizes defect categories handling case, hyphens, and common VLM synonyms."""
         warning = None
         s = str(cat_val).strip().lower().replace("-", "_")
+        if s in cls.CATEGORY_SYNONYMS:
+            return cls.CATEGORY_SYNONYMS[s], warning
         try:
             return DefectCategory(s), warning
         except ValueError:
             return DefectCategory.ELEMENT_OVERLAP, f"Unknown category '{cat_val}', normalized to element_overlap."
 
-    @staticmethod
-    def _normalize_severity(sev_val: Any) -> Tuple[Severity, Optional[str]]:
-        """Normalizes severity strings handling case."""
+    @classmethod
+    def _normalize_severity(cls, sev_val: Any) -> Tuple[Severity, Optional[str]]:
+        """Normalizes severity strings handling case, level codes, and common VLM synonyms."""
         warning = None
         s = str(sev_val).strip().lower()
+        if s in cls.SEVERITY_SYNONYMS:
+            return cls.SEVERITY_SYNONYMS[s], warning
         try:
             return Severity(s), warning
         except ValueError:

@@ -8,7 +8,7 @@ import sys
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List, Dict, Any, Union
 
 # Ensure backend root directory is in sys.path for direct imports or root executions
 _backend_root = str(Path(__file__).resolve().parent.parent.parent)
@@ -79,7 +79,7 @@ def create_pull_request_for_fix(
     commit_message: Optional[str] = None,
     pr_title: Optional[str] = None,
     pr_body: Optional[str] = None,
-    labels: Optional[list] = None
+    labels: Optional[List[str]] = None
 ) -> str:
     """
     Creates an isolated feature branch, commits the approved file patch, and opens a GitHub PR.
@@ -220,7 +220,7 @@ def add_pr_comment_with_retest_evidence(
 
 def update_pull_request_verification_proof(
     pr_number: int,
-    retest_data: dict
+    retest_data: Dict[str, Any]
 ) -> bool:
     """
     Generates structured verification retest proof table with visual diff score

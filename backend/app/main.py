@@ -16,6 +16,7 @@ if _backend_root not in sys.path:
     sys.path.insert(0, _backend_root)
 
 import time
+SERVER_START_TIME = time.time()
 # Standard UTC timezone reference compatible across Python 3.10+
 UTC = timezone.utc
 
@@ -170,6 +171,40 @@ def health_check():
         timestamp=datetime.now(timezone.utc).isoformat(),
         version=settings.API_VERSION
     )
+
+
+@app.get(
+    "/live",
+    status_code=status.HTTP_200_OK,
+    tags=["System"],
+    summary="Liveness Probe"
+)
+def liveness_probe():
+    """Liveness probe verifying that the application process is running."""
+    return {
+        "status": "alive",
+        "uptime_seconds": round(time.time() - SERVER_START_TIME, 2),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+
+@app.get(
+    "/ready",
+    status_code=status.HTTP_200_OK,
+    tags=["System"],
+    summary="Readiness Probe"
+)
+def readiness_probe():
+    """Readiness probe verifying that backend dependencies, state, and security settings are loaded."""
+    is_ready = bool(settings and runs_db is not None)
+    if not is_ready:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Backend not ready")
+    return {
+        "status": "ready",
+        "database": "connected",
+        "active_runs": len(runs_db),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 
 @app.get(

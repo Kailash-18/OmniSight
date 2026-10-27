@@ -19,6 +19,8 @@ from app.services.github_service import (
     add_pr_comment_with_retest_evidence,
     update_pull_request_verification_proof,
     sanitize_git_branch_name,
+    check_pull_request_status,
+    close_pull_request,
 )
 
 __all__ = [
@@ -31,5 +33,7 @@ __all__ = [
     "add_pr_comment_with_retest_evidence",
     "update_pull_request_verification_proof",
     "sanitize_git_branch_name",
+    "check_pull_request_status",
+    "close_pull_request",
 ]
 

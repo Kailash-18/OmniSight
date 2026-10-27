@@ -45,6 +45,7 @@ from app.schemas import (
     RetryRunPayload,
     RetryRunResponse,
     DeleteRunResponse,
+    PatchRevertResponse,
     RunStatus,
     Severity,
     PatchObject,
@@ -55,6 +56,7 @@ from app.services.github_service import (
     create_pull_request_for_fix,
     add_pr_comment_with_retest_evidence,
     check_pull_request_status,
+    revert_pull_request_patch,
 )
 
 
@@ -1082,6 +1084,42 @@ def get_run_pr_status(run_id: str):
         "run_status": r["status"]
     }
 
+
+@app.post(
+    "/runs/{run_id}/revert",
+    response_model=PatchRevertResponse,
+    tags=["Audit Runs"],
+    summary="Rollback and Revert Remediation Patch"
+)
+def revert_run_patch(run_id: str):
+    """
+    Rolls back an applied or proposed patch when rejected by human QA or when tests regress.
+    Creates a dedicated revert branch and transitions run status to 'patch_reverted'.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    r = runs_db[run_id]
+    target_file = (r.get("patch") or {}).get("target_file") or "app-under-test/src/styles/defects.css"
+    revert_result = revert_pull_request_patch(run_id=run_id, target_file=target_file)
+
+    r["status"] = "patch_reverted"
+    _append_timeline_event(
+        run_id=run_id,
+        event_type="patch_reverted",
+        description=f"Patch for run '{run_id}' rolled back on branch '{revert_result.get('revert_branch')}'.",
+        metadata=revert_result
+    )
+
+    return PatchRevertResponse(
+        run_id=run_id,
+        reverted=revert_result["reverted"],
+        revert_branch=revert_result.get("revert_branch"),
+        message=f"Remediation patch successfully reverted for run '{run_id}'.",
+        timestamp=datetime.now(timezone.utc).isoformat()
+    )
 
 
 @app.get(

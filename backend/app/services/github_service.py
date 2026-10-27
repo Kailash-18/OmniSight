@@ -15,7 +15,7 @@ _backend_root = str(Path(__file__).resolve().parent.parent.parent)
 if _backend_root not in sys.path:
     sys.path.insert(0, _backend_root)
 
-from github import Github, GithubException
+from github import Github, GithubException  # pyrefly: ignore[missing-import]
 
 try:
     from app.core.config import settings

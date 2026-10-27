@@ -149,21 +149,23 @@ def create_pull_request_for_fix(
         # 2. Update or create file on branch
         try:
             file_node = repo.get_contents(target_file, ref=branch_name)
+            node_sha = file_node[0].sha if isinstance(file_node, list) else file_node.sha
             repo.update_file(
                 path=target_file,
                 message=default_commit_msg,
                 content=file_content,
-                sha=file_node.sha,
+                sha=node_sha,
                 branch=branch_name
             )
         except GithubException:
             try:
                 base_node = repo.get_contents(target_file, ref=default_branch)
+                base_sha = base_node[0].sha if isinstance(base_node, list) else base_node.sha
                 repo.update_file(
                     path=target_file,
                     message=default_commit_msg,
                     content=file_content,
-                    sha=base_node.sha,
+                    sha=base_sha,
                     branch=branch_name
                 )
             except GithubException:
@@ -185,11 +187,19 @@ def create_pull_request_for_fix(
             )
         except GithubException as pr_err:
             if pr_err.status == 422:
-                # Check if a PR already exists for this head branch
-                pulls = repo.get_pulls(state="open", head=f"{repo.owner.login}:{branch_name}")
-                for p in pulls:
-                    pr_obj = p
-                    break
+                # Check if a PR already exists for this head branch (try both qualified and unqualified heads)
+                owner_login = getattr(getattr(repo, "owner", None), "login", "")
+                head_candidates = [f"{owner_login}:{branch_name}", branch_name] if owner_login else [branch_name]
+                for candidate in head_candidates:
+                    try:
+                        pulls = repo.get_pulls(state="open", head=candidate)
+                        for p in pulls:
+                            pr_obj = p
+                            break
+                        if pr_obj:
+                            break
+                    except Exception:
+                        continue
             if not pr_obj:
                 raise pr_err
 

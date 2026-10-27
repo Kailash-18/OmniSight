@@ -1104,3 +1104,34 @@ def test_prometheus_metrics_reflects_run_counts(client: TestClient):
             assert count >= 1
 
 
+def test_export_runs_csv_format_and_headers(client: TestClient):
+    """Verify GET /runs/export/csv returns valid CSV format with correct header and rows."""
+    test_run_id = "run-csv-test-01"
+    runs_db[test_run_id] = {
+        "run_id": test_run_id,
+        "start_time": "2026-10-27T10:00:00Z",
+        "target": "http://localhost:5173",
+        "branch": "feat/csv-test",
+        "scenario": "checkout_flow",
+        "status": "fixed",
+        "findings": [{"id": "f1", "category": "contrast_issue"}],
+        "retry_count": 1,
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/99",
+        "retest_outcome": {"passed": True}
+    }
+
+    res = client.get("/runs/export/csv")
+    assert res.status_code == 200
+    assert "text/csv" in res.headers["content-type"]
+    assert "omnisight_audit_runs.csv" in res.headers.get("content-disposition", "")
+    lines = res.text.strip().splitlines()
+    assert len(lines) >= 2
+    header = lines[0].split(",")
+    assert "run_id" in header
+    assert "status" in header
+    assert "target" in header
+    assert "issue_count" in header
+    assert any("run-csv-test-01" in line for line in lines)
+
+
+

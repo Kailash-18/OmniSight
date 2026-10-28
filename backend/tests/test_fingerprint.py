@@ -153,3 +153,44 @@ def test_fingerprint_with_viewport_distinguishes_screens():
         include_viewport=True
     )
     assert fp_desk != fp_mob
+
+
+def test_fingerprint_with_pydantic_finding_schema():
+    """Verify compute_finding_fingerprint, deduplicate_findings, and cluster_defect_findings support Pydantic models."""
+    from app.schemas.run_schema import FindingSchema, DefectCategory, Severity
+
+    f1 = FindingSchema(
+        id="f-1",
+        category=DefectCategory.ELEMENT_OVERLAP,
+        severity=Severity.HIGH,
+        description="Overlapping text block",
+        viewport="mobile_375x667",
+        target_element="header .title",
+        confidence=0.92,
+        suggested_change="margin-bottom: 1rem;",
+        rationale="Collision detected"
+    )
+    f2 = FindingSchema(
+        id="f-2",
+        category=DefectCategory.ELEMENT_OVERLAP,
+        severity=Severity.MEDIUM,
+        description="Overlapping text block duplicate",
+        viewport="mobile_375x667",
+        target_element="header .title",
+        confidence=0.85,
+        suggested_change="margin-bottom: 1rem;",
+        rationale="Collision detected duplicate"
+    )
+
+    fp = compute_finding_fingerprint(f1)
+    assert fp.startswith("dfp-")
+
+    deduped = deduplicate_findings([f1, f2])
+    assert len(deduped) == 1
+    assert deduped[0]["id"] == "f-1"
+    assert deduped[0]["confidence"] == 0.92
+
+    clusters = cluster_defect_findings([f1, f2], run_id="run-pydantic")
+    assert len(clusters) == 1
+    assert clusters[0]["occurrences"] == 2
+    assert "run-pydantic" in clusters[0]["run_ids"]

@@ -1600,9 +1600,16 @@ def evaluate_run_policy(run_id: str, payload: Optional[PolicyEvaluationRequest] 
 
     visual_score = payload.visual_diff_score if (payload and payload.visual_diff_score is not None) else (run_entry.get("retest_outcome") or {}).get("visual_diff_score")
 
-    severities = payload.defect_severities if (payload and payload.defect_severities) else [f.get("severity", "medium") for f in run_entry.get("findings", [])]
+    severities = payload.defect_severities if (payload and payload.defect_severities) else [
+        (f.get("severity", "medium") if isinstance(f, dict) else getattr(f, "severity", "medium"))
+        for f in run_entry.get("findings", [])
+    ]
 
-    fingerprints = payload.defect_fingerprints if (payload and payload.defect_fingerprints) else [f.get("fingerprint") for f in run_entry.get("findings", []) if f.get("fingerprint")]
+    fingerprints = payload.defect_fingerprints if (payload and payload.defect_fingerprints) else [
+        (f.get("fingerprint") if isinstance(f, dict) else getattr(f, "fingerprint", None))
+        for f in run_entry.get("findings", [])
+        if (f.get("fingerprint") if isinstance(f, dict) else getattr(f, "fingerprint", None))
+    ]
 
     author = payload.author if payload and payload.author else "omnisight-agent"
 

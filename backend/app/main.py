@@ -1852,8 +1852,11 @@ def get_defect_clusters(
 
     filtered_clusters = [c for c in clusters_map.values() if c.occurrences >= min_occurrences]
     if category:
-        cat_clean = category.strip().lower().replace("-", "_")
-        filtered_clusters = [c for c in filtered_clusters if getattr(c.category, "value", str(c.category)) == cat_clean]
+        try:
+            cat_norm = DefectCategory(category).value
+        except Exception:
+            cat_norm = category.strip().lower().replace("-", "_")
+        filtered_clusters = [c for c in filtered_clusters if getattr(c.category, "value", str(c.category)) == cat_norm]
     paginated = filtered_clusters[skip : skip + limit]
     return DefectClusterResponse(
         total_clusters=len(filtered_clusters),

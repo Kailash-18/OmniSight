@@ -1502,3 +1502,62 @@ def test_defect_clusters_endpoint_category_filtering_and_pagination(client: Test
     assert len(data_lim["clusters"]) <= 1
 
 
+def test_deduplicate_run_findings_endpoint(client: TestClient):
+    """Verify POST /runs/{run_id}/deduplicate deduplicates findings and preserves higher confidence."""
+    run_id = "run-dedup-api-test"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-28T15:30:00Z",
+        "target": "http://localhost:5173",
+        "status": "audited",
+        "issue_count": 2,
+        "findings": [
+            {
+                "id": "f-orig-1",
+                "category": "element_clipping",
+                "severity": "high",
+                "description": "Button clipped in mobile",
+                "viewport": "mobile_375x667",
+                "target_element": "button.submit",
+                "confidence": 0.82,
+                "suggested_change": "width: 100%;"
+            },
+            {
+                "id": "f-orig-2",
+                "category": "element_clipping",
+                "severity": "high",
+                "description": "Button clipped in mobile high conf",
+                "viewport": "mobile_375x667",
+                "target_element": "button.submit",
+                "confidence": 0.96,
+                "suggested_change": "width: 100%;"
+            }
+        ],
+        "timeline": []
+    }
+
+    res = client.post(f"/runs/{run_id}/deduplicate")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["run_id"] == run_id
+    assert data["original_findings_count"] == 2
+    assert data["deduplicated_findings_count"] == 1
+    assert data["removed_duplicates_count"] == 1
+    assert len(data["findings"]) == 1
+    # Preserves higher confidence
+    assert data["findings"][0]["id"] == "f-orig-2"
+    assert data["findings"][0]["confidence"] == 0.96
+
+    # Verify run record in db was updated
+    assert runs_db[run_id]["issue_count"] == 1
+    assert any(ev.get("event_type") == "findings_deduplicated" for ev in runs_db[run_id]["timeline"])
+
+
+def test_deduplicate_run_findings_not_found_returns_404(client: TestClient):
+    """Verify POST /runs/{run_id}/deduplicate returns 404 for unknown run."""
+    res = client.post("/runs/non-existent-run-id/deduplicate")
+    assert res.status_code == 404
+    assert "not found" in res.json()["detail"].lower()
+
+
+

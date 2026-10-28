@@ -52,13 +52,15 @@ from app.schemas import (
     BatchRetryResponse,
     RunTagPayload,
     RunTagResponse,
+    PatchDryRunPayload,
+    PatchDryRunResponse,
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
     RunStatus,
     Severity,
     PatchObject,
 )
-from app.services.patch_validator import validate_patch
+from app.services.patch_validator import validate_patch, validate_css_syntax_balance, dry_run_patch
 from app.services.policy_engine import evaluate_merge_policy
 from app.services.notification_service import dispatch_notification
 from app.services.action_engine import action_engine
@@ -1698,3 +1700,55 @@ def test_outbound_webhook_dispatch(
         mock_mode=True
     )
     return result
+
+
+@app.post(
+    "/runs/patch/dry-run",
+    response_model=PatchDryRunResponse,
+    tags=["Action Engine"],
+    summary="Simulate In-Memory Patch Application and Syntax Validation"
+)
+def preview_patch_dry_run(payload: PatchDryRunPayload):
+    """
+    Simulates applying a diff against in-memory file content and verifies CSS syntax balance.
+    """
+    # Zero-trust file and diff validation
+    val = validate_patch(payload.target_file, payload.diff)
+    if not val["validation_status"]:
+        return PatchDryRunResponse(
+            target_file=payload.target_file,
+            dry_run_passed=False,
+            modified_content=None,
+            syntax_valid=False,
+            validation_errors=val["validator_errors"]
+        )
+
+    success, modified, err = dry_run_patch(payload.original_content, payload.diff)
+    if not success:
+        return PatchDryRunResponse(
+            target_file=payload.target_file,
+            dry_run_passed=False,
+            modified_content=None,
+            syntax_valid=False,
+            validation_errors=err
+        )
+
+    # If pure CSS, validate brace and comment balance
+    if payload.target_file.lower().endswith(".css"):
+        syntax_ok, syntax_err = validate_css_syntax_balance(modified)
+        if not syntax_ok:
+            return PatchDryRunResponse(
+                target_file=payload.target_file,
+                dry_run_passed=False,
+                modified_content=modified,
+                syntax_valid=False,
+                validation_errors=syntax_err
+            )
+
+    return PatchDryRunResponse(
+        target_file=payload.target_file,
+        dry_run_passed=True,
+        modified_content=modified,
+        syntax_valid=True,
+        validation_errors=None
+    )

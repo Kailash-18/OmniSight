@@ -586,3 +586,19 @@ class RunTagResponse(BaseModel):
     run_id: str = Field(..., description="Audit run identifier")
     tags: List[str] = Field(default_factory=list, description="Current assigned metadata tags")
     message: str = Field(..., description="Status message")
+
+
+class PatchDryRunPayload(BaseModel):
+    """Payload to simulate in-memory diff patch application."""
+    target_file: str = Field(..., description="Target file path under test")
+    original_content: str = Field(..., description="Current buffer or file content")
+    diff: str = Field(..., description="Unified diff to dry-run apply")
+
+
+class PatchDryRunResponse(BaseModel):
+    """Outcome of in-memory patch dry-run simulation."""
+    target_file: str = Field(..., description="Target file path")
+    dry_run_passed: bool = Field(..., description="True if patch applied cleanly")
+    modified_content: Optional[str] = Field(default=None, description="Resulting modified buffer content")
+    syntax_valid: bool = Field(default=True, description="True if syntax balance checks passed")
+    validation_errors: Optional[str] = Field(default=None, description="Detailed syntax or security error")

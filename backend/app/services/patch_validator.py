@@ -61,6 +61,62 @@ def validate_css_safety(css_text: str) -> tuple[bool, Optional[str]]:
 
 
 
+def validate_css_syntax_balance(css_text: str) -> tuple[bool, Optional[str]]:
+    """
+    Validates structural CSS syntax integrity:
+    1. Ensures curly braces '{' and '}' are strictly balanced and non-negative at all times.
+    2. Ensures multi-line comment blocks '/*' have matching '*/' closures.
+    """
+    open_comments = css_text.count("/*")
+    close_comments = css_text.count("*/")
+    if open_comments != close_comments:
+        return False, f"Syntax violation: Unbalanced CSS comments ({open_comments} open '/*', {close_comments} closed '*/')."
+
+    # Strip comments before checking braces to avoid false positives inside comments
+    clean_css = re.sub(r"/\*.*?\*/", "", css_text, flags=re.DOTALL)
+
+    open_braces = 0
+    for char in clean_css:
+        if char == "{":
+            open_braces += 1
+        elif char == "}":
+            open_braces -= 1
+            if open_braces < 0:
+                return False, "Syntax violation: Unmatched closing brace '}' without opening '{'."
+
+    if open_braces != 0:
+        return False, f"Syntax violation: Unbalanced CSS curly braces ({open_braces} unclosed '{{')."
+
+    return True, None
+
+
+def dry_run_patch(original_content: str, diff_text: str) -> tuple[bool, str, Optional[str]]:
+    """
+    Simulates applying a unified diff against an in-memory string buffer.
+    Returns (success: bool, modified_content: str, error_message: Optional[str]).
+    """
+    if not diff_text or not diff_text.strip():
+        return False, original_content, "Dry-run failed: Diff payload is empty."
+
+    lines = original_content.splitlines()
+    diff_lines = diff_text.replace("\r\n", "\n").splitlines()
+
+    added_lines = [l[1:] for l in diff_lines if l.startswith("+") and not l.startswith("+++")]
+    removed_lines = [l[1:] for l in diff_lines if l.startswith("-") and not l.startswith("---")]
+
+    result_lines = []
+    removed_set = set(removed_lines)
+    for line in lines:
+        if line in removed_set:
+            removed_set.remove(line)
+            continue
+        result_lines.append(line)
+
+    result_lines.extend(added_lines)
+    modified = "\n".join(result_lines)
+    return True, modified, None
+
+
 def validate_patch(target_file: str, diff_content: str, file_content: Optional[str] = None) -> Dict[str, Any]:
     """
     Validates that a proposed patch strictly adheres to security boundaries:
@@ -281,4 +337,4 @@ def assess_patch_risk(target_file: str, diff_content: str) -> Dict[str, Any]:
         "target_file": clean_target,
         "rationale": rationale
     }
-
+

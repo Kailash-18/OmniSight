@@ -387,3 +387,45 @@ def test_patch_dry_run_endpoint_api():
     assert data_bad["dry_run_passed"] is False
     assert data_bad["syntax_valid"] is False
     assert "Unbalanced CSS curly braces" in data_bad["validation_errors"]
+
+
+def test_reject_css_document_directive():
+    """Verify validate_patch rejects CSS patches containing @document rules."""
+    diff = """
+--- a/app-under-test/src/styles/defects.css
++++ b/app-under-test/src/styles/defects.css
+@@ -1,1 +1,3 @@
++@document url("https://malicious.com") {
++  body { background: black; }
++}
+"""
+    result = validate_patch("app-under-test/src/styles/defects.css", diff)
+    assert result["validation_status"] is False
+    assert "@document" in result["validator_errors"]
+
+
+def test_reject_css_o_link_directive():
+    """Verify validate_patch rejects CSS patches containing -o-link navigation property."""
+    diff = """
+--- a/app-under-test/src/styles/defects.css
++++ b/app-under-test/src/styles/defects.css
+@@ -1,1 +1,2 @@
++a.banner { -o-link: "https://evil.com/trap"; }
+"""
+    result = validate_patch("app-under-test/src/styles/defects.css", diff)
+    assert result["validation_status"] is False
+    assert "-o-link" in result["validator_errors"]
+
+
+def test_reject_css_embedded_html_tags():
+    """Verify validate_patch rejects CSS patches containing embedded HTML tags."""
+    diff = """
+--- a/app-under-test/src/styles/defects.css
++++ b/app-under-test/src/styles/defects.css
+@@ -1,1 +1,2 @@
++.cta { color: red; } <style>body { background: black; }</style>
+"""
+    result = validate_patch("app-under-test/src/styles/defects.css", diff)
+    assert result["validation_status"] is False
+    assert "Embedded HTML markup tags" in result["validator_errors"]
+

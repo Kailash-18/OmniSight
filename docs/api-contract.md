@@ -111,6 +111,77 @@ Returns complete forensic details, evidence links, findings, and patch status fo
   }
   ```
 
+### `POST /runs/{run_id}/submit-patch`
+Submits a generated code/CSS patch for zero-trust security validation and records it on the run. Optionally triggers automatic PR opening if `auto_create_pr` is enabled.
+* **Request Payload**:
+  ```json
+  {
+    "target_file": "app-under-test/src/styles/defects.css",
+    "diff": "-.btn { width: 500px; }\n+.btn { width: 100%; }",
+    "file_content": ".btn { width: 100%; }",
+    "pr_title": "fix(ui): automated visual repair for mobile_375x667",
+    "pr_body": "Verified fix for mobile checkout button clipping.",
+    "auto_create_pr": true,
+    "labels": ["omnisight", "automated-fix"]
+  }
+  ```
+* **Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "validation_status": true,
+    "message": "Patch for app-under-test/src/styles/defects.css passed all zero-trust security guardrails.",
+    "pr_url": "https://github.com/Kailash-18/OmniSight/pull/4"
+  }
+  ```
+
+### `POST /runs/{run_id}/create-pr`
+Creates an automated feature branch and opens an evidence-backed Pull Request via PyGithub (or deterministic mock simulation).
+* **Request Payload**:
+  ```json
+  {
+    "pr_title": "fix(ui): automated visual repair for mobile_375x667",
+    "pr_body": "Verified fix for mobile checkout button clipping.",
+    "labels": ["omnisight", "automated-fix"]
+  }
+  ```
+* **Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "run_id": "run-1729418400",
+    "pr_url": "https://github.com/Kailash-18/OmniSight/pull/4",
+    "message": "Pull Request created successfully."
+  }
+  ```
+
+### `POST /runs/{run_id}/update-pr-verification`
+Appends verification retest results, visual diff score, and audit proof badge as an issue comment to an open PR.
+* **Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "pr_number": 4,
+    "comment_posted": true
+  }
+  ```
+
+### `GET /api/milestones`
+Returns current milestone completion status across team roles and active security allowlists.
+* **Response (200 OK)**:
+  ```json
+  {
+    "member": "Member 1 - Backend & PR Automation",
+    "week_1_foundation": "completed",
+    "week_2_action_engine": "completed",
+    "week_2_day_3_integration": "completed",
+    "week_3_pr_automation": "in_progress",
+    "week_3_progress": "10% - PyGithub PR automation service & mock fallback initialized",
+    "allowed_targets": ["localhost", "127.0.0.1", "0.0.0.0", "::1", "staging.internal"],
+    "allowed_patch_files": ["app-under-test/src/styles/defects.css", "..."]
+  }
+  ```
+
 ---
 
 ## 2. Common Data Structures & Enums

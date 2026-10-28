@@ -5,6 +5,8 @@ Exposes data models, request/response schemas, and enums for runs and findings.
 
 from app.schemas.run_schema import (
     BuildWebhookPayload,
+    CreatePRPayload,
+    CreatePRResponse,
     DefectCategory,
     FindingSchema,
     HealthCheckResponse,
@@ -22,6 +24,8 @@ from app.schemas.run_schema import (
 
 __all__ = [
     "BuildWebhookPayload",
+    "CreatePRPayload",
+    "CreatePRResponse",
     "DefectCategory",
     "FindingSchema",
     "HealthCheckResponse",

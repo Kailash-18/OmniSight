@@ -244,6 +244,19 @@ class ActionEngine:
 
             confidence = cls._normalize_confidence(item.get("confidence", 0.8))
 
+            fp = item.get("fingerprint")
+            if not fp:
+                try:
+                    from app.services.fingerprint_service import generate_defect_fingerprint
+                    fp = generate_defect_fingerprint(
+                        category=category,
+                        target_element=item.get("target_element"),
+                        viewport=str(item.get("viewport", "all")),
+                        suggested_change=str(item.get("suggested_change", ""))
+                    )
+                except Exception:
+                    fp = None
+
             try:
                 finding = FindingSchema(
                     id=str(item.get("id", f"defect-{idx+1}")),
@@ -255,7 +268,8 @@ class ActionEngine:
                     confidence=confidence,
                     suggested_change=str(item.get("suggested_change", "")),
                     rationale=str(item.get("rationale", "")),
-                    status=str(item.get("status", "detected"))
+                    status=str(item.get("status", "detected")),
+                    fingerprint=fp
                 )
                 parsed_findings.append(finding)
             except Exception as e:

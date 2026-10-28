@@ -140,3 +140,30 @@ def get_flakiness_report() -> Dict[str, Any]:
         "high_flakiness_count": len(high_flakiness),
         "defects": records
     }
+
+
+def bulk_quarantine_defects(
+    fingerprints: List[str],
+    reason: str,
+    quarantined_by: str = "system"
+) -> List[Dict[str, Any]]:
+    """Places multiple defect fingerprints under quarantine in a single operation."""
+    results = []
+    for fp in fingerprints:
+        clean_fp = fp.strip()
+        if clean_fp:
+            results.append(quarantine_defect(clean_fp, reason, quarantined_by))
+    return results
+
+
+def unquarantine_all_defects() -> int:
+    """Releases all currently quarantined defects. Returns count of released defects."""
+    count = 0
+    for record in _stability_store.values():
+        if record.get("is_quarantined"):
+            record["is_quarantined"] = False
+            record["quarantine_reason"] = None
+            record["quarantined_at"] = None
+            count += 1
+    return count
+

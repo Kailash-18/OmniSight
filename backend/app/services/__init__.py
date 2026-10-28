@@ -45,6 +45,8 @@ from app.services.flakiness_service import (
     get_quarantined_defects,
     get_flakiness_report,
     reset_flakiness_tracker,
+    bulk_quarantine_defects,
+    unquarantine_all_defects,
 )
 from app.services.policy_engine import evaluate_merge_policy
 from app.services.notification_service import (

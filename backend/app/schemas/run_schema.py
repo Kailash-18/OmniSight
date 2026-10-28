@@ -475,6 +475,7 @@ class DefectStabilityRecord(BaseModel):
     is_quarantined: bool = Field(default=False, description="Whether this defect is currently quarantined from gating")
     quarantined_at: Optional[str] = Field(default=None, description="ISO timestamp when quarantine was applied")
     quarantine_reason: Optional[str] = Field(default=None, description="Justification for quarantine")
+    quarantined_by: Optional[str] = Field(default=None, description="Identifier of user or agent applying quarantine")
 
 
 class QuarantineRequest(BaseModel):

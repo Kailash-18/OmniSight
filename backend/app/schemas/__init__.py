@@ -55,6 +55,7 @@ from app.schemas.run_schema import (
     RunTagResponse,
     PatchDryRunPayload,
     PatchDryRunResponse,
+    RunDeduplicationResponse,
 )
 
 
@@ -108,6 +109,7 @@ __all__ = [
     "RunTagResponse",
     "PatchDryRunPayload",
     "PatchDryRunResponse",
+    "RunDeduplicationResponse",
 ]
 
 

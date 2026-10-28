@@ -612,3 +612,14 @@ class PatchDryRunResponse(BaseModel):
     modified_content: Optional[str] = Field(default=None, description="Resulting modified buffer content")
     syntax_valid: bool = Field(default=True, description="True if syntax balance checks passed")
     validation_errors: Optional[str] = Field(default=None, description="Detailed syntax or security error")
+
+
+class RunDeduplicationResponse(BaseModel):
+    """Result of running finding deduplication on an audit run."""
+    run_id: str = Field(..., description="Audit run identifier")
+    original_findings_count: int = Field(..., description="Findings count before deduplication")
+    deduplicated_findings_count: int = Field(..., description="Findings count after deduplication")
+    removed_duplicates_count: int = Field(..., description="Number of duplicate findings pruned")
+    findings: List[FindingSchema] = Field(default_factory=list, description="Preserved unique findings")
+    message: str = Field(..., description="Status summary message")
+

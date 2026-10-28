@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-2.0%2B-e92063.svg)](https://docs.pydantic.dev/)
-[![Pytest](https://img.shields.io/badge/Pytest-40%20Backend%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
+[![Pytest](https://img.shields.io/badge/Pytest-54%20Backend%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
 [![Terraform](https://img.shields.io/badge/Terraform-Secured-844FBA.svg)](https://www.terraform.io/)
 
 ---
@@ -27,7 +27,7 @@ The OmniSight Backend service acts as the central intelligence and security clea
 | **Week 1** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/runs`, `/runs/{run_id}`, shared Pydantic data schemas. |
 | **Week 2 (Day 1-2)** | Action Engine & Security Validator | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), path traversal defense, allowlist checks, script injection filters, 40 unit/integration tests. |
 | **Week 2 (Day 3-5)** | Mid-Project Review & Integration | ✅ Completed | Extraction check verified, sandbox retest coordination with Team Lead & Member 2, end-to-end integration verified. |
-| **Week 3** | Bounded Self-Healing & PR Engine | ⏳ In Progress | Branch, commit, and PR creation via PyGithub with mock fallbacks for offline testing. |
+| **Week 3 (Day 1)** | Bounded Self-Healing & PR Engine (10%) | ⏳ In Progress (10%) | PyGithub PR automation service (`github_service.py`), mock fallbacks, evidence markdown formatting, custom label management, and retest proof comments. |
 | **Week 4** | Production Hardening & Cloud Deploy | ⏳ Planned | Containerized deployment and cloud infrastructure. |
 
 ---

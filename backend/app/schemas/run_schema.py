@@ -166,6 +166,8 @@ class PatchSubmitPayload(BaseModel):
     file_content: str = Field(..., description="Full modified file content to commit")
     pr_title: str = Field(default="OmniSight Automated Visual Defect Fix", description="PR title")
     pr_body: str = Field(default="", description="Detailed PR description with evidence")
+    labels: list[str] | None = Field(default=None, description="Optional GitHub issue labels")
+    auto_create_pr: bool = Field(default=False, description="Whether to automatically open PR if patch passes")
 
     @field_validator("target_file", mode="before")
     @classmethod
@@ -235,3 +237,21 @@ class RunDetailResponse(BaseModel):
     retry_count: int = 0
     pr_url: str | None = None
     error: str | None = None
+
+
+class CreatePRPayload(BaseModel):
+    """Payload to trigger or re-run GitHub PR creation for a run with validated patch."""
+    target_file: str | None = Field(default=None, description="Optional target file override")
+    file_content: str | None = Field(default=None, description="Optional modified file content override")
+    commit_message: str | None = Field(default=None, description="Custom Git commit message")
+    pr_title: str | None = Field(default=None, description="Custom Pull Request title")
+    pr_body: str | None = Field(default=None, description="Custom Markdown Pull Request description")
+    labels: list[str] | None = Field(default=None, description="Optional issue/PR labels")
+
+
+class CreatePRResponse(BaseModel):
+    """Response returned upon PR creation or mock PR generation."""
+    status: str = "success"
+    run_id: str
+    pr_url: str
+    message: str = "Pull Request created successfully."

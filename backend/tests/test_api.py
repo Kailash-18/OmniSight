@@ -315,3 +315,88 @@ def test_parse_vlm_output_without_patch_sets_audited_status(client: TestClient):
     assert detail["status"] == "audited"
 
 
+def test_submit_valid_patch_with_auto_create_pr(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    """Verify submit-patch opens PR and sets status to pr_opened when auto_create_pr is True."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    res = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"})
+    run_id = res.json()["run_id"]
+
+    valid_patch = {
+        "target_file": "app-under-test/src/styles/defects.css",
+        "diff": "-.btn { width: 500px; }\n+.btn { width: 100%; }",
+        "file_content": ".btn { width: 100%; }",
+        "pr_title": "Auto-repair checkout CTA",
+        "pr_body": "Verified fix for clipping.",
+        "auto_create_pr": True,
+        "labels": ["omnisight", "auto-fix"]
+    }
+    submit_res = client.post(f"/runs/{run_id}/submit-patch", json=valid_patch)
+    assert submit_res.status_code == 200
+    data = submit_res.json()
+    assert data["status"] == "success"
+    assert "pr_url" in data
+    assert "github.com" in data["pr_url"]
+
+    detail = client.get(f"/runs/{run_id}").json()
+    assert detail["status"] == "pr_opened"
+    assert detail["pr_url"] == data["pr_url"]
+
+
+def test_create_run_pull_request_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    """Verify POST /runs/{run_id}/create-pr creates PR and updates run record."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    res = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"})
+    run_id = res.json()["run_id"]
+
+    # Submit patch without auto_create_pr
+    client.post(f"/runs/{run_id}/submit-patch", json={
+        "target_file": "app-under-test/src/styles/defects.css",
+        "diff": "-.btn { width: 500px; }\n+.btn { width: 100%; }",
+        "file_content": ".btn { width: 100%; }",
+    })
+
+    # Trigger PR endpoint
+    pr_res = client.post(f"/runs/{run_id}/create-pr", json={
+        "pr_title": "Fix Button Layout",
+        "labels": ["omnisight", "review-needed"]
+    })
+    assert pr_res.status_code == 200
+    data = pr_res.json()
+    assert data["status"] == "success"
+    assert "pr_url" in data
+    assert "github.com" in data["pr_url"]
+
+    detail = client.get(f"/runs/{run_id}").json()
+    assert detail["status"] == "pr_opened"
+    assert detail["pr_url"] == data["pr_url"]
+
+
+def test_update_pr_verification_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    """Verify POST /runs/{run_id}/update-pr-verification appends verification comment to PR."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    res = client.post("/webhook/build", json={"target_url": "http://localhost:5173", "branch": "main", "scenario": "checkout_flow"})
+    run_id = res.json()["run_id"]
+
+    # Submit patch with auto_create_pr to establish pr_url
+    client.post(f"/runs/{run_id}/submit-patch", json={
+        "target_file": "app-under-test/src/styles/defects.css",
+        "diff": "-.btn { width: 500px; }\n+.btn { width: 100%; }",
+        "file_content": ".btn { width: 100%; }",
+        "auto_create_pr": True
+    })
+
+    # Update PR verification
+    verify_res = client.post(f"/runs/{run_id}/update-pr-verification")
+    assert verify_res.status_code == 200
+    data = verify_res.json()
+    assert data["status"] == "success"
+    assert data["comment_posted"] is True
+
+
+

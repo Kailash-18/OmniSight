@@ -217,3 +217,23 @@ class BackendClient:
     def get_milestones(self) -> dict[str, Any] | None:
         """Queries the team milestone tracking endpoint."""
         return self._request("GET", "/api/milestones")
+
+    def create_pull_request(
+        self,
+        run_id: str,
+        pr_title: str | None = None,
+        pr_body: str | None = None,
+        labels: list[str] | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        Requests the backend gateway to open an evidence-backed GitHub PR for a run.
+        """
+        payload: dict[str, Any] = {}
+        if pr_title:
+            payload["pr_title"] = pr_title
+        if pr_body:
+            payload["pr_body"] = pr_body
+        if labels:
+            payload["labels"] = labels
+        return self._request("POST", f"/runs/{run_id}/create-pr", json_data=payload)
+

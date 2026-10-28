@@ -300,3 +300,90 @@ def test_assess_patch_risk_scoring():
 
 
 
+
+
+def test_validate_css_syntax_balance_balanced():
+    """Verify well-formed CSS with balanced braces and comments passes."""
+    from app.services.patch_validator import validate_css_syntax_balance
+    valid_css = """
+    /* Header Styles */
+    .header {{
+        display: flex;
+        /* nested comment */
+        padding: 10px;
+    }}
+    .footer {{ margin: 0; }}
+    """
+    ok, err = validate_css_syntax_balance(valid_css)
+    assert ok is True
+    assert err is None
+
+
+def test_validate_css_syntax_balance_unclosed_brace():
+    """Verify unclosed curly brace is caught."""
+    from app.services.patch_validator import validate_css_syntax_balance
+    bad_css = ".header {{ display: flex; padding: 10px;"
+    ok, err = validate_css_syntax_balance(bad_css)
+    assert ok is False
+    assert "Unbalanced CSS curly braces" in err
+
+
+def test_validate_css_syntax_balance_unmatched_closing_brace():
+    """Verify extraneous closing brace is detected."""
+    from app.services.patch_validator import validate_css_syntax_balance
+    bad_css = ".header {{ display: flex; }} }}"
+    ok, err = validate_css_syntax_balance(bad_css)
+    assert ok is False
+    assert "Unmatched closing brace" in err
+
+
+def test_validate_css_syntax_balance_unclosed_comment():
+    """Verify unterminated comment block is detected."""
+    from app.services.patch_validator import validate_css_syntax_balance
+    bad_css = "/* Unfinished comment \n .btn {{ color: red; }}"
+    ok, err = validate_css_syntax_balance(bad_css)
+    assert ok is False
+    assert "Unbalanced CSS comments" in err
+
+
+def test_dry_run_patch_success():
+    """Verify dry_run_patch modifies string buffer accurately without touching disk."""
+    from app.services.patch_validator import dry_run_patch
+    orig = ".btn {\n  color: blue;\n}\n"
+    diff = "--- a/test.css\n+++ b/test.css\n@@ -1,3 +1,3 @@\n-.btn {\n-  color: blue;\n+.btn {\n+  color: green;\n }\n"
+    ok, mod, err = dry_run_patch(orig, diff)
+    assert ok is True
+    assert err is None
+    assert "color: green;" in mod
+    assert "color: blue;" not in mod
+
+
+def test_patch_dry_run_endpoint_api():
+    """Verify POST /runs/patch/dry-run endpoint validates and simulates patch."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+
+    payload = {
+        "target_file": "app-under-test/src/styles/defects.css",
+        "original_content": ".btn { padding: 5px; }",
+        "diff": "--- a/app-under-test/src/styles/defects.css\n+++ b/app-under-test/src/styles/defects.css\n@@ -1,1 +1,2 @@\n+.btn { width: 100%; }"
+    }
+    res = client.post("/runs/patch/dry-run", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["dry_run_passed"] is True
+    assert data["syntax_valid"] is True
+    assert "width: 100%;" in data["modified_content"]
+
+    payload_bad_syntax = {
+        "target_file": "app-under-test/src/styles/defects.css",
+        "original_content": "",
+        "diff": "--- a/app-under-test/src/styles/defects.css\n+++ b/app-under-test/src/styles/defects.css\n@@ -1,1 +1,2 @@\n+.btn { width: 100%;"
+    }
+    res_bad = client.post("/runs/patch/dry-run", json=payload_bad_syntax)
+    assert res_bad.status_code == 200
+    data_bad = res_bad.json()
+    assert data_bad["dry_run_passed"] is False
+    assert data_bad["syntax_valid"] is False
+    assert "Unbalanced CSS curly braces" in data_bad["validation_errors"]

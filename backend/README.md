@@ -397,20 +397,29 @@ Interactive Swagger docs: `http://localhost:8000/docs`
 ```bash
 python -m pytest backend/tests/ -v
 ```
-All **97 backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, CSS AST safety, idempotency, OpenAPI schema generation, verification retest ingestion, and PR automation.
+All **176 automated backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, CSS AST safety, defect fingerprinting, clustering, flakiness scoring, quarantine state, policy gating, batch execution, PR automation, and telemetry exporters.
 
 ### 4. Quick API Smoke Test via cURL
 ```bash
 # Health check
 curl -X GET http://localhost:8000/health
 
-# Verify milestone and security status
+# Verify milestone and security status (176 tests passed)
 curl -X GET http://localhost:8000/api/milestones
 
-# Trigger simulated build webhook
-curl -X POST http://localhost:8000/webhook/build \
+# Prometheus metrics scrape
+curl -X GET http://localhost:8000/metrics
+
+# List aggregated defect clusters
+curl -X GET http://localhost:8000/defects/clusters
+
+# System flakiness & quarantine report
+curl -X GET http://localhost:8000/defects/flakiness
+
+# Trigger matrix batch of audit runs
+curl -X POST http://localhost:8000/runs/batch \
   -H "Content-Type: application/json" \
-  -d '{"target_url":"http://localhost:5173","branch":"main","scenario":"checkout_flow"}'
+  -d '{"target_url":"http://localhost:5173","scenarios":["checkout_flow"],"viewports":["desktop_1440x900","mobile_375x667"]}'
 
 # List active runs
 curl -X GET http://localhost:8000/runs
@@ -423,12 +432,19 @@ curl -X GET http://localhost:8000/runs
 | Area | Component | Verification Status | Test Coverage |
 | :--- | :--- | :---: | :--- |
 | **SSRF Defense** | Target Host & Scheme Filtering | PASSED | `test_build_webhook_rejects_disallowed_target_host`, `test_build_webhook_rejects_disallowed_scheme` |
-| **Multimodal Parser** | VLM Markdown & JSON Parsing | PASSED | `test_action_engine_markdown_fenced_json`, `test_action_engine_code_block_extraction`, `test_action_engine_single_quoted_python_dict_json` |
-| **Zero-Trust Validator** | Path Traversal & Script Filtering | PASSED | `test_reject_path_traversal`, `test_reject_script_injection_in_file_content`, `test_reject_css_expression_directive` |
-| **CSS Safety Guardrails** | AST Directives & Protocol Checks | PASSED | `test_reject_css_import_directive`, `test_reject_css_behavior_directive`, `test_reject_css_javascript_url_scheme` |
-| **State Persistence** | Idempotent Run Updates & Queries | PASSED | `test_update_run_upserts_if_not_present`, `test_runs_reverse_chronological_ordering` |
-| **OpenAPI Contract** | OpenAPI 3.0 Documentation & Tags | PASSED | `test_openapi_spec_tags_and_endpoint_metadata` |
-| **PR Automation** | Automated Branch & PR Generation | PASSED | `test_submit_valid_patch_opens_pr`, `test_mock_github_fallback_when_mock_enabled`, `test_create_pull_request_deterministic_mock_url` |
+| **Multimodal Parser** | VLM Markdown & JSON Parsing | PASSED | `test_action_engine_markdown_fenced_json`, `test_action_engine_code_block_extraction`, `test_action_engine_auto_attaches_defect_fingerprint` |
+| **Zero-Trust Validator** | Path Traversal & Script Filtering | PASSED | `test_reject_path_traversal`, `test_reject_script_injection_in_file_content`, `test_reject_windows_reserved_device_names` |
+| **CSS Safety Guardrails** | AST Directives & Syntax Balance | PASSED | `test_reject_css_import_directive`, `test_validate_css_syntax_balance_balanced`, `test_validate_css_syntax_balance_unclosed_brace` |
+| **Patch Simulation** | In-Memory Dry-Run Buffer | PASSED | `test_dry_run_patch_success`, `test_patch_dry_run_endpoint_api` |
+| **Defect Intelligence** | Fingerprinting & Deduplication | PASSED | `test_generate_defect_fingerprint_deterministic`, `test_deduplicate_findings_preserves_highest_confidence`, `test_fingerprint_with_pydantic_finding_schema` |
+| **Defect Clustering** | Cross-Viewport Defect Aggregation | PASSED | `test_cluster_defect_findings_aggregates_metrics`, `test_defect_clusters_endpoint_aggregates_across_runs` |
+| **Flakiness Management** | Variance Ratio & Quarantine State | PASSED | `test_flakiness_score_calculation`, `test_defect_quarantine_lifecycle`, `test_defect_flakiness_report_endpoint` |
+| **Policy Release Gate** | Multi-Tier Auto-Merge Gating | PASSED | `test_policy_eval_auto_merge_success`, `test_policy_eval_rejects_security_violation`, `test_evaluate_run_policy_endpoint` |
+| **Batch Matrix Runs** | Coordinated Matrix & Bulk Retry | PASSED | `test_batch_run_trigger_spawns_matrix`, `test_batch_status_tracking_and_aggregation`, `test_bulk_retry_batch_runs` |
+| **Run Classification** | Metadata Tags & Query Filtering | PASSED | `test_add_and_remove_run_tags`, `test_list_runs_filtered_by_tags` |
+| **Telemetry & Exports** | Prometheus OpenMetrics & CSV | PASSED | `test_prometheus_metrics_scrape_endpoint`, `test_export_runs_csv_format_and_headers` |
+| **PR Automation** | Automated Branch & PR Generation | PASSED | `test_submit_valid_patch_opens_pr`, `test_create_pull_request_deterministic_mock_url`, `test_revert_run_patch_endpoint` |
 | **Retest Verification** | Sandbox Result Sync & PR Badge | PASSED | `test_retest_result_success_transitions_run_to_fixed`, `test_update_pr_verification_success` |
-| **Audit Forensics** | Event Timeline & Bundle Export | PASSED | `test_run_timeline_ordered_event_history`, `test_export_run_forensic_bundle` |
+| **Audit Forensics** | Event Timeline & SHA-256 Bundle | PASSED | `test_run_timeline_ordered_event_history`, `test_export_run_forensic_bundle` |
+
 

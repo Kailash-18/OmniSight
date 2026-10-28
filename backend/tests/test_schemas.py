@@ -296,3 +296,98 @@ def test_metrics_summary_schema_with_mttr():
     assert dumped["mean_time_to_remediation_seconds"] == 145.5
     assert dumped["resolved_runs_count"] == 8
     assert dumped["clean_run_rate_percent"] == 80.0
+
+
+def test_defect_cluster_schema_validation():
+    """Verify DefectCluster and DefectClusterResponse models."""
+    from app.schemas.run_schema import DefectCluster, DefectClusterResponse, DefectCategory, Severity
+
+    cluster = DefectCluster(
+        fingerprint="dfp-test-01",
+        category=DefectCategory.ELEMENT_CLIPPING,
+        target_element="button.checkout-btn",
+        occurrences=3,
+        run_ids=["run-1", "run-2", "run-3"],
+        viewports=["mobile_375x667", "tablet_768x1024"],
+        severities=[Severity.HIGH, Severity.MEDIUM],
+        first_seen="2026-10-28T10:00:00Z",
+        last_seen="2026-10-28T12:00:00Z"
+    )
+    res = DefectClusterResponse(total_clusters=1, clusters=[cluster])
+    assert res.total_clusters == 1
+    assert res.clusters[0].fingerprint == "dfp-test-01"
+    assert res.clusters[0].occurrences == 3
+
+
+def test_quarantine_payload_and_stability_record_schemas():
+    """Verify QuarantineRequest, QuarantineResponse, and DefectStabilityRecord."""
+    from app.schemas.run_schema import QuarantineRequest, QuarantineResponse, DefectStabilityRecord, DefectCategory
+
+    req = QuarantineRequest(reason="CSS animation timing jitter", quarantined_by="qa-bot")
+    assert req.reason == "CSS animation timing jitter"
+    assert req.quarantined_by == "qa-bot"
+
+    resp = QuarantineResponse(fingerprint="dfp-q-01", is_quarantined=True, message="Quarantined")
+    assert resp.fingerprint == "dfp-q-01"
+    assert resp.is_quarantined is True
+
+    record = DefectStabilityRecord(
+        fingerprint="dfp-s-01",
+        category=DefectCategory.ELEMENT_OVERLAP,
+        total_observations=10,
+        defect_occurrences=5,
+        flakiness_score=1.0,
+        is_quarantined=True,
+        quarantine_reason="Flaky font loading"
+    )
+    assert record.flakiness_score == 1.0
+    assert record.is_quarantined is True
+
+
+def test_policy_evaluation_schemas_and_gate_levels():
+    """Verify PolicyGateLevel enum fallback and PolicyEvaluationResponse serialization."""
+    from app.schemas.run_schema import PolicyGateLevel, PolicyEvaluationResponse, PolicyRuleResult
+
+    assert PolicyGateLevel("auto_merge") == PolicyGateLevel.AUTO_MERGE
+    assert PolicyGateLevel("human-review") == PolicyGateLevel.HUMAN_REVIEW
+    assert PolicyGateLevel("unknown-val") == PolicyGateLevel.HUMAN_REVIEW
+
+    rule = PolicyRuleResult(rule_name="pure_css_scope", passed=True, severity="info", message="Pure CSS")
+    eval_resp = PolicyEvaluationResponse(
+        run_id="run-gate-test",
+        gate_level=PolicyGateLevel.AUTO_MERGE,
+        auto_merge_allowed=True,
+        overall_risk_score=15.0,
+        passed_rules=["pure_css_scope"],
+        blocking_reasons=[],
+        warnings=[],
+        rule_evaluations=[rule],
+        timestamp="2026-10-28T12:00:00Z"
+    )
+    dumped = eval_resp.model_dump()
+    assert dumped["gate_level"] == "auto_merge"
+    assert dumped["auto_merge_allowed"] is True
+    assert dumped["overall_risk_score"] == 15.0
+
+
+def test_batch_matrix_and_tagging_schemas():
+    """Verify BatchRunTriggerPayload, BatchRetryPayload, and RunTagPayload schemas."""
+    from app.schemas.run_schema import BatchRunTriggerPayload, BatchRetryPayload, RunTagPayload
+
+    batch_trig = BatchRunTriggerPayload(
+        target_url="http://localhost:5173",
+        scenarios=["checkout", "cart"],
+        viewports=["desktop_1440x900"],
+        batch_label="nightly-smoke"
+    )
+    assert len(batch_trig.scenarios) == 2
+    assert batch_trig.batch_label == "nightly-smoke"
+
+    retry_pl = BatchRetryPayload(only_failed_or_needs_review=True, max_retries_per_run=3)
+    assert retry_pl.only_failed_or_needs_review is True
+    assert retry_pl.max_retries_per_run == 3
+
+    tags_pl = RunTagPayload(tags=["smoke", "canary", "p0"])
+    assert "smoke" in tags_pl.tags
+    assert len(tags_pl.tags) == 3
+

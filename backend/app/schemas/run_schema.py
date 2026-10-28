@@ -243,6 +243,7 @@ class RunRecordUpdatePayload(BaseModel):
     patch: Optional[PatchObject] = None
     retry_count: Optional[int] = None
     pr_url: Optional[str] = None
+    tags: List[str] = Field(default_factory=list, description="Metadata tags")
     error: Optional[str] = None
 
     @field_validator("evidence_paths", mode="before")
@@ -294,6 +295,7 @@ class RunDetailResponse(BaseModel):
     findings: List[FindingSchema] = Field(default_factory=list)
     patch: Optional[PatchObject] = None
     retry_count: int = 0
+    tags: List[str] = Field(default_factory=list, description="Metadata tags")
     pr_url: Optional[str] = None
     error: Optional[str] = None
 
@@ -572,3 +574,15 @@ class BatchRetryResponse(BaseModel):
     retried_run_ids: List[str] = Field(default_factory=list, description="IDs of retried runs")
     skipped_run_ids: List[str] = Field(default_factory=list, description="IDs of skipped runs")
     message: str = Field(..., description="Summary status message")
+
+
+class RunTagPayload(BaseModel):
+    """Payload to assign or synchronize metadata tags on an audit run."""
+    tags: List[str] = Field(..., description="List of alphanumeric tag strings (e.g. nightly, smoke, p0)")
+
+
+class RunTagResponse(BaseModel):
+    """Confirmation response of updated run metadata tags."""
+    run_id: str = Field(..., description="Audit run identifier")
+    tags: List[str] = Field(default_factory=list, description="Current assigned metadata tags")
+    message: str = Field(..., description="Status message")

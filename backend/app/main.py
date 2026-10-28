@@ -50,6 +50,8 @@ from app.schemas import (
     BatchRunSummaryResponse,
     BatchRetryPayload,
     BatchRetryResponse,
+    RunTagPayload,
+    RunTagResponse,
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
     RunStatus,
@@ -440,6 +442,7 @@ def list_runs(
     start_after: Optional[str] = None,
     start_before: Optional[str] = None,
     min_severity: Optional[Severity] = None,
+    tags: Optional[str] = None,
 ):
     """
     Returns summaries of recorded test runs in reverse chronological order with optional filtering.
@@ -467,6 +470,11 @@ def list_runs(
             continue
         if start_before and r.get("start_time", "") > start_before:
             continue
+        if tags:
+            req_tags = [t.strip().lower() for t in tags.split(",") if t.strip()]
+            r_tags = [t.lower() for t in r.get("tags", [])]
+            if not all(t in r_tags for t in req_tags):
+                continue
         if min_severity is not None:
             min_rank = severity_order.get(min_severity, 1)
             findings = r.get("findings", [])
@@ -501,7 +509,8 @@ def list_runs(
                 target=r["target"],
                 status=RunStatus(r["status"]),
                 issue_count=r.get("issue_count", len(r.get("findings", []))),
-                pr_url=r.get("pr_url")
+                pr_url=r.get("pr_url"),
+                tags=r.get("tags", [])
             )
         )
         if len(summaries) >= limit:
@@ -1602,3 +1611,63 @@ def evaluate_run_policy(run_id: str, payload: Optional[PolicyEvaluationRequest] 
     )
 
     return PolicyEvaluationResponse(**evaluation)
+
+
+@app.post(
+    "/runs/{run_id}/tags",
+    response_model=RunTagResponse,
+    tags=["Audit Runs"],
+    summary="Assign Metadata Tags to Run"
+)
+def add_run_tags(run_id: str, payload: RunTagPayload):
+    """
+    Assigns or updates metadata tags (e.g. nightly, smoke, p0) on a test run.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+
+    current_tags = set(runs_db[run_id].get("tags", []))
+    for t in payload.tags:
+        clean = t.strip()
+        if clean:
+            current_tags.add(clean)
+
+    updated = sorted(list(current_tags))
+    runs_db[run_id]["tags"] = updated
+    _append_timeline_event(
+        run_id=run_id,
+        event_type="tags_updated",
+        description=f"Tags updated: {', '.join(updated)}",
+        metadata={"tags": updated}
+    )
+    return RunTagResponse(run_id=run_id, tags=updated, message="Tags updated successfully.")
+
+
+@app.delete(
+    "/runs/{run_id}/tags/{tag}",
+    response_model=RunTagResponse,
+    tags=["Audit Runs"],
+    summary="Remove Metadata Tag from Run"
+)
+def remove_run_tag(run_id: str, tag: str):
+    """
+    Removes a specific metadata tag from an audit run record.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+
+    current_tags = [t for t in runs_db[run_id].get("tags", []) if t.lower() != tag.strip().lower()]
+    runs_db[run_id]["tags"] = current_tags
+    _append_timeline_event(
+        run_id=run_id,
+        event_type="tag_removed",
+        description=f"Tag '{tag}' removed from run",
+        metadata={"removed_tag": tag, "remaining_tags": current_tags}
+    )
+    return RunTagResponse(run_id=run_id, tags=current_tags, message=f"Tag '{tag}' removed successfully.")

@@ -397,14 +397,14 @@ Interactive Swagger docs: `http://localhost:8000/docs`
 ```bash
 python -m pytest backend/tests/ -v
 ```
-All **176 automated backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, CSS AST safety, defect fingerprinting, clustering, flakiness scoring, quarantine state, policy gating, batch execution, PR automation, and telemetry exporters.
+All **188 automated backend tests** verify Action Engine parsing, patch allowlist validation, path traversal defense, script injection resistance, CSS AST safety, defect fingerprinting, clustering, flakiness scoring, quarantine state, policy gating, batch execution, PR automation, and telemetry exporters.
 
 ### 4. Quick API Smoke Test via cURL
 ```bash
 # Health check
 curl -X GET http://localhost:8000/health
 
-# Verify milestone and security status (176 tests passed)
+# Verify milestone and security status (188 tests passed)
 curl -X GET http://localhost:8000/api/milestones
 
 # Prometheus metrics scrape

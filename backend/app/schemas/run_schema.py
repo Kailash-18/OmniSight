@@ -485,3 +485,51 @@ class FlakinessReportResponse(BaseModel):
     quarantined_count: int
     high_flakiness_count: int
     defects: List[DefectStabilityRecord] = Field(default_factory=list)
+
+
+class PolicyGateLevel(str, Enum):
+    """Automated release gate decision level for self-healing fixes."""
+    AUTO_MERGE = "auto_merge"
+    HUMAN_REVIEW = "human_review"
+    REJECTED = "rejected"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            clean = value.strip().lower().replace("-", "_")
+            for member in cls:
+                if member.value == clean:
+                    return member
+        return cls.HUMAN_REVIEW
+
+
+class PolicyRuleResult(BaseModel):
+    """Result of an individual policy evaluation rule."""
+    rule_name: str = Field(..., description="Name of the evaluated policy rule")
+    passed: bool = Field(..., description="Whether the check satisfied policy criteria")
+    severity: str = Field(default="info", description="Severity level if check fails (blocking, warning, info)")
+    message: str = Field(..., description="Detailed evaluation justification")
+
+
+class PolicyEvaluationRequest(BaseModel):
+    """Input parameters to evaluate self-healing release gate policy."""
+    run_id: str = Field(..., description="Audit run identifier")
+    target_file: Optional[str] = Field(default=None, description="Path of target modified file")
+    diff_content: Optional[str] = Field(default=None, description="Unified diff content of suggested patch")
+    visual_diff_score: Optional[float] = Field(default=None, description="Retest visual difference metric")
+    defect_severities: List[str] = Field(default_factory=list, description="Severities of addressed defects")
+    defect_fingerprints: List[str] = Field(default_factory=list, description="Fingerprints of addressed defects")
+    author: Optional[str] = Field(default="omnisight-agent", description="Author initiating the patch")
+
+
+class PolicyEvaluationResponse(BaseModel):
+    """Outcome of self-healing auto-merge policy gating evaluation."""
+    run_id: str = Field(..., description="Audit run identifier")
+    gate_level: PolicyGateLevel = Field(..., description="Gate decision (auto_merge, human_review, rejected)")
+    auto_merge_allowed: bool = Field(..., description="True if patch can be merged autonomously")
+    overall_risk_score: float = Field(..., description="Aggregate risk score between 0.0 and 100.0")
+    passed_rules: List[str] = Field(default_factory=list, description="List of passing rule names")
+    blocking_reasons: List[str] = Field(default_factory=list, description="Reasons preventing auto-merge or approval")
+    warnings: List[str] = Field(default_factory=list, description="Non-blocking advisories")
+    rule_evaluations: List[PolicyRuleResult] = Field(default_factory=list, description="Detailed rule breakdown")
+    timestamp: str = Field(..., description="Evaluation ISO 8601 UTC timestamp")

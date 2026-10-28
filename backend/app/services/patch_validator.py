@@ -56,6 +56,12 @@ def validate_css_safety(css_text: str) -> tuple[bool, Optional[str]]:
         return False, "Security violation: 'javascript:' or 'vbscript:' URI schemes are forbidden in CSS patches."
     if re.search(r"url\s*\(\s*['\"]?\s*data:\s*text\/html", css_text, re.IGNORECASE):
         return False, "Security violation: 'data:text/html' URI schemes are forbidden in CSS patches."
+    if re.search(r"@document\b", css_text, re.IGNORECASE):
+        return False, "Security violation: '@document' rules are forbidden in CSS patches."
+    if re.search(r"-o-link(?:-source)?\s*:", css_text, re.IGNORECASE):
+        return False, "Security violation: '-o-link' navigation properties are forbidden in CSS patches."
+    if re.search(r"</?\s*(?:script|style|iframe|object|embed)\b", css_text, re.IGNORECASE):
+        return False, "Security violation: Embedded HTML markup tags are forbidden in CSS patches."
     return True, None
 
 

@@ -56,6 +56,13 @@ from app.schemas import (
     PatchDryRunResponse,
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
+    DefectCluster,
+    DefectClusterResponse,
+    DefectStabilityRecord,
+    QuarantineRequest,
+    QuarantineResponse,
+    FlakinessReportResponse,
+    DefectCategory,
     RunStatus,
     Severity,
     PatchObject,
@@ -63,6 +70,7 @@ from app.schemas import (
 from app.services.patch_validator import validate_patch, validate_css_syntax_balance, dry_run_patch
 from app.services.policy_engine import evaluate_merge_policy
 from app.services.notification_service import dispatch_notification
+from app.services.flakiness_service import get_flakiness_report, quarantine_defect, unquarantine_defect
 from app.services.action_engine import action_engine
 from app.services.github_service import (
     create_pull_request_for_fix,
@@ -1767,4 +1775,154 @@ def preview_patch_dry_run(payload: PatchDryRunPayload):
         modified_content=modified,
         syntax_valid=True,
         validation_errors=None
+    )
+
+
+@app.get(
+    "/defects/clusters",
+    response_model=DefectClusterResponse,
+    tags=["Intelligence"],
+    summary="List Aggregated Visual Defect Clusters Across Runs"
+)
+def get_defect_clusters(min_occurrences: int = 1):
+    """
+    Aggregates visual defects across all recorded test runs into deterministic signature clusters.
+    """
+    all_findings = []
+    for r_id, r_entry in runs_db.items():
+        for f in r_entry.get("findings", []):
+            f_dict = f.copy() if isinstance(f, dict) else (f.model_dump() if hasattr(f, "model_dump") else dict(getattr(f, "__dict__", {})))
+            all_findings.append((f_dict, r_id))
+
+    clusters_map = {}
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for f_item, run_id in all_findings:
+        fp = f_item.get("fingerprint")
+        if not fp:
+            from app.services.fingerprint_service import compute_finding_fingerprint
+            fp = compute_finding_fingerprint(f_item)
+            f_item["fingerprint"] = fp
+
+        cat = f_item.get("category", "element_overlap")
+        try:
+            cat_enum = DefectCategory(cat) if isinstance(cat, str) else cat
+        except ValueError:
+            cat_enum = DefectCategory.ELEMENT_OVERLAP
+
+        target = f_item.get("target_element")
+        vp = f_item.get("viewport", "unknown")
+        sev = f_item.get("severity", "medium")
+        try:
+            sev_enum = Severity(sev) if isinstance(sev, str) else sev
+        except ValueError:
+            sev_enum = Severity.MEDIUM
+
+        if fp not in clusters_map:
+            clusters_map[fp] = DefectCluster(
+                fingerprint=fp,
+                category=cat_enum,
+                target_element=target,
+                occurrences=1,
+                run_ids=[run_id],
+                viewports=[vp] if vp else [],
+                severities=[sev_enum] if sev_enum else [],
+                first_seen=now_iso,
+                last_seen=now_iso
+            )
+        else:
+            cl = clusters_map[fp]
+            cl.occurrences += 1
+            if run_id not in cl.run_ids:
+                cl.run_ids.append(run_id)
+            if vp and vp not in cl.viewports:
+                cl.viewports.append(vp)
+            if sev_enum and sev_enum not in cl.severities:
+                cl.severities.append(sev_enum)
+            cl.last_seen = now_iso
+
+    filtered_clusters = [c for c in clusters_map.values() if c.occurrences >= min_occurrences]
+    return DefectClusterResponse(
+        total_clusters=len(filtered_clusters),
+        clusters=filtered_clusters
+    )
+
+
+@app.get(
+    "/defects/flakiness",
+    response_model=FlakinessReportResponse,
+    tags=["Intelligence"],
+    summary="System-wide Defect Flakiness and Quarantine Report"
+)
+def get_defect_flakiness_report():
+    """
+    Returns system-wide metrics regarding defect stability, intermittency ratios, and active quarantines.
+    """
+    raw_report = get_flakiness_report()
+    stability_records = []
+    for d in raw_report.get("defects", []):
+        cat = d.get("category", "element_overlap")
+        try:
+            cat_enum = DefectCategory(cat) if isinstance(cat, str) else cat
+        except ValueError:
+            cat_enum = DefectCategory.ELEMENT_OVERLAP
+
+        stability_records.append(
+            DefectStabilityRecord(
+                fingerprint=d["fingerprint"],
+                target_element=d.get("target_element"),
+                category=cat_enum,
+                total_observations=d.get("total_observations", 1),
+                defect_occurrences=d.get("defect_occurrences", 1),
+                flakiness_score=d.get("flakiness_score", 0.0),
+                is_quarantined=d.get("is_quarantined", False),
+                quarantined_at=d.get("quarantined_at"),
+                quarantine_reason=d.get("quarantine_reason")
+            )
+        )
+    return FlakinessReportResponse(
+        total_tracked_defects=raw_report.get("total_tracked_defects", 0),
+        quarantined_count=raw_report.get("quarantined_count", 0),
+        high_flakiness_count=raw_report.get("high_flakiness_count", 0),
+        defects=stability_records
+    )
+
+
+@app.post(
+    "/defects/{fingerprint}/quarantine",
+    response_model=QuarantineResponse,
+    tags=["Intelligence"],
+    summary="Place Visual Defect Under Quarantine"
+)
+def place_defect_quarantine(fingerprint: str, payload: QuarantineRequest):
+    """
+    Quarantines an intermittent or flaky visual defect to prevent blocking automated release gates.
+    """
+    rec = quarantine_defect(
+        fingerprint=fingerprint,
+        reason=payload.reason,
+        quarantined_by=payload.quarantined_by or "system"
+    )
+    return QuarantineResponse(
+        fingerprint=fingerprint,
+        is_quarantined=True,
+        message=f"Defect '{fingerprint}' successfully placed under quarantine: {payload.reason}",
+        quarantined_at=rec.get("quarantined_at")
+    )
+
+
+@app.delete(
+    "/defects/{fingerprint}/quarantine",
+    response_model=QuarantineResponse,
+    tags=["Intelligence"],
+    summary="Remove Visual Defect from Quarantine"
+)
+def release_defect_quarantine(fingerprint: str):
+    """
+    Releases a visual defect from quarantine, returning it to standard merge policy gating.
+    """
+    was_quarantined = unquarantine_defect(fingerprint)
+    return QuarantineResponse(
+        fingerprint=fingerprint,
+        is_quarantined=False,
+        message=f"Defect '{fingerprint}' released from quarantine." if was_quarantined else f"Defect '{fingerprint}' was not quarantined."
     )

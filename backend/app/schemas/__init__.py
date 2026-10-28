@@ -39,7 +39,12 @@ from app.schemas.run_schema import (
     DefectFingerprint,
     DefectCluster,
     DefectClusterResponse,
+    DefectStabilityRecord,
+    QuarantineRequest,
+    QuarantineResponse,
+    FlakinessReportResponse,
 )
+
 
 __all__ = [
     "RunStatus",
@@ -75,5 +80,10 @@ __all__ = [
     "DefectFingerprint",
     "DefectCluster",
     "DefectClusterResponse",
+    "DefectStabilityRecord",
+    "QuarantineRequest",
+    "QuarantineResponse",
+    "FlakinessReportResponse",
 ]
+
 

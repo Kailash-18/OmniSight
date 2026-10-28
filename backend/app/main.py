@@ -60,6 +60,7 @@ from app.schemas import (
 )
 from app.services.patch_validator import validate_patch
 from app.services.policy_engine import evaluate_merge_policy
+from app.services.notification_service import dispatch_notification
 from app.services.action_engine import action_engine
 from app.services.github_service import (
     create_pull_request_for_fix,
@@ -1672,3 +1673,28 @@ def remove_run_tag(run_id: str, tag: str):
         metadata={"removed_tag": tag, "remaining_tags": current_tags}
     )
     return RunTagResponse(run_id=run_id, tags=current_tags, message=f"Tag '{tag}' removed successfully.")
+
+
+@app.post(
+    "/webhooks/test-dispatch",
+    tags=["CI/CD Webhook"],
+    summary="Simulate and Verify Outbound Webhook Event Dispatch"
+)
+def test_outbound_webhook_dispatch(
+    target_url: str = "http://localhost:9000/webhook",
+    event_type: str = "run.completed",
+    run_id: str = "run-test-dispatch",
+    secret: Optional[str] = "test-secret-key"
+):
+    """
+    Simulates outbound webhook delivery with HMAC SHA-256 payload signing.
+    """
+    result = dispatch_notification(
+        target_url=target_url,
+        event_type=event_type,
+        run_id=run_id,
+        data={"status": "fixed", "summary": "Visual regression cleared."},
+        secret=secret,
+        mock_mode=True
+    )
+    return result

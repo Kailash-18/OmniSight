@@ -1,7 +1,8 @@
 """
 OmniSight Services Package.
 Exposes core business logic modules including the Action Engine,
-Zero-Trust Patch Validator, and GitHub Pull Request Automation Service.
+Zero-Trust Patch Validator, GitHub Pull Request Automation Service,
+Defect Fingerprinting, Flakiness Quarantine, Policy Engine, and Outbound Notifications.
 """
 
 import sys
@@ -17,12 +18,6 @@ from app.services.patch_validator import (
     assess_patch_risk,
 )
 from app.services.action_engine import action_engine, ActionEngine
-from app.services.fingerprint_service import (
-    generate_defect_fingerprint,
-    compute_finding_fingerprint,
-    deduplicate_findings,
-    cluster_defect_findings,
-)
 from app.services.github_service import (
     create_pull_request_for_fix,
     generate_pr_markdown_description,
@@ -32,6 +27,30 @@ from app.services.github_service import (
     check_pull_request_status,
     close_pull_request,
     revert_pull_request_patch,
+)
+from app.services.fingerprint_service import (
+    generate_defect_fingerprint,
+    compute_finding_fingerprint,
+    deduplicate_findings,
+    cluster_defect_findings,
+)
+from app.services.flakiness_service import (
+    calculate_flakiness_score,
+    record_defect_observation,
+    quarantine_defect,
+    unquarantine_defect,
+    is_defect_quarantined,
+    get_quarantined_defects,
+    get_flakiness_report,
+    reset_flakiness_tracker,
+)
+from app.services.policy_engine import evaluate_merge_policy
+from app.services.notification_service import (
+    sign_webhook_payload,
+    build_outbound_event,
+    dispatch_notification,
+    get_dispatched_events,
+    clear_dispatched_events,
 )
 
 __all__ = [
@@ -52,6 +71,18 @@ __all__ = [
     "compute_finding_fingerprint",
     "deduplicate_findings",
     "cluster_defect_findings",
+    "calculate_flakiness_score",
+    "record_defect_observation",
+    "quarantine_defect",
+    "unquarantine_defect",
+    "is_defect_quarantined",
+    "get_quarantined_defects",
+    "get_flakiness_report",
+    "reset_flakiness_tracker",
+    "evaluate_merge_policy",
+    "sign_webhook_payload",
+    "build_outbound_event",
+    "dispatch_notification",
+    "get_dispatched_events",
+    "clear_dispatched_events",
 ]
-
-

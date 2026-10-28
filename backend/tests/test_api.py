@@ -1337,3 +1337,122 @@ def test_run_details_includes_tags_payload(client: TestClient):
     assert "tags" in data
     assert "production-canary" in data["tags"]
     assert "mobile-audit" in data["tags"]
+
+
+def test_defect_clusters_endpoint_aggregates_across_runs(client: TestClient):
+    """Verify GET /defects/clusters returns aggregated clusters across multiple test runs."""
+    r1 = "run-cluster-test-1"
+    r2 = "run-cluster-test-2"
+
+    runs_db[r1] = {
+        "run_id": r1,
+        "start_time": "2026-10-28T14:30:00Z",
+        "target": "http://localhost:5173",
+        "status": "audited",
+        "findings": [
+            {
+                "id": "f-c1",
+                "category": "element_clipping",
+                "severity": "high",
+                "description": "Button clipped",
+                "viewport": "mobile_375x667",
+                "target_element": "button.submit-primary",
+                "confidence": 0.94,
+                "suggested_change": "width: 100%;"
+            }
+        ],
+        "timeline": []
+    }
+    runs_db[r2] = {
+        "run_id": r2,
+        "start_time": "2026-10-28T14:35:00Z",
+        "target": "http://localhost:5173",
+        "status": "audited",
+        "findings": [
+            {
+                "id": "f-c2",
+                "category": "element_clipping",
+                "severity": "medium",
+                "description": "Button clipped in tablet",
+                "viewport": "tablet_768x1024",
+                "target_element": "button.submit-primary",
+                "confidence": 0.88,
+                "suggested_change": "width: 100%;"
+            }
+        ],
+        "timeline": []
+    }
+
+    res = client.get("/defects/clusters")
+    assert res.status_code == 200
+    data = res.json()
+    assert "clusters" in data
+    assert data["total_clusters"] >= 1
+
+    matching = [c for c in data["clusters"] if c.get("target_element") == "button.submit-primary"]
+    assert len(matching) == 1
+    cl = matching[0]
+    assert cl["occurrences"] >= 2
+    assert r1 in cl["run_ids"]
+    assert r2 in cl["run_ids"]
+    assert "mobile_375x667" in cl["viewports"]
+    assert "tablet_768x1024" in cl["viewports"]
+
+
+def test_defect_flakiness_report_endpoint(client: TestClient):
+    """Verify GET /defects/flakiness retrieves system-wide stability metrics."""
+    from app.services.flakiness_service import record_defect_observation, reset_flakiness_tracker
+    reset_flakiness_tracker()
+
+    record_defect_observation(
+        fingerprint="dfp-sample-flaky-01",
+        detected=True,
+        target_element="div.banner",
+        category="color_contrast"
+    )
+    record_defect_observation(
+        fingerprint="dfp-sample-flaky-01",
+        detected=False,
+        target_element="div.banner",
+        category="color_contrast"
+    )
+
+    res = client.get("/defects/flakiness")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_tracked_defects"] >= 1
+    rec = [d for d in data["defects"] if d["fingerprint"] == "dfp-sample-flaky-01"][0]
+    assert rec["total_observations"] == 2
+    assert rec["defect_occurrences"] == 1
+    assert rec["flakiness_score"] == 1.0
+
+
+def test_defect_quarantine_and_unquarantine_lifecycle(client: TestClient):
+    """Verify POST and DELETE /defects/{fingerprint}/quarantine endpoints manage quarantine state."""
+    fp = "dfp-quarantine-test-01"
+
+    # 1. Place under quarantine
+    payload = {
+        "reason": "Intermittent CSS transition causing occasional snapshot timing offset",
+        "quarantined_by": "qa-automation"
+    }
+    res_q = client.post(f"/defects/{fp}/quarantine", json=payload)
+    assert res_q.status_code == 200
+    data_q = res_q.json()
+    assert data_q["fingerprint"] == fp
+    assert data_q["is_quarantined"] is True
+    assert "successfully placed under quarantine" in data_q["message"]
+
+    # 2. Verify reflected in flakiness report
+    res_rep = client.get("/defects/flakiness")
+    assert res_rep.status_code == 200
+    assert any(d["fingerprint"] == fp and d["is_quarantined"] is True for d in res_rep.json()["defects"])
+
+    # 3. Release from quarantine
+    res_del = client.delete(f"/defects/{fp}/quarantine")
+    assert res_del.status_code == 200
+    data_del = res_del.json()
+    assert data_del["fingerprint"] == fp
+    assert data_del["is_quarantined"] is False
+    assert "released from quarantine" in data_del["message"]
+

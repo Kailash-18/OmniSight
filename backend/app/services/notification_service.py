@@ -90,5 +90,5 @@ def dispatch_notification(
         "status_code": 200,
         "event_id": envelope["event_id"],
         "signature": sig_header,
-        "message": f"Event '{event_type}' successfully dispatched to '{target_url}'"
+        "message": f"Event '{event_type}' for run '{run_id}' successfully dispatched to '{target_url}'"
     }

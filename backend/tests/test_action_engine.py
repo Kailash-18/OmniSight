@@ -255,3 +255,30 @@ def test_action_engine_smart_curly_quotes_normalization():
     assert result.findings[0].id == "defect-smart-quote"
 
 
+def test_action_engine_auto_attaches_defect_fingerprint():
+    """Verify Action Engine automatically generates and attaches SHA-256 fingerprint on findings."""
+    raw_vlm = """```json
+{
+  "findings": [
+    {
+      "id": "defect-auto-fp",
+      "category": "element_clipping",
+      "severity": "high",
+      "description": "Button clipped",
+      "viewport": "mobile_375x667",
+      "target_element": "button.submit-btn",
+      "confidence": 0.95,
+      "suggested_change": "width: 100%;"
+    }
+  ]
+}
+```"""
+    result = action_engine.parse_vlm_response(raw_vlm)
+    assert result.is_valid is True
+    assert len(result.findings) == 1
+    finding = result.findings[0]
+    assert finding.fingerprint is not None
+    assert finding.fingerprint.startswith("dfp-")
+
+
+

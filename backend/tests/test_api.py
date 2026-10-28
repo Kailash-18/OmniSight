@@ -1136,3 +1136,105 @@ def test_export_runs_csv_format_and_headers(client: TestClient):
 
 
 
+
+
+def test_batch_run_trigger_spawns_matrix(client: TestClient):
+    """Verify POST /runs/batch spawns runs across scenarios x viewports matrix."""
+    payload = {
+        "target_url": "http://localhost:5173",
+        "scenarios": ["checkout_flow", "cart_review"],
+        "viewports": ["desktop_1440x900", "mobile_375x667"],
+        "branch": "feat/batch-test",
+        "batch_label": "integration-matrix-1"
+    }
+    res = client.post("/runs/batch", json=payload)
+    assert res.status_code == 201
+    data = res.json()
+    assert data["total_runs"] == 4
+    assert len(data["run_ids"]) == 4
+    assert data["overall_status"] == "queued"
+    for r_id in data["run_ids"]:
+        assert r_id in runs_db
+        assert runs_db[r_id]["batch_id"] == data["batch_id"]
+
+
+def test_batch_run_trigger_rejects_disallowed_host(client: TestClient):
+    """Verify POST /runs/batch rejects unapproved target URLs."""
+    payload = {
+        "target_url": "http://malicious-external-site.com",
+        "scenarios": ["checkout_flow"],
+        "viewports": ["desktop_1440x900"]
+    }
+    res = client.post("/runs/batch", json=payload)
+    assert res.status_code == 400
+    assert "not in the allowed target hosts" in res.json()["detail"]
+
+
+def test_batch_status_tracking_and_aggregation(client: TestClient):
+    """Verify GET /runs/batch/{batch_id} dynamically reflects individual run statuses."""
+    payload = {
+        "target_url": "http://localhost:5173",
+        "scenarios": ["checkout_flow"],
+        "viewports": ["desktop_1440x900", "mobile_375x667"]
+    }
+    spawn_res = client.post("/runs/batch", json=payload)
+    batch_id = spawn_res.json()["batch_id"]
+    run_ids = spawn_res.json()["run_ids"]
+
+    # Mark one fixed, one failed
+    runs_db[run_ids[0]]["status"] = "fixed"
+    runs_db[run_ids[1]]["status"] = "failed"
+
+    status_res = client.get(f"/runs/batch/{batch_id}")
+    assert status_res.status_code == 200
+    b_data = status_res.json()
+    assert b_data["total_runs"] == 2
+    assert b_data["completed_runs"] == 1
+    assert b_data["failed_runs"] == 1
+    assert b_data["overall_status"] == "partially_failed"
+
+
+def test_bulk_retry_batch_runs(client: TestClient):
+    """Verify POST /runs/batch/{batch_id}/retry reschedules failed runs in batch."""
+    payload = {
+        "target_url": "http://localhost:5173",
+        "scenarios": ["checkout_flow"],
+        "viewports": ["desktop_1440x900"]
+    }
+    spawn_res = client.post("/runs/batch", json=payload)
+    batch_id = spawn_res.json()["batch_id"]
+    run_id = spawn_res.json()["run_ids"][0]
+
+    runs_db[run_id]["status"] = "failed"
+    runs_db[run_id]["retry_count"] = 0
+
+    retry_res = client.post(f"/runs/batch/{batch_id}/retry", json={"only_failed_or_needs_review": True})
+    assert retry_res.status_code == 200
+    r_data = retry_res.json()
+    assert r_data["retried_runs_count"] == 1
+    assert run_id in r_data["retried_run_ids"]
+    assert runs_db[run_id]["status"] == "queued"
+    assert runs_db[run_id]["retry_count"] == 1
+
+
+def test_evaluate_run_policy_endpoint(client: TestClient):
+    """Verify POST /runs/{run_id}/policy/evaluate returns full gating breakdown."""
+    run_id = "run-policy-ep-test"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "status": "verifying",
+        "patch": {
+            "target_file": "app-under-test/src/styles/defects.css",
+            "diff": "--- a/app-under-test/src/styles/defects.css\n+++ b/app-under-test/src/styles/defects.css\n@@ -1,2 +1,3 @@\n+.fixed { margin: 0; }\n"
+        },
+        "retest_outcome": {"visual_diff_score": 0.00, "passed": True},
+        "findings": [{"id": "f1", "category": "element_overlap", "severity": "low"}]
+    }
+
+    res = client.post(f"/runs/{run_id}/policy/evaluate")
+    assert res.status_code == 200
+    p_data = res.json()
+    assert p_data["run_id"] == run_id
+    assert p_data["gate_level"] == "auto_merge"
+    assert p_data["auto_merge_allowed"] is True
+    assert len(p_data["rule_evaluations"]) >= 5

@@ -59,6 +59,8 @@ from app.schemas import (
     DefectCluster,
     DefectClusterResponse,
     DefectStabilityRecord,
+    RunDeduplicationResponse,
+    FindingSchema,
     QuarantineRequest,
     QuarantineResponse,
     FlakinessReportResponse,
@@ -71,6 +73,7 @@ from app.services.patch_validator import validate_patch, validate_css_syntax_bal
 from app.services.policy_engine import evaluate_merge_policy
 from app.services.notification_service import dispatch_notification
 from app.services.flakiness_service import get_flakiness_report, quarantine_defect, unquarantine_defect
+from app.services.fingerprint_service import deduplicate_findings
 from app.services.action_engine import action_engine
 from app.services.github_service import (
     create_pull_request_for_fix,
@@ -1937,3 +1940,46 @@ def release_defect_quarantine(fingerprint: str):
         is_quarantined=False,
         message=f"Defect '{fingerprint}' released from quarantine." if was_quarantined else f"Defect '{fingerprint}' was not quarantined."
     )
+
+@app.post(
+    "/runs/{run_id}/deduplicate",
+    response_model=RunDeduplicationResponse,
+    tags=["Audit Runs"],
+    summary="Deduplicate Findings in Audit Run Record"
+)
+def deduplicate_run_findings(run_id: str):
+    """
+    Deduplicates visual findings within an audit run using deterministic defect fingerprinting.
+    Preserves highest confidence observations and updates run issue count.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+
+    entry = runs_db[run_id]
+    original_findings = entry.get("findings", [])
+    orig_count = len(original_findings)
+
+    deduped = deduplicate_findings(original_findings)
+    entry["findings"] = deduped
+    entry["issue_count"] = len(deduped)
+
+    removed = orig_count - len(deduped)
+    _append_timeline_event(
+        run_id=run_id,
+        event_type="findings_deduplicated",
+        description=f"Deduplicated findings: {orig_count} -> {len(deduped)} (removed {removed} duplicates)",
+        metadata={"original": orig_count, "remaining": len(deduped), "removed": removed}
+    )
+
+    return RunDeduplicationResponse(
+        run_id=run_id,
+        original_findings_count=orig_count,
+        deduplicated_findings_count=len(deduped),
+        removed_duplicates_count=removed,
+        findings=[FindingSchema(**f) for f in deduped],
+        message=f"Successfully deduplicated findings for run '{run_id}'."
+    )
+

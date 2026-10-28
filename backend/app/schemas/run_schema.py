@@ -106,6 +106,7 @@ class FindingSchema(BaseModel):
     suggested_change: str = Field(..., description="Proposed CSS/layout rule correction")
     rationale: Optional[str] = Field(default=None, description="Multimodal visual reasoning justification")
     status: str = Field(default="detected", description="Current remediation status")
+    fingerprint: Optional[str] = Field(default=None, description="Deterministic SHA-256 visual defect fingerprint")
 
     model_config = {
         "json_schema_extra": {
@@ -422,3 +423,65 @@ class PatchRevertResponse(BaseModel):
     timestamp: str
 
 
+
+class DefectFingerprint(BaseModel):
+    """Deterministic visual defect fingerprint and normalized signature."""
+    fingerprint: str = Field(..., description="Deterministic SHA-256 hash identifying the defect pattern")
+    category: DefectCategory = Field(..., description="Visual defect category")
+    target_element: Optional[str] = Field(default=None, description="Normalized CSS selector or element path")
+    viewport: str = Field(..., description="Viewport where defect was identified")
+    suggested_property: Optional[str] = Field(default=None, description="Primary CSS property involved")
+
+
+class DefectCluster(BaseModel):
+    """Cluster of identical visual defects grouped across runs or viewports."""
+    fingerprint: str = Field(..., description="Unique fingerprint key of the cluster")
+    category: DefectCategory = Field(..., description="Visual defect category")
+    target_element: Optional[str] = Field(default=None, description="Target CSS selector")
+    occurrences: int = Field(default=1, description="Count of occurrences across runs")
+    run_ids: List[str] = Field(default_factory=list, description="IDs of runs exhibiting this defect")
+    viewports: List[str] = Field(default_factory=list, description="Affected viewports")
+    severities: List[Severity] = Field(default_factory=list, description="Associated severity ratings")
+    first_seen: str = Field(..., description="ISO timestamp when first detected")
+    last_seen: str = Field(..., description="ISO timestamp when most recently detected")
+
+
+class DefectClusterResponse(BaseModel):
+    """Response containing aggregated defect clusters."""
+    total_clusters: int = Field(..., description="Total unique defect clusters identified")
+    clusters: List[DefectCluster] = Field(default_factory=list, description="Aggregated defect clusters")
+
+
+class DefectStabilityRecord(BaseModel):
+    """Historical stability and flakiness tracking record for a visual defect."""
+    fingerprint: str = Field(..., description="Unique defect fingerprint")
+    target_element: Optional[str] = Field(default=None, description="Normalized element selector")
+    category: DefectCategory = Field(..., description="Visual defect category")
+    total_observations: int = Field(default=1, description="Total audit runs inspecting target journey")
+    defect_occurrences: int = Field(default=1, description="Number of times defect was visually detected")
+    flakiness_score: float = Field(default=0.0, ge=0.0, le=1.0, description="Computed flakiness ratio (0.0=stable, 1.0=fully erratic)")
+    is_quarantined: bool = Field(default=False, description="Whether this defect is currently quarantined from gating")
+    quarantined_at: Optional[str] = Field(default=None, description="ISO timestamp when quarantine was applied")
+    quarantine_reason: Optional[str] = Field(default=None, description="Justification for quarantine")
+
+
+class QuarantineRequest(BaseModel):
+    """Payload to place a defect into quarantine or update quarantine reason."""
+    reason: str = Field(..., description="Justification for quarantining this visual defect (e.g. animation timing)")
+    quarantined_by: Optional[str] = Field(default="system", description="User or automated agent requesting quarantine")
+
+
+class QuarantineResponse(BaseModel):
+    """Confirmation response for defect quarantine state change."""
+    fingerprint: str = Field(..., description="Defect fingerprint")
+    is_quarantined: bool = Field(..., description="Updated quarantine status")
+    message: str = Field(..., description="Status explanation")
+    quarantined_at: Optional[str] = None
+
+
+class FlakinessReportResponse(BaseModel):
+    """System-wide summary of defect stability, flakiness scores, and quarantined defects."""
+    total_tracked_defects: int
+    quarantined_count: int
+    high_flakiness_count: int
+    defects: List[DefectStabilityRecord] = Field(default_factory=list)

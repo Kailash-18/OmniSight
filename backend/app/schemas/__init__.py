@@ -36,6 +36,9 @@ from app.schemas.run_schema import (
     ReadinessProbeResponse,
     RunFilterParams,
     PatchRevertResponse,
+    DefectFingerprint,
+    DefectCluster,
+    DefectClusterResponse,
 )
 
 __all__ = [
@@ -69,5 +72,8 @@ __all__ = [
     "ReadinessProbeResponse",
     "RunFilterParams",
     "PatchRevertResponse",
+    "DefectFingerprint",
+    "DefectCluster",
+    "DefectClusterResponse",
 ]
 

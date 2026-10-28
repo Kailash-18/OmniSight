@@ -92,12 +92,14 @@ def quarantine_defect(
             "is_quarantined": True,
             "quarantined_at": now_iso,
             "quarantine_reason": reason,
+            "quarantined_by": quarantined_by,
         }
     else:
         record = _stability_store[fingerprint]
         record["is_quarantined"] = True
         record["quarantined_at"] = now_iso
         record["quarantine_reason"] = reason
+        record["quarantined_by"] = quarantined_by
 
     return dict(_stability_store[fingerprint])
 
@@ -108,6 +110,7 @@ def unquarantine_defect(fingerprint: str) -> bool:
         _stability_store[fingerprint]["is_quarantined"] = False
         _stability_store[fingerprint]["quarantine_reason"] = None
         _stability_store[fingerprint]["quarantined_at"] = None
+        _stability_store[fingerprint]["quarantined_by"] = None
         return True
     return False
 
@@ -164,6 +167,7 @@ def unquarantine_all_defects() -> int:
             record["is_quarantined"] = False
             record["quarantine_reason"] = None
             record["quarantined_at"] = None
+            record["quarantined_by"] = None
             count += 1
     return count
 

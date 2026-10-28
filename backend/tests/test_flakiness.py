@@ -14,6 +14,8 @@ from app.services.flakiness_service import (
     get_quarantined_defects,
     get_flakiness_report,
     reset_flakiness_tracker,
+    bulk_quarantine_defects,
+    unquarantine_all_defects,
 )
 
 
@@ -117,3 +119,29 @@ def test_reset_flakiness_tracker():
     reset_flakiness_tracker()
     assert len(get_quarantined_defects()) == 0
     assert get_flakiness_report()["total_tracked_defects"] == 0
+
+
+def test_bulk_quarantine_defects():
+    """Verify placing multiple defect fingerprints into quarantine simultaneously."""
+    fps = ["dfp-bulk-1", "dfp-bulk-2", "dfp-bulk-3", "   "]
+    results = bulk_quarantine_defects(fps, reason="Bulk quarantine regression", quarantined_by="ci-bot")
+    assert len(results) == 3
+    quarantined = get_quarantined_defects()
+    assert len(quarantined) == 3
+    quarantined_fps = {q["fingerprint"] for q in quarantined}
+    assert quarantined_fps == {"dfp-bulk-1", "dfp-bulk-2", "dfp-bulk-3"}
+    assert all(q["quarantined_by"] == "ci-bot" for q in quarantined)
+
+
+def test_unquarantine_all_defects():
+    """Verify releasing all quarantined defects in a single operation."""
+    fps = ["dfp-release-1", "dfp-release-2", "dfp-release-3"]
+    bulk_quarantine_defects(fps, reason="Temp quarantine")
+    assert len(get_quarantined_defects()) == 3
+
+    released_count = unquarantine_all_defects()
+    assert released_count == 3
+    assert len(get_quarantined_defects()) == 0
+
+    # Repeating should release 0
+    assert unquarantine_all_defects() == 0

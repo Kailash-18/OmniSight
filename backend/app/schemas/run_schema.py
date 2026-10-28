@@ -533,3 +533,42 @@ class PolicyEvaluationResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Non-blocking advisories")
     rule_evaluations: List[PolicyRuleResult] = Field(default_factory=list, description="Detailed rule breakdown")
     timestamp: str = Field(..., description="Evaluation ISO 8601 UTC timestamp")
+
+
+class BatchRunTriggerPayload(BaseModel):
+    """Payload to initiate a matrix batch of visual audit runs."""
+    target_url: str = Field(..., description="Target staging or local URL to audit")
+    scenarios: List[str] = Field(default_factory=lambda: ["checkout_flow"], description="Journey scenarios")
+    viewports: List[str] = Field(
+        default_factory=lambda: ["desktop_1440x900", "mobile_375x667"],
+        description="Target viewports across matrix"
+    )
+    branch: str = Field(default="main", description="Git branch under test")
+    batch_label: Optional[str] = Field(default=None, description="Descriptive batch identifier (e.g. nightly-regression)")
+
+
+class BatchRunSummaryResponse(BaseModel):
+    """Aggregated execution status of a matrix batch of audit runs."""
+    batch_id: str = Field(..., description="Unique batch identifier")
+    total_runs: int = Field(..., description="Total runs spawned in this batch")
+    completed_runs: int = Field(..., description="Count of successfully resolved or audited runs")
+    failed_runs: int = Field(..., description="Count of runs in failed state")
+    active_runs: int = Field(..., description="Count of currently pending/verifying runs")
+    run_ids: List[str] = Field(default_factory=list, description="IDs of runs belonging to this batch")
+    overall_status: str = Field(..., description="Aggregate status (queued, running, completed, partially_failed)")
+    created_at: str = Field(..., description="Batch creation ISO timestamp")
+
+
+class BatchRetryPayload(BaseModel):
+    """Payload to trigger bulk retries across runs in a batch."""
+    only_failed_or_needs_review: bool = Field(default=True, description="Only retry runs needing repair")
+    max_retries_per_run: int = Field(default=2, ge=1, le=5, description="Per-run maximum retry ceiling")
+
+
+class BatchRetryResponse(BaseModel):
+    """Confirmation response for bulk batch retries."""
+    batch_id: str = Field(..., description="Target batch identifier")
+    retried_runs_count: int = Field(..., description="Number of runs rescheduled for retry")
+    retried_run_ids: List[str] = Field(default_factory=list, description="IDs of retried runs")
+    skipped_run_ids: List[str] = Field(default_factory=list, description="IDs of skipped runs")
+    message: str = Field(..., description="Summary status message")

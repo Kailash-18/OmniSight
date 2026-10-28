@@ -17,6 +17,12 @@ from app.services.patch_validator import (
     assess_patch_risk,
 )
 from app.services.action_engine import action_engine, ActionEngine
+from app.services.fingerprint_service import (
+    generate_defect_fingerprint,
+    compute_finding_fingerprint,
+    deduplicate_findings,
+    cluster_defect_findings,
+)
 from app.services.github_service import (
     create_pull_request_for_fix,
     generate_pr_markdown_description,
@@ -42,5 +48,10 @@ __all__ = [
     "check_pull_request_status",
     "close_pull_request",
     "revert_pull_request_patch",
+    "generate_defect_fingerprint",
+    "compute_finding_fingerprint",
+    "deduplicate_findings",
+    "cluster_defect_findings",
 ]
+
 

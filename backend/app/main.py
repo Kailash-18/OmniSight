@@ -1786,7 +1786,12 @@ def preview_patch_dry_run(payload: PatchDryRunPayload):
     tags=["Intelligence"],
     summary="List Aggregated Visual Defect Clusters Across Runs"
 )
-def get_defect_clusters(min_occurrences: int = 1):
+def get_defect_clusters(
+    min_occurrences: int = 1,
+    category: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50
+):
     """
     Aggregates visual defects across all recorded test runs into deterministic signature clusters.
     """
@@ -1843,9 +1848,13 @@ def get_defect_clusters(min_occurrences: int = 1):
             cl.last_seen = now_iso
 
     filtered_clusters = [c for c in clusters_map.values() if c.occurrences >= min_occurrences]
+    if category:
+        cat_clean = category.strip().lower().replace("-", "_")
+        filtered_clusters = [c for c in filtered_clusters if getattr(c.category, "value", str(c.category)) == cat_clean]
+    paginated = filtered_clusters[skip : skip + limit]
     return DefectClusterResponse(
         total_clusters=len(filtered_clusters),
-        clusters=filtered_clusters
+        clusters=paginated
     )
 
 

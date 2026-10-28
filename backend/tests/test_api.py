@@ -1456,3 +1456,49 @@ def test_defect_quarantine_and_unquarantine_lifecycle(client: TestClient):
     assert data_del["is_quarantined"] is False
     assert "released from quarantine" in data_del["message"]
 
+
+def test_defect_clusters_endpoint_category_filtering_and_pagination(client: TestClient):
+    """Verify category filtering and skip/limit pagination on GET /defects/clusters."""
+    r_id = "run-cluster-filter-test"
+    runs_db[r_id] = {
+        "run_id": r_id,
+        "start_time": "2026-10-28T15:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "audited",
+        "findings": [
+            {
+                "id": "f-overlap-1",
+                "category": "element_overlap",
+                "severity": "high",
+                "description": "Hero overlap",
+                "viewport": "desktop_1440x900",
+                "target_element": "div.hero-title",
+                "suggested_change": "margin: 0;"
+            },
+            {
+                "id": "f-contrast-1",
+                "category": "color_contrast",
+                "severity": "medium",
+                "description": "Low contrast",
+                "viewport": "desktop_1440x900",
+                "target_element": "p.caption",
+                "suggested_change": "color: #111;"
+            }
+        ],
+        "timeline": []
+    }
+
+    # Query with category filter
+    res_cat = client.get("/defects/clusters?category=color_contrast")
+    assert res_cat.status_code == 200
+    data_cat = res_cat.json()
+    assert all(c["category"] == "contrast_issue" for c in data_cat["clusters"])
+    assert any(c.get("target_element") == "p.caption" for c in data_cat["clusters"])
+
+    # Query with limit
+    res_lim = client.get("/defects/clusters?limit=1")
+    assert res_lim.status_code == 200
+    data_lim = res_lim.json()
+    assert len(data_lim["clusters"]) <= 1
+
+

@@ -42,6 +42,16 @@ class DefectCategory(str, Enum):
     def _missing_(cls, value: object):
         if isinstance(value, str):
             clean = value.strip().lower().replace("-", "_")
+            synonyms = {
+                "color_contrast": "contrast_issue",
+                "contrast": "contrast_issue",
+                "clipping": "element_clipping",
+                "overlap": "element_overlap",
+                "obstruction": "element_obstruction",
+                "overflow": "layout_overflow",
+            }
+            if clean in synonyms:
+                clean = synonyms[clean]
             for member in cls:
                 if member.value == clean:
                     return member

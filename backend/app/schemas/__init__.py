@@ -51,6 +51,8 @@ from app.schemas.run_schema import (
     BatchRunSummaryResponse,
     BatchRetryPayload,
     BatchRetryResponse,
+    RunTagPayload,
+    RunTagResponse,
 )
 
 
@@ -100,6 +102,8 @@ __all__ = [
     "BatchRunSummaryResponse",
     "BatchRetryPayload",
     "BatchRetryResponse",
+    "RunTagPayload",
+    "RunTagResponse",
 ]
 
 

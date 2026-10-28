@@ -50,6 +50,8 @@ from app.schemas import (
     BatchRunSummaryResponse,
     BatchRetryPayload,
     BatchRetryResponse,
+    RunTagPayload,
+    RunTagResponse,
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
     RunStatus,
@@ -58,6 +60,7 @@ from app.schemas import (
 )
 from app.services.patch_validator import validate_patch
 from app.services.policy_engine import evaluate_merge_policy
+from app.services.notification_service import dispatch_notification
 from app.services.action_engine import action_engine
 from app.services.github_service import (
     create_pull_request_for_fix,
@@ -440,6 +443,7 @@ def list_runs(
     start_after: Optional[str] = None,
     start_before: Optional[str] = None,
     min_severity: Optional[Severity] = None,
+    tags: Optional[str] = None,
 ):
     """
     Returns summaries of recorded test runs in reverse chronological order with optional filtering.
@@ -467,6 +471,11 @@ def list_runs(
             continue
         if start_before and r.get("start_time", "") > start_before:
             continue
+        if tags:
+            req_tags = [t.strip().lower() for t in tags.split(",") if t.strip()]
+            r_tags = [t.lower() for t in r.get("tags", [])]
+            if not all(t in r_tags for t in req_tags):
+                continue
         if min_severity is not None:
             min_rank = severity_order.get(min_severity, 1)
             findings = r.get("findings", [])
@@ -501,7 +510,8 @@ def list_runs(
                 target=r["target"],
                 status=RunStatus(r["status"]),
                 issue_count=r.get("issue_count", len(r.get("findings", []))),
-                pr_url=r.get("pr_url")
+                pr_url=r.get("pr_url"),
+                tags=r.get("tags", [])
             )
         )
         if len(summaries) >= limit:
@@ -618,6 +628,7 @@ def get_run_details(run_id: str):
         findings=r.get("findings", []),
         patch=r.get("patch"),
         retry_count=r.get("retry_count", 0),
+        tags=r.get("tags", []),
         pr_url=r.get("pr_url"),
         error=r.get("error")
     )
@@ -1602,3 +1613,88 @@ def evaluate_run_policy(run_id: str, payload: Optional[PolicyEvaluationRequest] 
     )
 
     return PolicyEvaluationResponse(**evaluation)
+
+
+@app.post(
+    "/runs/{run_id}/tags",
+    response_model=RunTagResponse,
+    tags=["Audit Runs"],
+    summary="Assign Metadata Tags to Run"
+)
+def add_run_tags(run_id: str, payload: RunTagPayload):
+    """
+    Assigns or updates metadata tags (e.g. nightly, smoke, p0) on a test run.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+
+    current_tags = set(runs_db[run_id].get("tags", []))
+    for t in payload.tags:
+        clean = t.strip()
+        if clean:
+            current_tags.add(clean)
+
+    updated = sorted(list(current_tags))
+    runs_db[run_id]["tags"] = updated
+    _append_timeline_event(
+        run_id=run_id,
+        event_type="tags_updated",
+        description=f"Tags updated: {', '.join(updated)}",
+        metadata={"tags": updated}
+    )
+    return RunTagResponse(run_id=run_id, tags=updated, message="Tags updated successfully.")
+
+
+@app.delete(
+    "/runs/{run_id}/tags/{tag}",
+    response_model=RunTagResponse,
+    tags=["Audit Runs"],
+    summary="Remove Metadata Tag from Run"
+)
+def remove_run_tag(run_id: str, tag: str):
+    """
+    Removes a specific metadata tag from an audit run record.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+
+    current_tags = [t for t in runs_db[run_id].get("tags", []) if t.lower() != tag.strip().lower()]
+    runs_db[run_id]["tags"] = current_tags
+    _append_timeline_event(
+        run_id=run_id,
+        event_type="tag_removed",
+        description=f"Tag '{tag}' removed from run",
+        metadata={"removed_tag": tag, "remaining_tags": current_tags}
+    )
+    return RunTagResponse(run_id=run_id, tags=current_tags, message=f"Tag '{tag}' removed successfully.")
+
+
+@app.post(
+    "/webhooks/test-dispatch",
+    tags=["CI/CD Webhook"],
+    summary="Simulate and Verify Outbound Webhook Event Dispatch"
+)
+def test_outbound_webhook_dispatch(
+    target_url: str = "http://localhost:9000/webhook",
+    event_type: str = "run.completed",
+    run_id: str = "run-test-dispatch",
+    secret: Optional[str] = "test-secret-key"
+):
+    """
+    Simulates outbound webhook delivery with HMAC SHA-256 payload signing.
+    """
+    result = dispatch_notification(
+        target_url=target_url,
+        event_type=event_type,
+        run_id=run_id,
+        data={"status": "fixed", "summary": "Visual regression cleared."},
+        secret=secret,
+        mock_mode=True
+    )
+    return result

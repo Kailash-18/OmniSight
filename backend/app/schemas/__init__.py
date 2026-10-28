@@ -53,6 +53,8 @@ from app.schemas.run_schema import (
     BatchRetryResponse,
     RunTagPayload,
     RunTagResponse,
+    PatchDryRunPayload,
+    PatchDryRunResponse,
 )
 
 
@@ -104,6 +106,8 @@ __all__ = [
     "BatchRetryResponse",
     "RunTagPayload",
     "RunTagResponse",
+    "PatchDryRunPayload",
+    "PatchDryRunResponse",
 ]
 
 

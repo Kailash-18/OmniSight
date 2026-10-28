@@ -627,6 +627,7 @@ def get_run_details(run_id: str):
         findings=r.get("findings", []),
         patch=r.get("patch"),
         retry_count=r.get("retry_count", 0),
+        tags=r.get("tags", []),
         pr_url=r.get("pr_url"),
         error=r.get("error")
     )

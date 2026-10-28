@@ -321,3 +321,39 @@ def test_cli_no_retest_argument(monkeypatch: pytest.MonkeyPatch):
     assert executed.get("auto_retest") is False
 
 
+def test_backend_client_create_pr_mock(backend_client: BackendClient, monkeypatch: pytest.MonkeyPatch):
+    """Verify BackendClient create_pull_request triggers PR creation on backend."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    run_id = backend_client.register_run("http://127.0.0.1:5173")
+    assert run_id is not None
+
+    # First submit a valid patch so the run has patch metadata
+    patch_res = backend_client.submit_patch(
+        run_id=run_id,
+        target_file="app-under-test/src/styles/defects.css",
+        diff="-.btn { width: 500px; }\n+.btn { width: 100%; }",
+        file_content=".btn { width: 100%; }",
+        pr_title="Fix button clipping",
+        pr_body="Automated repair."
+    )
+    assert patch_res is not None
+    assert patch_res["status"] == "success"
+
+    pr_res = backend_client.create_pull_request(
+        run_id=run_id,
+        pr_title="fix(ui): responsive button repair",
+        labels=["omnisight", "test-pr"]
+    )
+    assert pr_res is not None
+    assert pr_res["status"] == "success"
+    assert "pr_url" in pr_res
+    assert "github.com" in pr_res["pr_url"]
+
+    details = backend_client.get_run_details(run_id)
+    assert details["status"] == "pr_opened"
+    assert details["pr_url"] == pr_res["pr_url"]
+
+
+

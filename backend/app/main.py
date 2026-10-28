@@ -46,11 +46,18 @@ from app.schemas import (
     RetryRunResponse,
     DeleteRunResponse,
     PatchRevertResponse,
+    BatchRunTriggerPayload,
+    BatchRunSummaryResponse,
+    BatchRetryPayload,
+    BatchRetryResponse,
+    PolicyEvaluationRequest,
+    PolicyEvaluationResponse,
     RunStatus,
     Severity,
     PatchObject,
 )
 from app.services.patch_validator import validate_patch
+from app.services.policy_engine import evaluate_merge_policy
 from app.services.action_engine import action_engine
 from app.services.github_service import (
     create_pull_request_for_fix,
@@ -97,6 +104,7 @@ async def add_correlation_and_timing_middleware(request: Request, call_next):
 
 # In-memory store for test runs (simulates persistence for development & demo)
 runs_db: Dict[str, Dict[str, Any]] = {}
+batches_db: Dict[str, Dict[str, Any]] = {}
 
 
 def _append_timeline_event(
@@ -1369,3 +1377,228 @@ def export_runs_csv():
         headers={"Content-Disposition": "attachment; filename=omnisight_audit_runs.csv"}
     )
 
+
+@app.post(
+    "/runs/batch",
+    response_model=BatchRunSummaryResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Audit Runs"],
+    summary="Trigger Matrix Batch of Visual Audit Runs"
+)
+def trigger_batch_runs(payload: BatchRunTriggerPayload):
+    """
+    Initiates an execution matrix across scenarios and viewports in a single coordinated batch.
+    """
+    try:
+        parsed = urlparse(payload.target_url)
+        hostname = parsed.hostname or payload.target_url
+        if not settings.is_host_allowed(hostname):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Target host '{hostname}' is not in the allowed target hosts."
+            )
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=400, detail="Invalid target URL structure.")
+
+    batch_id = f"batch-{uuid.uuid4().hex[:8]}"
+    created_at = datetime.now(timezone.utc).isoformat()
+    spawned_run_ids = []
+
+    for scenario in payload.scenarios:
+        for vp in payload.viewports:
+            run_id = f"run-{uuid.uuid4().hex[:8]}"
+            spawned_run_ids.append(run_id)
+            runs_db[run_id] = {
+                "run_id": run_id,
+                "batch_id": batch_id,
+                "target_url": payload.target_url,
+                "branch": payload.branch,
+                "scenario": scenario,
+                "status": RunStatus.QUEUED,
+                "created_at": created_at,
+                "findings": [],
+                "timeline": [],
+                "retry_count": 0,
+                "max_retries": 2,
+                "viewports": [vp],
+                "batch_label": payload.batch_label
+            }
+            _append_timeline_event(
+                run_id=run_id,
+                event_type="batch_spawned",
+                description=f"Run spawned as part of batch '{batch_id}' ({scenario} @ {vp})",
+                metadata={"batch_id": batch_id, "scenario": scenario, "viewport": vp}
+            )
+
+    batches_db[batch_id] = {
+        "batch_id": batch_id,
+        "run_ids": spawned_run_ids,
+        "created_at": created_at,
+        "batch_label": payload.batch_label
+    }
+
+    return BatchRunSummaryResponse(
+        batch_id=batch_id,
+        total_runs=len(spawned_run_ids),
+        completed_runs=0,
+        failed_runs=0,
+        active_runs=len(spawned_run_ids),
+        run_ids=spawned_run_ids,
+        overall_status="queued",
+        created_at=created_at
+    )
+
+
+@app.get(
+    "/runs/batch/{batch_id}",
+    response_model=BatchRunSummaryResponse,
+    tags=["Audit Runs"],
+    summary="Get Aggregated Batch Execution Status"
+)
+def get_batch_status(batch_id: str):
+    """
+    Retrieves dynamically computed status and progress across all runs in a batch.
+    """
+    if batch_id not in batches_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Batch '{batch_id}' not found."
+        )
+
+    batch = batches_db[batch_id]
+    run_ids = batch.get("run_ids", [])
+    total = len(run_ids)
+    completed = 0
+    failed = 0
+    active = 0
+
+    for r_id in run_ids:
+        r_entry = runs_db.get(r_id, {})
+        st = r_entry.get("status")
+        if st in [RunStatus.FIXED, RunStatus.AUDITED]:
+            completed += 1
+        elif st in [RunStatus.FAILED, RunStatus.PATCH_REJECTED]:
+            failed += 1
+        else:
+            active += 1
+
+    if active > 0:
+        overall = "running"
+    elif failed > 0 and completed > 0:
+        overall = "partially_failed"
+    elif failed > 0 and completed == 0:
+        overall = "failed"
+    else:
+        overall = "completed"
+
+    return BatchRunSummaryResponse(
+        batch_id=batch_id,
+        total_runs=total,
+        completed_runs=completed,
+        failed_runs=failed,
+        active_runs=active,
+        run_ids=run_ids,
+        overall_status=overall,
+        created_at=batch["created_at"]
+    )
+
+
+@app.post(
+    "/runs/batch/{batch_id}/retry",
+    response_model=BatchRetryResponse,
+    tags=["Audit Runs"],
+    summary="Bulk Retry Failed Runs in Batch"
+)
+def bulk_retry_batch(batch_id: str, payload: Optional[BatchRetryPayload] = None):
+    """
+    Retries failed or unverified runs within an audit matrix batch.
+    """
+    if batch_id not in batches_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Batch '{batch_id}' not found."
+        )
+
+    payload = payload or BatchRetryPayload()
+    batch = batches_db[batch_id]
+    retried = []
+    skipped = []
+
+    for r_id in batch.get("run_ids", []):
+        if r_id not in runs_db:
+            skipped.append(r_id)
+            continue
+        entry = runs_db[r_id]
+        st = entry.get("status")
+        needs_retry = st in [RunStatus.FAILED, RunStatus.NEEDS_REVIEW, RunStatus.PATCH_REJECTED]
+        if payload.only_failed_or_needs_review and not needs_retry:
+            skipped.append(r_id)
+            continue
+
+        entry["status"] = RunStatus.QUEUED
+        entry["retry_count"] = entry.get("retry_count", 0) + 1
+        _append_timeline_event(
+            run_id=r_id,
+            event_type="batch_bulk_retry",
+            description=f"Run rescheduled via batch retry on batch '{batch_id}'",
+            metadata={"batch_id": batch_id, "retry_count": entry["retry_count"]}
+        )
+        retried.append(r_id)
+
+    return BatchRetryResponse(
+        batch_id=batch_id,
+        retried_runs_count=len(retried),
+        retried_run_ids=retried,
+        skipped_run_ids=skipped,
+        message=f"Bulk retry rescheduled {len(retried)} runs in batch '{batch_id}'."
+    )
+
+
+@app.post(
+    "/runs/{run_id}/policy/evaluate",
+    response_model=PolicyEvaluationResponse,
+    tags=["Audit Runs"],
+    summary="Evaluate Release Gate and Auto-Merge Policy"
+)
+def evaluate_run_policy(run_id: str, payload: Optional[PolicyEvaluationRequest] = None):
+    """
+    Evaluates self-healing release gate policy against a run's patch and retest proof.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+
+    run_entry = runs_db[run_id]
+    target_file = payload.target_file if payload and payload.target_file else (run_entry.get("patch") or {}).get("target_file")
+    diff_content = payload.diff_content if payload and payload.diff_content else (run_entry.get("patch") or {}).get("diff")
+
+    visual_score = payload.visual_diff_score if (payload and payload.visual_diff_score is not None) else (run_entry.get("retest_outcome") or {}).get("visual_diff_score")
+
+    severities = payload.defect_severities if (payload and payload.defect_severities) else [f.get("severity", "medium") for f in run_entry.get("findings", [])]
+
+    fingerprints = payload.defect_fingerprints if (payload and payload.defect_fingerprints) else [f.get("fingerprint") for f in run_entry.get("findings", []) if f.get("fingerprint")]
+
+    author = payload.author if payload and payload.author else "omnisight-agent"
+
+    evaluation = evaluate_merge_policy(
+        run_id=run_id,
+        target_file=target_file,
+        diff_content=diff_content,
+        visual_diff_score=visual_score,
+        defect_severities=severities,
+        defect_fingerprints=fingerprints,
+        author=author
+    )
+
+    _append_timeline_event(
+        run_id=run_id,
+        event_type="policy_evaluated",
+        description=f"Policy gate evaluated: gate_level={evaluation['gate_level']}, auto_merge={evaluation['auto_merge_allowed']}",
+        metadata={"gate_level": evaluation["gate_level"], "risk_score": evaluation["overall_risk_score"]}
+    )
+
+    return PolicyEvaluationResponse(**evaluation)

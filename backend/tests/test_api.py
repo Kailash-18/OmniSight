@@ -1238,3 +1238,102 @@ def test_evaluate_run_policy_endpoint(client: TestClient):
     assert p_data["gate_level"] == "auto_merge"
     assert p_data["auto_merge_allowed"] is True
     assert len(p_data["rule_evaluations"]) >= 5
+
+
+def test_add_and_remove_run_tags(client: TestClient):
+    """Verify POST /runs/{run_id}/tags and DELETE /runs/{run_id}/tags/{tag}."""
+    run_id = "run-tag-test-01"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-28T10:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "audited",
+        "tags": ["existing-tag"],
+        "timeline": []
+    }
+
+    # Add tags
+    res = client.post(f"/runs/{run_id}/tags", json={"tags": ["nightly", "smoke", "p0"]})
+    assert res.status_code == 200
+    data = res.json()
+    assert set(data["tags"]) == {"existing-tag", "nightly", "smoke", "p0"}
+    assert "tags_updated" in [e["event_type"] for e in runs_db[run_id]["timeline"]]
+
+    # Remove single tag
+    del_res = client.delete(f"/runs/{run_id}/tags/nightly")
+    assert del_res.status_code == 200
+    del_data = del_res.json()
+    assert "nightly" not in del_data["tags"]
+    assert "smoke" in del_data["tags"]
+    assert "tag_removed" in [e["event_type"] for e in runs_db[run_id]["timeline"]]
+
+
+def test_tagging_endpoints_404_for_unknown_run(client: TestClient):
+    """Verify 404 is returned when modifying tags on non-existent runs."""
+    res1 = client.post("/runs/non-existent-run-999/tags", json={"tags": ["smoke"]})
+    assert res1.status_code == 404
+    res2 = client.delete("/runs/non-existent-run-999/tags/smoke")
+    assert res2.status_code == 404
+
+
+def test_list_runs_filtered_by_tags(client: TestClient):
+    """Verify GET /runs?tags=... filters runs matching all required tags."""
+    r1 = "run-filter-tag-1"
+    r2 = "run-filter-tag-2"
+    runs_db[r1] = {
+        "run_id": r1,
+        "start_time": "2026-10-28T12:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "tags": ["smoke", "p0", "canary"],
+        "findings": []
+    }
+    runs_db[r2] = {
+        "run_id": r2,
+        "start_time": "2026-10-28T12:05:00Z",
+        "target": "http://localhost:5173",
+        "status": "fixed",
+        "tags": ["nightly", "regression"],
+        "findings": []
+    }
+
+    # Query single tag
+    res_smoke = client.get("/runs?tags=smoke")
+    assert res_smoke.status_code == 200
+    smoke_ids = [r["run_id"] for r in res_smoke.json()]
+    assert r1 in smoke_ids
+    assert r2 not in smoke_ids
+
+    # Query multi-tags
+    res_multi = client.get("/runs?tags=smoke,p0")
+    assert res_multi.status_code == 200
+    multi_ids = [r["run_id"] for r in res_multi.json()]
+    assert r1 in multi_ids
+    assert r2 not in multi_ids
+
+    # Query non-matching tag combination
+    res_none = client.get("/runs?tags=smoke,regression")
+    assert res_none.status_code == 200
+    none_ids = [r["run_id"] for r in res_none.json()]
+    assert r1 not in none_ids
+    assert r2 not in none_ids
+
+
+def test_run_details_includes_tags_payload(client: TestClient):
+    """Verify GET /runs/{run_id} includes metadata tags array."""
+    run_id = "run-detail-tag-check"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "start_time": "2026-10-28T14:00:00Z",
+        "target": "http://localhost:5173",
+        "status": "audited",
+        "tags": ["production-canary", "mobile-audit"],
+        "findings": [],
+        "timeline": []
+    }
+    res = client.get(f"/runs/{run_id}")
+    assert res.status_code == 200
+    data = res.json()
+    assert "tags" in data
+    assert "production-canary" in data["tags"]
+    assert "mobile-audit" in data["tags"]

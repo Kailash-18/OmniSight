@@ -56,6 +56,16 @@ from app.schemas.run_schema import (
     PatchDryRunPayload,
     PatchDryRunResponse,
     RunDeduplicationResponse,
+    AuditSchedulePayload,
+    AuditScheduleResponse,
+    AuditScheduleListResponse,
+    AuditAnnotation,
+    AnnotationCreatePayload,
+    AnnotationListResponse,
+    SLAViolationRecord,
+    SLAViolationReport,
+    ViewportHeatCell,
+    DefectHeatmapResponse,
 )
 
 

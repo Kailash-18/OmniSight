@@ -697,3 +697,16 @@ class SLAViolationReport(BaseModel):
     generated_at: str = Field(..., description="ISO-8601 report generation timestamp")
 
 
+class ViewportHeatCell(BaseModel):
+    """A single defect heat cell in the viewport coverage heatmap."""
+    viewport: str = Field(..., description="Viewport dimension string, e.g. 1280x720")
+    defect_count: int = Field(..., description="Number of defects detected on this viewport")
+    severity_breakdown: Dict[str, int] = Field(default_factory=dict, description="Defect counts by severity level")
+
+
+class DefectHeatmapResponse(BaseModel):
+    """Defect frequency heatmap across all audited viewport dimensions."""
+    total_runs_analyzed: int = Field(..., description="Number of audit runs included in heatmap")
+    viewports: List[ViewportHeatCell] = Field(default_factory=list, description="Per-viewport defect heat data")
+    hottest_viewport: Optional[str] = Field(default=None, description="Viewport with highest defect density")
+    generated_at: str = Field(..., description="ISO-8601 report generation timestamp")

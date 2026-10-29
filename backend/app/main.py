@@ -20,6 +20,7 @@ from app.schemas import (
     BuildWebhookPayload,
     CreatePRPayload,
     CreatePRResponse,
+    GitHubPRWebhookPayload,
     HealthCheckResponse,
     PatchSubmitPayload,
     RunDetailResponse,
@@ -104,7 +105,7 @@ def get_milestone_status():
         "week_2_action_engine": "completed",
         "week_2_day_3_integration": "completed",
         "week_3_pr_automation": "in_progress",
-        "week_3_progress": "10% - PyGithub PR automation service & mock fallback initialized",
+        "week_3_progress": "20% - Closed-loop PR automation engine, verification proof comments, and webhook ingestion",
         "allowed_targets": settings.ALLOWED_TARGET_HOSTS,
         "allowed_patch_files": settings.ALLOWED_PATCH_FILES,
     }
@@ -240,6 +241,7 @@ def get_run_details(run_id: str):
         findings=r.get("findings", []),
         patch=r.get("patch"),
         retry_count=r.get("retry_count", 0),
+        retest_outcome=r.get("retest_outcome"),
         pr_url=r.get("pr_url"),
         error=r.get("error")
     )
@@ -280,6 +282,8 @@ def update_run_record(run_id: str, payload: RunRecordUpdatePayload):
         run_entry["patch"] = payload.patch.model_dump()
     if payload.retry_count is not None:
         run_entry["retry_count"] = payload.retry_count
+    if payload.retest_outcome is not None:
+        run_entry["retest_outcome"] = payload.retest_outcome
     if payload.pr_url is not None:
         run_entry["pr_url"] = payload.pr_url
     if payload.error is not None:
@@ -463,13 +467,28 @@ def create_run_pull_request(run_id: str, payload: CreatePRPayload | None = None)
     file_content = (payload.file_content if payload and payload.file_content else None) or patch.get("file_content", "")
     diff = patch.get("diff", "")
 
+    evidence = run_entry.get("evidence_paths") or {}
+    before_shots = evidence.get("before_screenshots") or evidence.get("screenshots") or []
+    after_shots = evidence.get("after_screenshots") or []
+    before_url = before_shots[0] if before_shots else None
+    after_url = after_shots[0] if after_shots else None
+
+    retest_outcome = run_entry.get("retest_outcome") or {}
+    verif_status = (
+        "Verified Fixed in Isolated Sandbox"
+        if retest_outcome.get("passed")
+        else "Approved by Zero-Trust Patch Validator"
+    )
+
     pr_title = (payload.pr_title if payload and payload.pr_title else None) or f"fix(visual): automated repair for {run_id}"
     pr_body = (payload.pr_body if payload and payload.pr_body else None) or generate_pr_markdown_description(
         defect_title=f"Automated Visual Repair ({target_file})",
-        viewport="all",
+        viewport=retest_outcome.get("retest_viewport", "all"),
         target_file=target_file,
         diff=diff,
-        verification_status="Approved by Zero-Trust Patch Validator"
+        verification_status=verif_status,
+        before_screenshot_url=before_url,
+        after_screenshot_url=after_url,
     )
     commit_msg = (payload.commit_message if payload and payload.commit_message else None) or f"fix(ui): OmniSight auto-repair for {target_file} ({run_id})"
     labels = (payload.labels if payload and payload.labels else None) or ["omnisight", "automated-fix"]
@@ -546,3 +565,71 @@ def update_pr_verification(run_id: str):
 """
     success = add_pr_comment_with_retest_evidence(pr_number, comment_body)
     return {"status": "success", "pr_number": pr_number, "comment_posted": success}
+
+
+@app.post(
+    "/webhook/github/pull-request",
+    status_code=status.HTTP_200_OK,
+    summary="GitHub PR and Review Webhook Ingestion"
+)
+def receive_github_pr_webhook(payload: GitHubPRWebhookPayload):
+    """
+    Ingests GitHub pull_request and pull_request_review webhook events.
+    Matches the incoming PR to recorded audit runs and updates review & merge status.
+    """
+    pr_data = payload.pull_request
+    pr_number = pr_data.get("number")
+    pr_url = pr_data.get("html_url")
+    merged = pr_data.get("merged", False)
+    action = payload.action
+    head_ref = pr_data.get("head", {}).get("ref", "")
+
+    # Locate corresponding run by branch ref or PR url/number
+    matched_run_id = None
+    if head_ref and head_ref.startswith("omnisight-fix-"):
+        candidate_id = head_ref[len("omnisight-fix-"):]
+        if candidate_id in runs_db:
+            matched_run_id = candidate_id
+
+    if not matched_run_id and pr_url:
+        for r_id, r in runs_db.items():
+            if r.get("pr_url") == pr_url or (pr_number and str(r.get("pr_url", "")).endswith(f"/{pr_number}")):
+                matched_run_id = r_id
+                break
+
+    if matched_run_id:
+        run_entry = runs_db[matched_run_id]
+        if not run_entry.get("pr_url") and pr_url:
+            run_entry["pr_url"] = pr_url
+
+        if action == "closed" and merged:
+            run_entry["status"] = RunStatus.FIXED.value
+            run_entry.setdefault("steps", []).append("github_pr_merged")
+            run_entry["merged"] = True
+        elif action == "closed" and not merged:
+            run_entry["status"] = RunStatus.NEEDS_REVIEW.value
+            run_entry.setdefault("steps", []).append("github_pr_closed_unmerged")
+            run_entry["merged"] = False
+        elif action == "opened":
+            run_entry["status"] = RunStatus.PR_OPENED.value
+            run_entry.setdefault("steps", []).append("github_pr_opened")
+        elif action == "labeled":
+            labels = [lbl.get("name") for lbl in pr_data.get("labels", []) if isinstance(lbl, dict)]
+            run_entry["labels"] = labels
+
+        # Process review events
+        if payload.review:
+            review_state = payload.review.get("state", "").lower()
+            if review_state == "approved":
+                run_entry.setdefault("steps", []).append("github_review_approved")
+            elif review_state == "changes_requested":
+                run_entry["status"] = RunStatus.NEEDS_REVIEW.value
+                run_entry.setdefault("steps", []).append("github_review_changes_requested")
+
+    return {
+        "status": "processed",
+        "action": action,
+        "pr_number": pr_number,
+        "matched_run_id": matched_run_id,
+        "merged": merged,
+    }

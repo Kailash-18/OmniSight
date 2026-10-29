@@ -199,3 +199,111 @@ def test_update_pull_request_verification_proof_formatting(monkeypatch):
     }
     success = update_pull_request_verification_proof(pr_number=77, retest_data=retest_data)
     assert success is True
+
+
+def test_github_pr_webhook_merged_marks_run_fixed():
+    """Verify webhook transitions run state to FIXED and records merged step when PR is merged."""
+    from fastapi.testclient import TestClient
+    from app.main import app, runs_db
+
+    client = TestClient(app)
+    run_id = "run-webhook-merge-test"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "target": "http://localhost:5173",
+        "status": "pr_opened",
+        "steps": ["initiate_browser_session"],
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/123"
+    }
+
+    payload = {
+        "action": "closed",
+        "pull_request": {
+            "number": 123,
+            "html_url": "https://github.com/Kailash-18/OmniSight/pull/123",
+            "merged": True,
+            "head": {"ref": f"omnisight-fix-{run_id}"}
+        }
+    }
+
+    res = client.post("/webhook/github/pull-request", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "processed"
+    assert data["matched_run_id"] == run_id
+    assert data["merged"] is True
+
+    assert runs_db[run_id]["status"] == "fixed"
+    assert "github_pr_merged" in runs_db[run_id]["steps"]
+
+
+def test_github_pr_webhook_closed_unmerged_marks_needs_review():
+    """Verify webhook transitions run state to NEEDS_REVIEW when PR is closed without merge."""
+    from fastapi.testclient import TestClient
+    from app.main import app, runs_db
+
+    client = TestClient(app)
+    run_id = "run-webhook-close-test"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "target": "http://localhost:5173",
+        "status": "pr_opened",
+        "steps": [],
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/456"
+    }
+
+    payload = {
+        "action": "closed",
+        "pull_request": {
+            "number": 456,
+            "html_url": "https://github.com/Kailash-18/OmniSight/pull/456",
+            "merged": False,
+            "head": {"ref": f"omnisight-fix-{run_id}"}
+        }
+    }
+
+    res = client.post("/webhook/github/pull-request", json=payload)
+    assert res.status_code == 200
+    assert runs_db[run_id]["status"] == "needs_review"
+    assert "github_pr_closed_unmerged" in runs_db[run_id]["steps"]
+
+
+def test_github_pr_webhook_review_events():
+    """Verify review events record approvals and changes requested on run."""
+    from fastapi.testclient import TestClient
+    from app.main import app, runs_db
+
+    client = TestClient(app)
+    run_id = "run-webhook-review-test"
+    runs_db[run_id] = {
+        "run_id": run_id,
+        "target": "http://localhost:5173",
+        "status": "pr_opened",
+        "steps": [],
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/789"
+    }
+
+    # Test review approval
+    client.post("/webhook/github/pull-request", json={
+        "action": "submitted",
+        "pull_request": {
+            "number": 789,
+            "html_url": "https://github.com/Kailash-18/OmniSight/pull/789",
+            "head": {"ref": f"omnisight-fix-{run_id}"}
+        },
+        "review": {"state": "approved"}
+    })
+    assert "github_review_approved" in runs_db[run_id]["steps"]
+
+    # Test changes requested
+    client.post("/webhook/github/pull-request", json={
+        "action": "submitted",
+        "pull_request": {
+            "number": 789,
+            "html_url": "https://github.com/Kailash-18/OmniSight/pull/789",
+            "head": {"ref": f"omnisight-fix-{run_id}"}
+        },
+        "review": {"state": "changes_requested"}
+    })
+    assert runs_db[run_id]["status"] == "needs_review"
+    assert "github_review_changes_requested" in runs_db[run_id]["steps"]

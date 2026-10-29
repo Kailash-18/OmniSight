@@ -195,6 +195,7 @@ class RunRecordUpdatePayload(BaseModel):
     findings: list[FindingSchema] | None = None
     patch: PatchObject | None = None
     retry_count: int | None = None
+    retest_outcome: dict[str, Any] | None = None
     pr_url: str | None = None
     error: str | None = None
 
@@ -235,6 +236,7 @@ class RunDetailResponse(BaseModel):
     findings: list[FindingSchema] = Field(default_factory=list)
     patch: PatchObject | None = None
     retry_count: int = 0
+    retest_outcome: dict[str, Any] | None = None
     pr_url: str | None = None
     error: str | None = None
 
@@ -254,4 +256,13 @@ class CreatePRResponse(BaseModel):
     status: str = "success"
     run_id: str
     pr_url: str
-    message: str = "Pull Request created successfully."
+    message: str = "Pull Request created successfully."
+
+
+class GitHubPRWebhookPayload(BaseModel):
+    """Payload for incoming GitHub pull_request and pull_request_review webhook events."""
+    action: str = Field(..., description="Webhook event action (e.g. opened, closed, labeled, submitted)")
+    pull_request: dict[str, Any] = Field(..., description="Pull request details from GitHub webhook")
+    review: dict[str, Any] | None = Field(default=None, description="Review metadata if review event")
+    repository: dict[str, Any] | None = Field(default=None, description="Repository metadata")
+    sender: dict[str, Any] | None = Field(default=None, description="Event sender metadata")

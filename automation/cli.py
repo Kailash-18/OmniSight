@@ -50,6 +50,11 @@ def main() -> int:
         help="Skip closed-loop sandboxed retest verification",
     )
     parser.add_argument(
+        "--auto-pr",
+        action="store_true",
+        help="Automatically open Pull Request upon verified fixed patch",
+    )
+    parser.add_argument(
         "--sync-backend",
         action="store_true",
         help="Synchronize audit progress, findings, and patch with FastAPI backend gateway",
@@ -78,6 +83,7 @@ def main() -> int:
         vlm_adapter=vlm,
         backend_client=backend_client,
         sync_backend=args.sync_backend,
+        auto_create_pr=args.auto_pr,
     )
 
     if not args.json_output:
@@ -89,6 +95,7 @@ def main() -> int:
         print(f"Engine:     Playwright Chromium (Headless: {config.headless})")
         print(f"VLM:        {'Live Multimodal API' if args.use_live_vlm else 'Deterministic Mock'}")
         print(f"Retest:     {'Disabled' if args.no_retest else 'Sandboxed Verification Enabled'}")
+        print(f"PR Engine:  {'Automated PR on verified fix' if args.auto_pr else 'Review only'}")
         print(f"Backend:    {backend_status_str}")
         print("-" * 60)
         print("Starting e-commerce journey and evidence capture...")
@@ -98,6 +105,7 @@ def main() -> int:
         scenario=args.scenario,
         viewports=args.viewports,
         auto_retest=not args.no_retest,
+        auto_create_pr=args.auto_pr,
     )
 
     if args.json_output:
@@ -134,14 +142,17 @@ def main() -> int:
         if annotated:
             print(f"\nAnnotated Overlays: {len(annotated)} bounding-box defect overlays generated")
 
+        if result.get("pr_url"):
+            print(f"\nPull Request:  {result['pr_url']}")
+
         if args.sync_backend and backend_client and result.get("run_id"):
-            print(f"\nBackend Run:   {args.backend_url}/runs/{result.get('run_id')}")
+            print(f"Backend Run:   {args.backend_url}/runs/{result.get('run_id')}")
 
         if result.get("artifacts_dir"):
             print(f"\nArtifacts stored in: {result['artifacts_dir']}")
         print("=" * 60)
 
-    return 0 if result.get("status") in ("fixed", "audited") else 1
+    return 0 if result.get("status") in ("fixed", "audited", "pr_opened") else 1
 
 
 if __name__ == "__main__":

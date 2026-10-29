@@ -166,6 +166,36 @@ Appends verification retest results, visual diff score, and audit proof badge as
   }
   ```
 
+### `POST /webhook/github/pull-request`
+Ingests GitHub webhook events for pull requests (`opened`, `closed`, `labeled`) and reviews (`submitted`). Synchronizes run records with PR review decisions and merge outcomes.
+* **Request Payload**:
+  ```json
+  {
+    "action": "closed",
+    "pull_request": {
+      "number": 4,
+      "html_url": "https://github.com/Kailash-18/OmniSight/pull/4",
+      "merged": true,
+      "head": {
+        "ref": "omnisight-fix-run-1729418400"
+      }
+    },
+    "review": {
+      "state": "approved"
+    }
+  }
+  ```
+* **Response (200 OK)**:
+  ```json
+  {
+    "status": "processed",
+    "action": "closed",
+    "pr_number": 4,
+    "matched_run_id": "run-1729418400",
+    "merged": true
+  }
+  ```
+
 ### `GET /api/milestones`
 Returns current milestone completion status across team roles and active security allowlists.
 * **Response (200 OK)**:
@@ -176,7 +206,7 @@ Returns current milestone completion status across team roles and active securit
     "week_2_action_engine": "completed",
     "week_2_day_3_integration": "completed",
     "week_3_pr_automation": "in_progress",
-    "week_3_progress": "10% - PyGithub PR automation service & mock fallback initialized",
+    "week_3_progress": "20% - Closed-loop PR automation engine, verification proof comments, and webhook ingestion",
     "allowed_targets": ["localhost", "127.0.0.1", "0.0.0.0", "::1", "staging.internal"],
     "allowed_patch_files": ["app-under-test/src/styles/defects.css", "..."]
   }

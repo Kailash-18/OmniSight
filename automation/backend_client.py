@@ -151,6 +151,8 @@ class BackendClient:
         findings: list[dict[str, Any]] | None = None,
         patch: dict[str, Any] | None = None,
         retry_count: int | None = None,
+        retest_outcome: dict[str, Any] | None = None,
+        pr_url: str | None = None,
         error: str | None = None,
     ) -> bool:
         """
@@ -169,6 +171,10 @@ class BackendClient:
             payload["patch"] = patch
         if retry_count is not None:
             payload["retry_count"] = retry_count
+        if retest_outcome is not None:
+            payload["retest_outcome"] = retest_outcome
+        if pr_url is not None:
+            payload["pr_url"] = pr_url
         if error is not None:
             payload["error"] = error
 
@@ -197,17 +203,23 @@ class BackendClient:
         file_content: str,
         pr_title: str = "OmniSight Automated Visual Defect Fix",
         pr_body: str = "Automated visual QA patch verified by sandbox re-test.",
+        auto_create_pr: bool = False,
+        labels: list[str] | None = None,
     ) -> dict[str, Any] | None:
         """
         Submits an approved patch for backend zero-trust validation and recording.
+        Optionally triggers automated GitHub PR creation if security checks pass.
         """
-        payload = {
+        payload: dict[str, Any] = {
             "target_file": target_file,
             "diff": diff,
             "file_content": file_content,
             "pr_title": pr_title,
             "pr_body": pr_body,
+            "auto_create_pr": auto_create_pr,
         }
+        if labels is not None:
+            payload["labels"] = labels
         return self._request("POST", f"/runs/{run_id}/submit-patch", json_data=payload)
 
     def get_run_details(self, run_id: str) -> dict[str, Any] | None:
@@ -236,4 +248,10 @@ class BackendClient:
         if labels:
             payload["labels"] = labels
         return self._request("POST", f"/runs/{run_id}/create-pr", json_data=payload)
+
+    def update_pr_verification(self, run_id: str) -> dict[str, Any] | None:
+        """
+        Appends a verification audit summary and retest diff metrics to the run's PR.
+        """
+        return self._request("POST", f"/runs/{run_id}/update-pr-verification")
 

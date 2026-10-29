@@ -75,6 +75,10 @@ from app.schemas import (
 from app.services.patch_validator import validate_patch, validate_css_syntax_balance, dry_run_patch
 from app.services.policy_engine import evaluate_merge_policy
 from app.services.notification_service import dispatch_notification
+from app.services.schedule_service import (
+    register_schedule, list_schedules, get_schedule,
+    disable_schedule, enable_schedule, delete_schedule, record_trigger
+)
 from app.services.flakiness_service import get_flakiness_report, quarantine_defect, unquarantine_defect
 from app.services.fingerprint_service import deduplicate_findings
 from app.services.action_engine import action_engine

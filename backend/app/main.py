@@ -131,6 +131,7 @@ async def add_correlation_and_timing_middleware(request: Request, call_next):
 # In-memory store for test runs (simulates persistence for development & demo)
 runs_db: Dict[str, Dict[str, Any]] = {}
 batches_db: Dict[str, Dict[str, Any]] = {}
+annotations_db: Dict[str, list] = {}  # run_id -> List[annotation dicts]
 
 
 def _append_timeline_event(

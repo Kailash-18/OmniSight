@@ -671,3 +671,10 @@ class AnnotationCreatePayload(BaseModel):
     tags: List[str] = Field(default_factory=list, description="Optional classification tags")
 
 
+class AnnotationListResponse(BaseModel):
+    """Collection of annotations attached to an audit run."""
+    run_id: str = Field(..., description="Audit run identifier")
+    annotations: List[AuditAnnotation] = Field(default_factory=list)
+    total: int = Field(..., description="Total number of annotations")
+
+

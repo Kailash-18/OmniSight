@@ -671,3 +671,29 @@ class AnnotationCreatePayload(BaseModel):
     tags: List[str] = Field(default_factory=list, description="Optional classification tags")
 
 
+class AnnotationListResponse(BaseModel):
+    """Collection of annotations attached to an audit run."""
+    run_id: str = Field(..., description="Audit run identifier")
+    annotations: List[AuditAnnotation] = Field(default_factory=list)
+    total: int = Field(..., description="Total number of annotations")
+
+
+class SLAViolationRecord(BaseModel):
+    """A single audit run that exceeded its time-to-fix SLA threshold."""
+    run_id: str = Field(..., description="Audit run identifier")
+    url: str = Field(..., description="Audited target URL")
+    status: str = Field(..., description="Run status at time of SLA check")
+    issue_count: int = Field(..., description="Number of unresolved issues")
+    age_hours: float = Field(..., description="Age of the run in hours since creation")
+    sla_threshold_hours: float = Field(..., description="Configured SLA threshold in hours")
+    severity: str = Field(default="medium", description="Highest severity level of unresolved findings")
+
+
+class SLAViolationReport(BaseModel):
+    """Aggregate report of audit runs that have breached time-to-fix SLA thresholds."""
+    total_violations: int = Field(..., description="Total number of SLA violating runs")
+    threshold_hours: float = Field(..., description="SLA threshold applied to this report")
+    violations: List[SLAViolationRecord] = Field(default_factory=list, description="Violating run records")
+    generated_at: str = Field(..., description="ISO-8601 report generation timestamp")
+
+

@@ -269,3 +269,79 @@ def test_revert_pull_request_patch_mock(monkeypatch):
     assert res["target_file"] == "app-under-test/src/styles/defects.css"
     assert res["simulated"] is True
 
+from github import GithubException
+
+
+def test_create_pull_request_surfaces_github_permission_failure(monkeypatch):
+    """A real GitHub permission failure must be reported, not simulated."""
+    monkeypatch.setattr(settings, "MOCK_GITHUB", False)
+    monkeypatch.setattr(settings, "GITHUB_TOKEN", "test-token")
+    monkeypatch.setattr(settings, "REPO_NAME", "Kailash-18/OmniSight")
+
+    class MockGithub:
+        def __init__(self, token):
+            pass
+
+        def get_repo(self, repo_name):
+            raise GithubException(
+                403,
+                data={"message": "Resource not accessible by integration"},
+                message="Forbidden",
+            )
+
+    monkeypatch.setattr("app.services.github_service.Github", MockGithub)
+
+    with pytest.raises(RuntimeError, match="GitHub PR creation failed"):
+        create_pull_request_for_fix(
+            run_id="run-permission-failure",
+            target_file="app-under-test/src/styles/defects.css",
+            file_content=".btn { width: 100%; }",
+        )
+
+
+def test_create_pull_request_stops_when_branch_creation_fails(monkeypatch):
+    """A non-422 branch creation failure must not proceed to commit or PR."""
+    monkeypatch.setattr(settings, "MOCK_GITHUB", False)
+    monkeypatch.setattr(settings, "GITHUB_TOKEN", "test-token")
+    monkeypatch.setattr(settings, "REPO_NAME", "Kailash-18/OmniSight")
+
+    class MockCommit:
+        sha = "base-sha"
+
+    class MockBranch:
+        commit = MockCommit()
+
+    class MockRepo:
+        default_branch = "main"
+
+        def get_branch(self, name):
+            return MockBranch()
+
+        def create_git_ref(self, ref, sha):
+            raise GithubException(
+                500,
+                data={"message": "Internal Server Error"},
+                message="Server error",
+            )
+
+        def update_file(self, **kwargs):
+            raise AssertionError("Must not update a file after branch creation fails")
+
+        def create_pull(self, **kwargs):
+            raise AssertionError("Must not create a PR after branch creation fails")
+
+    class MockGithub:
+        def __init__(self, token):
+            pass
+
+        def get_repo(self, repo_name):
+            return MockRepo()
+
+    monkeypatch.setattr("app.services.github_service.Github", MockGithub)
+
+    with pytest.raises(RuntimeError, match="GitHub PR creation failed"):
+        create_pull_request_for_fix(
+            run_id="run-branch-failure",
+            target_file="app-under-test/src/styles/defects.css",
+            file_content=".btn { width: 100%; }",
+        )

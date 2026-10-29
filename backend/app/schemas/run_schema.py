@@ -624,3 +624,28 @@ class RunDeduplicationResponse(BaseModel):
     findings: List[FindingSchema] = Field(default_factory=list, description="Preserved unique findings")
     message: str = Field(..., description="Status summary message")
 
+
+
+class AuditSchedulePayload(BaseModel):
+    """Payload to register a recurring audit schedule for a target URL."""
+    target_url: str = Field(..., description="URL to audit on each scheduled trigger")
+    cron_expression: str = Field(..., description="Cron-like interval string: @hourly | @daily | @weekly | every_Nh")
+    viewports: List[str] = Field(default_factory=lambda: ["1280x720"], description="Viewport dimensions for scheduled audits")
+    notify_webhook: Optional[str] = Field(default=None, description="Webhook URL to call after each scheduled run completes")
+    enabled: bool = Field(default=True, description="Whether the schedule is active")
+
+
+class AuditScheduleResponse(BaseModel):
+    """Confirmation response for a registered audit schedule."""
+    schedule_id: str = Field(..., description="Unique schedule identifier")
+    target_url: str = Field(..., description="Scheduled audit target URL")
+    cron_expression: str = Field(..., description="Interval expression as registered")
+    enabled: bool = Field(..., description="Current enabled state of the schedule")
+    next_run_at: Optional[str] = Field(default=None, description="ISO-8601 timestamp of next scheduled execution")
+    message: str = Field(..., description="Status message")
+
+
+class AuditScheduleListResponse(BaseModel):
+    """Paginated listing of all registered audit schedules."""
+    schedules: List[AuditScheduleResponse] = Field(default_factory=list)
+    total: int = Field(..., description="Total number of registered schedules")

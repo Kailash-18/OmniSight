@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 FastAPI CI/CD Gateway and Action Engine API for OmniSight.
 Handles build webhooks, manual audit triggers, run lifecycle, and VLM patch validation.
@@ -752,7 +752,7 @@ def export_run_evidence_markdown(run_id: str):
     diff_content = patch.get("diff", "No patch diff available.")
     diff_block = f"```diff\n{diff_content}\n```" if patch.get("diff") else "_No patch generated._"
 
-    md_output = f"""# ðŸ” OmniSight Visual QA Report: `{run_id}`
+    md_output = f"""# 🔍 OmniSight Visual QA Report: `{run_id}`
 
 * **Target URL**: {target}
 * **Execution Timestamp**: `{start_time}`
@@ -761,12 +761,12 @@ def export_run_evidence_markdown(run_id: str):
 
 ---
 
-## ðŸ“‹ Detected Visual Defects
+## 📋 Detected Visual Defects
 {findings_table}
 
 ---
 
-## ðŸ› ï¸ Applied Patch Diff
+## 🛠️ Applied Patch Diff
 * **Target File**: `{patch.get('target_file', 'N/A')}`
 * **Validation Passed**: `{patch.get('validation_status', False)}`
 
@@ -1152,9 +1152,9 @@ def update_pr_verification(run_id: str):
         pr_number = 1
 
     retest_outcome = run_entry.get("retest_outcome") or {"passed": True, "notes": "Verified"}
-    passed_badge = "âœ… **VERIFIED FIXED**" if retest_outcome.get("passed") else "âš ï¸ **RETEST FAILED**"
+    passed_badge = "✅ **VERIFIED FIXED**" if retest_outcome.get("passed") else "⚠️ **RETEST FAILED**"
     diff_score_str = f"{retest_outcome.get('visual_diff_score'):.2%}" if retest_outcome.get("visual_diff_score") is not None else "0.00% (Identical)"
-    comment_body = f"""### ðŸ›¡ï¸ OmniSight Retest Verification Report
+    comment_body = f"""### 🛡️ OmniSight Retest Verification Report
 
 * **Run ID**: `{run_id}`
 * **Verification Status**: {passed_badge}

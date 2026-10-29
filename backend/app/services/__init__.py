@@ -57,6 +57,16 @@ from app.services.notification_service import (
     clear_dispatched_events,
 )
 
+from app.services.schedule_service import (
+    register_schedule,
+    list_schedules,
+    get_schedule,
+    disable_schedule,
+    enable_schedule,
+    delete_schedule,
+    record_trigger,
+)
+
 __all__ = [
     "validate_patch",
     "validate_css_safety",
@@ -91,4 +101,11 @@ __all__ = [
     "dispatch_notification",
     "get_dispatched_events",
     "clear_dispatched_events",
+    "register_schedule",
+    "list_schedules",
+    "get_schedule",
+    "disable_schedule",
+    "enable_schedule",
+    "delete_schedule",
+    "record_trigger",
 ]

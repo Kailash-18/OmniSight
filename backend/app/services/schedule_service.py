@@ -33,3 +33,33 @@ def _parse_interval(cron_expr: str) -> timedelta:
         except ValueError:
             pass
     raise ValueError(f"Unsupported cron expression: '{cron_expr}'. Use @hourly, @daily, @weekly, or every_Nh.")
+
+
+def register_schedule(
+    target_url: str,
+    cron_expression: str,
+    viewports: Optional[List[str]] = None,
+    notify_webhook: Optional[str] = None,
+    enabled: bool = True,
+) -> Dict[str, Any]:
+    """Register a new recurring audit schedule and return the registry entry."""
+    _parse_interval(cron_expression)  # validate expression up front
+    schedule_id = f"sched_{uuid.uuid4().hex[:10]}"
+    now = datetime.now(timezone.utc)
+    try:
+        delta = _parse_interval(cron_expression)
+        next_run_at = (now + delta).isoformat()
+    except ValueError:
+        next_run_at = None
+
+    entry: Dict[str, Any] = {
+        "schedule_id": schedule_id,
+        "target_url": target_url,
+        "cron_expression": cron_expression,
+        "viewports": viewports or ["1280x720"],
+        "notify_webhook": notify_webhook,
+        "enabled": enabled,
+        "next_run_at": next_run_at,
+        "created_at": now.isoformat(),
+        "last_triggered_at": None,
+        "trigger_count": 0,

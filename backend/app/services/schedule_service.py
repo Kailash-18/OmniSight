@@ -63,3 +63,64 @@ def register_schedule(
         "created_at": now.isoformat(),
         "last_triggered_at": None,
         "trigger_count": 0,
+    }
+    _schedule_registry[schedule_id] = entry
+    return entry
+
+
+def get_schedule(schedule_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve a single schedule by ID."""
+    return _schedule_registry.get(schedule_id)
+
+
+def list_schedules() -> List[Dict[str, Any]]:
+    """Return all registered schedules."""
+    return list(_schedule_registry.values())
+
+
+def disable_schedule(schedule_id: str) -> Optional[Dict[str, Any]]:
+    """Disable a schedule without deleting it."""
+    entry = _schedule_registry.get(schedule_id)
+    if entry is None:
+        return None
+    entry["enabled"] = False
+    return entry
+
+
+def enable_schedule(schedule_id: str) -> Optional[Dict[str, Any]]:
+    """Re-enable a previously disabled schedule."""
+    entry = _schedule_registry.get(schedule_id)
+    if entry is None:
+        return None
+    entry["enabled"] = True
+    now = datetime.now(timezone.utc)
+    try:
+        delta = _parse_interval(entry["cron_expression"])
+        entry["next_run_at"] = (now + delta).isoformat()
+    except ValueError:
+        pass
+    return entry
+
+
+def delete_schedule(schedule_id: str) -> bool:
+    """Delete a schedule. Returns True if it existed."""
+    if schedule_id in _schedule_registry:
+        del _schedule_registry[schedule_id]
+        return True
+    return False
+
+
+def record_trigger(schedule_id: str) -> Optional[Dict[str, Any]]:
+    """Mark a schedule as triggered â€” updates counters and next_run_at."""
+    entry = _schedule_registry.get(schedule_id)
+    if entry is None:
+        return None
+    now = datetime.now(timezone.utc)
+    entry["last_triggered_at"] = now.isoformat()
+    entry["trigger_count"] += 1
+    try:
+        delta = _parse_interval(entry["cron_expression"])
+        entry["next_run_at"] = (now + delta).isoformat()
+    except ValueError:
+        entry["next_run_at"] = None
+    return entry

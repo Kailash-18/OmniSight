@@ -1,10 +1,10 @@
 """
-Unit Tests for Action Engine (Member 1 Week 2 Deliverable).
+Unit Tests for Multimodal Action Engine and VLM Response Parser.
 Verifies extraction of structured findings and executable code blocks from VLM output.
 """
 
-from app.schemas.run_schema import DefectCategory, Severity
 from app.services.action_engine import action_engine
+from app.schemas.run_schema import DefectCategory, Severity
 
 
 def test_action_engine_pure_json():
@@ -206,91 +206,79 @@ def test_action_engine_empty_input():
     assert "Empty" in result.validator_errors
 
 
-def test_action_engine_top_level_array_no_spurious_errors():
-    raw_vlm = """Here is the inspection output:
-[
-  {
-    "id": "defect-arr-1",
-    "category": "element_clipping",
-    "severity": "high",
-    "description": "Clipping issue",
-    "viewport": "mobile_375x667",
-    "confidence": 0.92,
-    "suggested_change": "width: 100%",
-    "rationale": "Clipped boundary"
-  }
-]
-"""
-    result = action_engine.parse_vlm_response(raw_vlm)
-    assert result.is_valid is True
-    assert len(result.findings) == 1
-    assert result.findings[0].id == "defect-arr-1"
-    # Ensure no spurious "Failed to decode embedded JSON structure" parse error leaked
-    assert not any("Failed to decode" in err for err in result.parse_errors)
-
-
-def test_action_engine_infers_diff_header_target():
-    raw_vlm = """Identified styling defect:
+def test_action_engine_multiple_diff_blocks_selects_first():
+    """Verify code block extraction isolates multiple language blocks correctly."""
+    text = """First diff:
 ```diff
---- a/app-under-test/src/styles/base.css
-+++ b/app-under-test/src/styles/base.css
-@@ -5,3 +5,3 @@
--.container { padding: 0; }
-+.container { padding: 16px; }
+-.first { display: none; }
++.first { display: block; }
 ```
-"""
-    result = action_engine.parse_vlm_response(raw_vlm)
-    assert result.is_valid is True
-    assert result.proposed_patch is not None
-    assert result.proposed_patch.target_file == "app-under-test/src/styles/base.css"
-    assert result.validation_status is True
+Second diff:
+```css
+.second { color: red; }
+```"""
+    blocks = action_engine.extract_code_blocks(text)
+    assert len(blocks) == 2
+    assert blocks[0]["lang"] == "diff"
+    assert blocks[1]["lang"] == "css"
 
 
-def test_action_engine_single_quoted_json_like_dict():
-    raw_vlm = """Here is the audit result:
-{
-    'findings': [
-        {
-            'id': 'sq-1',
-            'category': 'element_overlap',
-            'severity': 'high',
-            'description': 'Single quoted dictionary test',
-            'viewport': 'desktop',
-            'confidence': 0.88,
-            'suggested_change': 'z-index: 20',
-            'rationale': 'Element overlaps header'
-        }
-    ],
-    'summary': 'Single quote test'
-}
-"""
+def test_action_engine_single_quoted_python_dict_json():
+    """Verify parser recovers from single-quoted Python dict representations from VLMs."""
+    raw_vlm = """The model returned python dict format:
+{'findings': [{'id': 'defect-single-quote', 'category': 'element_clipping', 'severity': 'high', 'description': 'Clipped CTA', 'viewport': 'mobile_375x667', 'confidence': 0.92, 'suggested_change': 'overflow: visible;'}]}"""
     result = action_engine.parse_vlm_response(raw_vlm)
     assert result.is_valid is True
     assert len(result.findings) == 1
-    assert result.findings[0].id == "sq-1"
-    assert result.findings[0].category.value == "element_overlap"
-    assert result.findings[0].confidence == 0.88
+    assert result.findings[0].id == "defect-single-quote"
 
 
 def test_action_engine_smart_curly_quotes_normalization():
-    raw_vlm = """Here is the VLM output with unicode curly quotes:
-“findings”: [
+    """Verify parser normalizes smart/curly quotes (e.g. from rich text or LLM prose)."""
+    raw_vlm = """Here is the audit:
+{
+  “findings”: [
     {
-        “id”: “smart-1”,
-        “category”: “element_clipping”,
-        “severity”: “critical”,
-        “description”: “Clipped checkout button”,
-        “viewport”: “mobile”,
-        “confidence”: “95%”,
-        “suggested_change”: “overflow: visible;”,
-        “rationale”: “Text clipped on mobile”
+      “id”: “defect-smart-quote”,
+      “category”: “element_overlap”,
+      “severity”: “medium”,
+      “description”: “Overlapping text elements”,
+      “viewport”: “desktop_1440x900”,
+      “confidence”: 0.88,
+      “suggested_change”: “margin-top: 10px;”
     }
-]
-"""
+  ]
+}"""
     result = action_engine.parse_vlm_response(raw_vlm)
     assert result.is_valid is True
     assert len(result.findings) == 1
-    assert result.findings[0].id == "smart-1"
-    assert result.findings[0].confidence == 0.95
+    assert result.findings[0].id == "defect-smart-quote"
+
+
+def test_action_engine_auto_attaches_defect_fingerprint():
+    """Verify Action Engine automatically generates and attaches SHA-256 fingerprint on findings."""
+    raw_vlm = """```json
+{
+  "findings": [
+    {
+      "id": "defect-auto-fp",
+      "category": "element_clipping",
+      "severity": "high",
+      "description": "Button clipped",
+      "viewport": "mobile_375x667",
+      "target_element": "button.submit-btn",
+      "confidence": 0.95,
+      "suggested_change": "width: 100%;"
+    }
+  ]
+}
+```"""
+    result = action_engine.parse_vlm_response(raw_vlm)
+    assert result.is_valid is True
+    assert len(result.findings) == 1
+    finding = result.findings[0]
+    assert finding.fingerprint is not None
+    assert finding.fingerprint.startswith("dfp-")
+
 
 

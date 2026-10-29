@@ -63,6 +63,9 @@ from app.schemas import (
     AuditSchedulePayload,
     AuditScheduleResponse,
     AuditScheduleListResponse,
+    AuditAnnotation,
+    AnnotationCreatePayload,
+    AnnotationListResponse,
     FindingSchema,
     QuarantineRequest,
     QuarantineResponse,
@@ -2081,5 +2084,50 @@ def enable_audit_schedule(schedule_id: str):
         enabled=entry["enabled"],
         next_run_at=entry["next_run_at"],
         message=f"Schedule '{schedule_id}' re-enabled."
+    )
+
+@app.post(
+    "/runs/{run_id}/annotations",
+    response_model=AuditAnnotation,
+    tags=["Annotations"],
+    summary="Attach QA Annotation to an Audit Run"
+)
+def create_annotation(run_id: str, payload: AnnotationCreatePayload):
+    """
+    Attach a human QA reviewer annotation to an audit run.
+    Annotations support severity overrides and free-form classification tags.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
+    annotation_id = f"ann_{uuid.uuid4().hex[:10]}"
+    from datetime import datetime, timezone
+    entry = {
+        "annotation_id": annotation_id,
+        "run_id": run_id,
+        "author": payload.author,
+        "body": payload.body,
+        "severity_override": payload.severity_override,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "tags": payload.tags,
+    }
+    annotations_db.setdefault(run_id, []).append(entry)
+    return AuditAnnotation(**entry)
+
+
+@app.get(
+    "/runs/{run_id}/annotations",
+    response_model=AnnotationListResponse,
+    tags=["Annotations"],
+    summary="Retrieve QA Annotations for an Audit Run"
+)
+def get_annotations(run_id: str):
+    """Retrieve all QA reviewer annotations attached to an audit run."""
+    if run_id not in runs_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
+    anns = annotations_db.get(run_id, [])
+    return AnnotationListResponse(
+        run_id=run_id,
+        annotations=[AuditAnnotation(**a) for a in anns],
+        total=len(anns),
     )
 

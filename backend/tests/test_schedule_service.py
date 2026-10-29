@@ -38,3 +38,50 @@ def test_register_schedule_invalid_cron_raises():
 
 def test_list_schedules_returns_all():
     _reset()
+    svc.register_schedule("https://a.com", "@hourly")
+    svc.register_schedule("https://b.com", "@weekly")
+    schedules = svc.list_schedules()
+    assert len(schedules) == 2
+
+
+def test_disable_schedule():
+    _reset()
+    entry = svc.register_schedule("https://c.com", "@daily")
+    sid = entry["schedule_id"]
+    result = svc.disable_schedule(sid)
+    assert result["enabled"] is False
+
+
+def test_enable_schedule():
+    _reset()
+    entry = svc.register_schedule("https://d.com", "@weekly")
+    sid = entry["schedule_id"]
+    svc.disable_schedule(sid)
+    result = svc.enable_schedule(sid)
+    assert result["enabled"] is True
+    assert result["next_run_at"] is not None
+
+
+def test_delete_schedule():
+    _reset()
+    entry = svc.register_schedule("https://e.com", "@daily")
+    sid = entry["schedule_id"]
+    deleted = svc.delete_schedule(sid)
+    assert deleted is True
+    assert svc.get_schedule(sid) is None
+
+
+def test_delete_nonexistent_schedule():
+    _reset()
+    assert svc.delete_schedule("nonexistent_id") is False
+
+
+def test_record_trigger_increments_count():
+    _reset()
+    entry = svc.register_schedule("https://f.com", "@hourly")
+    sid = entry["schedule_id"]
+    svc.record_trigger(sid)
+    svc.record_trigger(sid)
+    updated = svc.get_schedule(sid)
+    assert updated["trigger_count"] == 2
+    assert updated["last_triggered_at"] is not None

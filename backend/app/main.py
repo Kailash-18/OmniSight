@@ -60,6 +60,16 @@ from app.schemas import (
     DefectClusterResponse,
     DefectStabilityRecord,
     RunDeduplicationResponse,
+    AuditSchedulePayload,
+    AuditScheduleResponse,
+    AuditScheduleListResponse,
+    AuditAnnotation,
+    AnnotationCreatePayload,
+    AnnotationListResponse,
+    SLAViolationRecord,
+    SLAViolationReport,
+    ViewportHeatCell,
+    DefectHeatmapResponse,
     FindingSchema,
     QuarantineRequest,
     QuarantineResponse,
@@ -72,6 +82,10 @@ from app.schemas import (
 from app.services.patch_validator import validate_patch, validate_css_syntax_balance, dry_run_patch
 from app.services.policy_engine import evaluate_merge_policy
 from app.services.notification_service import dispatch_notification
+from app.services.schedule_service import (
+    register_schedule, list_schedules, get_schedule,
+    disable_schedule, enable_schedule, delete_schedule, record_trigger
+)
 from app.services.flakiness_service import get_flakiness_report, quarantine_defect, unquarantine_defect
 from app.services.fingerprint_service import deduplicate_findings
 from app.services.action_engine import action_engine
@@ -121,6 +135,7 @@ async def add_correlation_and_timing_middleware(request: Request, call_next):
 # In-memory store for test runs (simulates persistence for development & demo)
 runs_db: Dict[str, Dict[str, Any]] = {}
 batches_db: Dict[str, Dict[str, Any]] = {}
+annotations_db: Dict[str, list] = {}  # run_id -> List[annotation dicts]
 
 
 def _append_timeline_event(
@@ -737,7 +752,7 @@ def export_run_evidence_markdown(run_id: str):
     diff_content = patch.get("diff", "No patch diff available.")
     diff_block = f"```diff\n{diff_content}\n```" if patch.get("diff") else "_No patch generated._"
 
-    md_output = f"""# 🔍 OmniSight Visual QA Report: `{run_id}`
+    md_output = f"""# ðŸ”� OmniSight Visual QA Report: `{run_id}`
 
 * **Target URL**: {target}
 * **Execution Timestamp**: `{start_time}`
@@ -746,12 +761,12 @@ def export_run_evidence_markdown(run_id: str):
 
 ---
 
-## 📋 Detected Visual Defects
+## ðŸ“‹ Detected Visual Defects
 {findings_table}
 
 ---
 
-## 🛠️ Applied Patch Diff
+## ðŸ› ï¸� Applied Patch Diff
 * **Target File**: `{patch.get('target_file', 'N/A')}`
 * **Validation Passed**: `{patch.get('validation_status', False)}`
 
@@ -1137,9 +1152,9 @@ def update_pr_verification(run_id: str):
         pr_number = 1
 
     retest_outcome = run_entry.get("retest_outcome") or {"passed": True, "notes": "Verified"}
-    passed_badge = "✅ **VERIFIED FIXED**" if retest_outcome.get("passed") else "⚠️ **RETEST FAILED**"
+    passed_badge = "âœ… **VERIFIED FIXED**" if retest_outcome.get("passed") else "âš ï¸� **RETEST FAILED**"
     diff_score_str = f"{retest_outcome.get('visual_diff_score'):.2%}" if retest_outcome.get("visual_diff_score") is not None else "0.00% (Identical)"
-    comment_body = f"""### 🛡️ OmniSight Retest Verification Report
+    comment_body = f"""### ðŸ›¡ï¸� OmniSight Retest Verification Report
 
 * **Run ID**: `{run_id}`
 * **Verification Status**: {passed_badge}
@@ -1414,7 +1429,8 @@ def export_runs_csv():
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=omnisight_audit_runs.csv"}
     )
-
+
+
 
 @app.post(
     "/runs/batch",

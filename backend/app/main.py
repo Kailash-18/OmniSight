@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 FastAPI CI/CD Gateway and Action Engine API for OmniSight.
 Handles build webhooks, manual audit triggers, run lifecycle, and VLM patch validation.
@@ -752,7 +752,7 @@ def export_run_evidence_markdown(run_id: str):
     diff_content = patch.get("diff", "No patch diff available.")
     diff_block = f"```diff\n{diff_content}\n```" if patch.get("diff") else "_No patch generated._"
 
-    md_output = f"""# 🔍 OmniSight Visual QA Report: `{run_id}`
+    md_output = f"""# ðŸ” OmniSight Visual QA Report: `{run_id}`
 
 * **Target URL**: {target}
 * **Execution Timestamp**: `{start_time}`
@@ -761,12 +761,12 @@ def export_run_evidence_markdown(run_id: str):
 
 ---
 
-## 📋 Detected Visual Defects
+## ðŸ“‹ Detected Visual Defects
 {findings_table}
 
 ---
 
-## 🛠️ Applied Patch Diff
+## ðŸ› ï¸ Applied Patch Diff
 * **Target File**: `{patch.get('target_file', 'N/A')}`
 * **Validation Passed**: `{patch.get('validation_status', False)}`
 
@@ -1152,9 +1152,9 @@ def update_pr_verification(run_id: str):
         pr_number = 1
 
     retest_outcome = run_entry.get("retest_outcome") or {"passed": True, "notes": "Verified"}
-    passed_badge = "✅ **VERIFIED FIXED**" if retest_outcome.get("passed") else "⚠️ **RETEST FAILED**"
+    passed_badge = "âœ… **VERIFIED FIXED**" if retest_outcome.get("passed") else "âš ï¸ **RETEST FAILED**"
     diff_score_str = f"{retest_outcome.get('visual_diff_score'):.2%}" if retest_outcome.get("visual_diff_score") is not None else "0.00% (Identical)"
-    comment_body = f"""### 🛡️ OmniSight Retest Verification Report
+    comment_body = f"""### ðŸ›¡ï¸ OmniSight Retest Verification Report
 
 * **Run ID**: `{run_id}`
 * **Verification Status**: {passed_badge}
@@ -2024,7 +2024,7 @@ def create_audit_schedule(payload: AuditSchedulePayload):
             enabled=payload.enabled,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
     return AuditScheduleResponse(
         schedule_id=entry["schedule_id"],
         target_url=entry["target_url"],

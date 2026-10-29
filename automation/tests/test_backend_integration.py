@@ -356,4 +356,121 @@ def test_backend_client_create_pr_mock(backend_client: BackendClient, monkeypatc
     assert details["pr_url"] == pr_res["pr_url"]
 
 
+def test_backend_client_update_pr_verification(backend_client: BackendClient, monkeypatch: pytest.MonkeyPatch):
+    """Verify BackendClient update_pr_verification posts verification comment."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    run_id = backend_client.register_run("http://127.0.0.1:5173")
+    assert run_id is not None
+
+    backend_client.submit_patch(
+        run_id=run_id,
+        target_file="app-under-test/src/styles/defects.css",
+        diff="-.btn { width: 500px; }\n+.btn { width: 100%; }",
+        file_content=".btn { width: 100%; }",
+        auto_create_pr=True,
+    )
+
+    verif_res = backend_client.update_pr_verification(run_id=run_id)
+    assert verif_res is not None
+    assert verif_res["status"] == "success"
+    assert verif_res["comment_posted"] is True
+
+
+def test_orchestrator_closed_loop_pr_auto_triggering(
+    backend_client: BackendClient,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Verify orchestrator runs closed-loop from inspection through sandbox retest to automated PR."""
+    from PIL import Image
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    dummy_shot = tmp_path / "mobile_375x667_checkout.png"
+    img = Image.new("RGB", (375, 667), color=(255, 255, 255))
+    img.save(dummy_shot)
+
+    def mock_journey(*args, **kwargs):
+        return {
+            "run_id": "run-closed-loop-pr",
+            "target_url": "http://127.0.0.1:5173",
+            "viewports_evaluated": ["mobile_375x667"],
+            "screenshots": [str(dummy_shot)],
+            "dom_snapshots": [],
+            "steps_completed": ["navigate_home", "checkout"],
+        }
+
+    monkeypatch.setattr(
+        "automation.orchestrator.run_visual_audit_journey", mock_journey
+    )
+
+    orchestrator = Orchestrator(
+        vlm_adapter=MockVLMAdapter(),
+        backend_client=backend_client,
+        sync_backend=True,
+        auto_create_pr=True,
+    )
+
+    result = orchestrator.run_full_remediation_loop(
+        target_url="http://127.0.0.1:5173",
+        auto_retest=True,
+        auto_create_pr=True,
+    )
+
+    assert result["status"] == "pr_opened"
+    assert result.get("pr_url") is not None
+    assert "github.com" in result["pr_url"]
+    assert orchestrator.state == AgentState.PR_READY
+
+    details = backend_client.get_run_details(result["run_id"])
+    assert details is not None
+    assert details["status"] == "pr_opened"
+    assert details["pr_url"] == result["pr_url"]
+
+
+def test_orchestrator_standalone_auto_pr_generates_pr_url(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Verify standalone orchestrator without backend sync still generates PR url when auto_create_pr is enabled."""
+    from PIL import Image
+
+    dummy_shot = tmp_path / "mobile_375x667_checkout.png"
+    img = Image.new("RGB", (375, 667), color=(255, 255, 255))
+    img.save(dummy_shot)
+
+    def mock_journey(*args, **kwargs):
+        return {
+            "run_id": "run-standalone-pr",
+            "target_url": "http://127.0.0.1:5173",
+            "viewports_evaluated": ["mobile_375x667"],
+            "screenshots": [str(dummy_shot)],
+            "dom_snapshots": [],
+            "steps_completed": ["navigate_home", "checkout"],
+        }
+
+    monkeypatch.setattr(
+        "automation.orchestrator.run_visual_audit_journey", mock_journey
+    )
+
+    orchestrator = Orchestrator(
+        vlm_adapter=MockVLMAdapter(),
+        sync_backend=False,
+        auto_create_pr=True,
+    )
+
+    result = orchestrator.run_full_remediation_loop(
+        target_url="http://127.0.0.1:5173",
+        auto_retest=True,
+        auto_create_pr=True,
+    )
+
+    assert result["status"] == "pr_opened"
+    assert result.get("pr_url") is not None
+    assert "github.com" in result["pr_url"]
+    assert orchestrator.state == AgentState.PR_READY
+
+
 

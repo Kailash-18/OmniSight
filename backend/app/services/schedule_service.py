@@ -63,3 +63,33 @@ def register_schedule(
         "created_at": now.isoformat(),
         "last_triggered_at": None,
         "trigger_count": 0,
+    }
+    _schedule_registry[schedule_id] = entry
+    return entry
+
+
+def get_schedule(schedule_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve a single schedule by ID."""
+    return _schedule_registry.get(schedule_id)
+
+
+def list_schedules() -> List[Dict[str, Any]]:
+    """Return all registered schedules."""
+    return list(_schedule_registry.values())
+
+
+def disable_schedule(schedule_id: str) -> Optional[Dict[str, Any]]:
+    """Disable a schedule without deleting it."""
+    entry = _schedule_registry.get(schedule_id)
+    if entry is None:
+        return None
+    entry["enabled"] = False
+    return entry
+
+
+def enable_schedule(schedule_id: str) -> Optional[Dict[str, Any]]:
+    """Re-enable a previously disabled schedule."""
+    entry = _schedule_registry.get(schedule_id)
+    if entry is None:
+        return None
+    entry["enabled"] = True

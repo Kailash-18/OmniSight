@@ -14,7 +14,7 @@ from automation.vlm_adapter import BaseVLMAdapter, MockVLMAdapter
 from automation.schemas import VisualAuditReport, Finding, RetestStatus
 from automation.spatial_analyzer import SpatialAnalyzer
 from automation.visual_diff import VisualComparator
-from automation.patch_sandbox import RetestRunner
+from automation.patch_sandbox import RetestRunner, apply_unified_diff
 
 
 class AgentState(str, Enum):
@@ -235,12 +235,8 @@ class Orchestrator:
                         final_status = AgentState.FIXED.value
                     else:
                         self.retry_count += 1
-                        if self.retry_count > self.max_retries:
-                            self.state = AgentState.NEEDS_REVIEW
-                            final_status = AgentState.NEEDS_REVIEW.value
-                        else:
-                            self.state = AgentState.FIXED
-                            final_status = AgentState.FIXED.value
+                        self.state = AgentState.NEEDS_REVIEW
+                        final_status = AgentState.NEEDS_REVIEW.value
                 else:
                     self.state = AgentState.AUDITING
                     final_status = AgentState.AUDITING.value
@@ -255,9 +251,20 @@ class Orchestrator:
                 try:
                     patch_obj = audit_report.proposed_patch
                     target_file_path = Path(patch_obj.target_file)
-                    file_content = ""
+                    if not target_file_path.is_absolute():
+                        candidates = [target_file_path, Path.cwd() / target_file_path]
+                        target_file_path = next((p for p in candidates if p.exists()), target_file_path)
+
+                    original_content = ""
                     if target_file_path.exists():
-                        file_content = target_file_path.read_text(encoding="utf-8")
+                        original_content = target_file_path.read_text(encoding="utf-8")
+
+                    file_content = (
+                        apply_unified_diff(original_content, patch_obj.diff)
+                        if original_content
+                        else patch_obj.diff
+                    )
+
                     self.backend_client.submit_patch(
                         run_id=evidence.run_id,
                         target_file=patch_obj.target_file,

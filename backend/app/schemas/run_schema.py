@@ -646,3 +646,9 @@ class AuditScheduleResponse(BaseModel):
     message: str = Field(..., description="Status message")
 
 
+class AuditScheduleListResponse(BaseModel):
+    """Paginated listing of all registered audit schedules."""
+    schedules: List[AuditScheduleResponse] = Field(default_factory=list)
+    total: int = Field(..., description="Total number of registered schedules")
+
+

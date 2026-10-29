@@ -93,3 +93,34 @@ def enable_schedule(schedule_id: str) -> Optional[Dict[str, Any]]:
     if entry is None:
         return None
     entry["enabled"] = True
+    now = datetime.now(timezone.utc)
+    try:
+        delta = _parse_interval(entry["cron_expression"])
+        entry["next_run_at"] = (now + delta).isoformat()
+    except ValueError:
+        pass
+    return entry
+
+
+def delete_schedule(schedule_id: str) -> bool:
+    """Delete a schedule. Returns True if it existed."""
+    if schedule_id in _schedule_registry:
+        del _schedule_registry[schedule_id]
+        return True
+    return False
+
+
+def record_trigger(schedule_id: str) -> Optional[Dict[str, Any]]:
+    """Mark a schedule as triggered â€” updates counters and next_run_at."""
+    entry = _schedule_registry.get(schedule_id)
+    if entry is None:
+        return None
+    now = datetime.now(timezone.utc)
+    entry["last_triggered_at"] = now.isoformat()
+    entry["trigger_count"] += 1
+    try:
+        delta = _parse_interval(entry["cron_expression"])
+        entry["next_run_at"] = (now + delta).isoformat()
+    except ValueError:
+        entry["next_run_at"] = None
+    return entry

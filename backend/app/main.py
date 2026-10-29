@@ -60,6 +60,9 @@ from app.schemas import (
     DefectClusterResponse,
     DefectStabilityRecord,
     RunDeduplicationResponse,
+    AuditSchedulePayload,
+    AuditScheduleResponse,
+    AuditScheduleListResponse,
     FindingSchema,
     QuarantineRequest,
     QuarantineResponse,
@@ -1987,5 +1990,92 @@ def deduplicate_run_findings(run_id: str):
         removed_duplicates_count=removed,
         findings=[FindingSchema(**f) for f in deduped],
         message=f"Successfully deduplicated findings for run '{run_id}'."
+    )
+
+@app.post(
+    "/schedules",
+    response_model=AuditScheduleResponse,
+    tags=["Schedules"],
+    summary="Register a Recurring Audit Schedule"
+)
+def create_audit_schedule(payload: AuditSchedulePayload):
+    """
+    Register a recurring audit schedule for a target URL.
+    Supported cron expressions: @hourly, @daily, @weekly, every_Nh.
+    """
+    try:
+        entry = register_schedule(
+            target_url=payload.target_url,
+            cron_expression=payload.cron_expression,
+            viewports=payload.viewports,
+            notify_webhook=payload.notify_webhook,
+            enabled=payload.enabled,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    return AuditScheduleResponse(
+        schedule_id=entry["schedule_id"],
+        target_url=entry["target_url"],
+        cron_expression=entry["cron_expression"],
+        enabled=entry["enabled"],
+        next_run_at=entry["next_run_at"],
+        message=f"Schedule registered for '{payload.target_url}' with interval '{payload.cron_expression}'."
+    )
+
+
+@app.get(
+    "/schedules",
+    response_model=AuditScheduleListResponse,
+    tags=["Schedules"],
+    summary="List All Registered Audit Schedules"
+)
+def list_audit_schedules():
+    """Return all registered audit schedules including enabled and disabled entries."""
+    schedules = list_schedules()
+    items = [
+        AuditScheduleResponse(
+            schedule_id=s["schedule_id"],
+            target_url=s["target_url"],
+            cron_expression=s["cron_expression"],
+            enabled=s["enabled"],
+            next_run_at=s["next_run_at"],
+            message="registered",
+        )
+        for s in schedules
+    ]
+    return AuditScheduleListResponse(schedules=items, total=len(items))
+
+
+@app.delete(
+    "/schedules/{schedule_id}",
+    tags=["Schedules"],
+    summary="Delete a Registered Audit Schedule"
+)
+def delete_audit_schedule(schedule_id: str):
+    """Permanently remove a schedule from the registry by its ID."""
+    removed = delete_schedule(schedule_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Schedule '{schedule_id}' not found.")
+    return {"schedule_id": schedule_id, "deleted": True, "message": f"Schedule '{schedule_id}' removed."}
+
+
+@app.patch(
+    "/schedules/{schedule_id}/enable",
+    response_model=AuditScheduleResponse,
+    tags=["Schedules"],
+    summary="Re-enable a Disabled Audit Schedule"
+)
+def enable_audit_schedule(schedule_id: str):
+    """Set a disabled schedule back to active. Updates next_run_at based on the interval."""
+    entry = enable_schedule(schedule_id)
+    if entry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Schedule '{schedule_id}' not found.")
+    return AuditScheduleResponse(
+        schedule_id=entry["schedule_id"],
+        target_url=entry["target_url"],
+        cron_expression=entry["cron_expression"],
+        enabled=entry["enabled"],
+        next_run_at=entry["next_run_at"],
+        message=f"Schedule '{schedule_id}' re-enabled."
     )
 

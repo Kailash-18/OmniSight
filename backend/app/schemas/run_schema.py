@@ -434,7 +434,8 @@ class PatchRevertResponse(BaseModel):
     message: str
     timestamp: str
 
-
+
+
 
 class DefectFingerprint(BaseModel):
     """Deterministic visual defect fingerprint and normalized signature."""
@@ -623,4 +624,50 @@ class RunDeduplicationResponse(BaseModel):
     removed_duplicates_count: int = Field(..., description="Number of duplicate findings pruned")
     findings: List[FindingSchema] = Field(default_factory=list, description="Preserved unique findings")
     message: str = Field(..., description="Status summary message")
+
+
+
+class AuditSchedulePayload(BaseModel):
+    """Payload to register a recurring audit schedule for a target URL."""
+    target_url: str = Field(..., description="URL to audit on each scheduled trigger")
+    cron_expression: str = Field(..., description="Cron-like interval string: @hourly | @daily | @weekly | every_Nh")
+    viewports: List[str] = Field(default_factory=lambda: ["1280x720"], description="Viewport dimensions for scheduled audits")
+    notify_webhook: Optional[str] = Field(default=None, description="Webhook URL to call after each scheduled run completes")
+    enabled: bool = Field(default=True, description="Whether the schedule is active")
+
+
+class AuditScheduleResponse(BaseModel):
+    """Confirmation response for a registered audit schedule."""
+    schedule_id: str = Field(..., description="Unique schedule identifier")
+    target_url: str = Field(..., description="Scheduled audit target URL")
+    cron_expression: str = Field(..., description="Interval expression as registered")
+    enabled: bool = Field(..., description="Current enabled state of the schedule")
+    next_run_at: Optional[str] = Field(default=None, description="ISO-8601 timestamp of next scheduled execution")
+    message: str = Field(..., description="Status message")
+
+
+class AuditScheduleListResponse(BaseModel):
+    """Paginated listing of all registered audit schedules."""
+    schedules: List[AuditScheduleResponse] = Field(default_factory=list)
+    total: int = Field(..., description="Total number of registered schedules")
+
+
+class AuditAnnotation(BaseModel):
+    """A human QA reviewer annotation attached to a specific audit run."""
+    annotation_id: str = Field(..., description="Unique annotation identifier")
+    run_id: str = Field(..., description="Target audit run ID")
+    author: str = Field(..., description="Reviewer or team member who created the annotation")
+    body: str = Field(..., description="Annotation text or structured review note")
+    severity_override: Optional[str] = Field(default=None, description="Optional severity reassignment: low | medium | high | critical")
+    created_at: str = Field(..., description="ISO-8601 timestamp of annotation creation")
+    tags: List[str] = Field(default_factory=list, description="Free-form classification tags")
+
+
+class AnnotationCreatePayload(BaseModel):
+    """Request payload to attach a new annotation to an audit run."""
+    author: str = Field(..., description="Reviewer name or user ID")
+    body: str = Field(..., min_length=5, description="Annotation content (minimum 5 characters)")
+    severity_override: Optional[str] = Field(default=None, description="Optional severity reassignment")
+    tags: List[str] = Field(default_factory=list, description="Optional classification tags")
+
 

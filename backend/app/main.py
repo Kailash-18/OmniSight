@@ -2059,3 +2059,36 @@ def list_audit_schedules():
     return AuditScheduleListResponse(schedules=items, total=len(items))
 
 
+@app.delete(
+    "/schedules/{schedule_id}",
+    tags=["Schedules"],
+    summary="Delete a Registered Audit Schedule"
+)
+def delete_audit_schedule(schedule_id: str):
+    """Permanently remove a schedule from the registry by its ID."""
+    removed = delete_schedule(schedule_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Schedule '{schedule_id}' not found.")
+    return {"schedule_id": schedule_id, "deleted": True, "message": f"Schedule '{schedule_id}' removed."}
+
+
+@app.patch(
+    "/schedules/{schedule_id}/enable",
+    response_model=AuditScheduleResponse,
+    tags=["Schedules"],
+    summary="Re-enable a Disabled Audit Schedule"
+)
+def enable_audit_schedule(schedule_id: str):
+    """Set a disabled schedule back to active. Updates next_run_at based on the interval."""
+    entry = enable_schedule(schedule_id)
+    if entry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Schedule '{schedule_id}' not found.")
+    return AuditScheduleResponse(
+        schedule_id=entry["schedule_id"],
+        target_url=entry["target_url"],
+        cron_expression=entry["cron_expression"],
+        enabled=entry["enabled"],
+        next_run_at=entry["next_run_at"],
+        message=f"Schedule '{schedule_id}' re-enabled."
+    )
+

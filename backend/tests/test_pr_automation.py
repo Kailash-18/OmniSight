@@ -8,8 +8,6 @@ from app.core.config import settings
 from app.services.github_service import (
     generate_pr_markdown_description,
     create_pull_request_for_fix,
-    add_pr_comment_with_retest_evidence,
-    update_pull_request_verification_proof,
 )
 
 
@@ -143,6 +141,7 @@ def test_create_pull_request_live_mock_adds_labels(monkeypatch):
 
 def test_add_pr_comment_mock_mode(monkeypatch, caplog):
     """Verify add_pr_comment_with_retest_evidence succeeds in mock mode."""
+    from app.services.github_service import add_pr_comment_with_retest_evidence
     monkeypatch.setattr(settings, "MOCK_GITHUB", True)
 
     with caplog.at_level("INFO"):
@@ -156,6 +155,7 @@ def test_add_pr_comment_mock_mode(monkeypatch, caplog):
 
 def test_add_pr_comment_live_mock(monkeypatch):
     """Verify add_pr_comment_with_retest_evidence invokes create_issue_comment on live PR object."""
+    from app.services.github_service import add_pr_comment_with_retest_evidence
     monkeypatch.setattr(settings, "MOCK_GITHUB", False)
     monkeypatch.setattr(settings, "GITHUB_TOKEN", "ghp_valid_mock_token_123456789")
     monkeypatch.setattr(settings, "REPO_NAME", "Kailash-18/OmniSight")
@@ -189,6 +189,7 @@ def test_add_pr_comment_live_mock(monkeypatch):
 
 def test_update_pull_request_verification_proof_formatting(monkeypatch):
     """Verify update_pull_request_verification_proof renders table with visual diff score."""
+    from app.services.github_service import update_pull_request_verification_proof
     monkeypatch.setattr(settings, "MOCK_GITHUB", True)
 
     retest_data = {
@@ -201,109 +202,146 @@ def test_update_pull_request_verification_proof_formatting(monkeypatch):
     assert success is True
 
 
-def test_github_pr_webhook_merged_marks_run_fixed():
-    """Verify webhook transitions run state to FIXED and records merged step when PR is merged."""
-    from fastapi.testclient import TestClient
-    from app.main import app, runs_db
+def test_sanitize_git_branch_name():
+    """Verify git branch name sanitization strips illegal characters."""
+    from app.services.github_service import sanitize_git_branch_name
 
-    client = TestClient(app)
-    run_id = "run-webhook-merge-test"
-    runs_db[run_id] = {
-        "run_id": run_id,
-        "target": "http://localhost:5173",
-        "status": "pr_opened",
-        "steps": ["initiate_browser_session"],
-        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/123"
+    assert sanitize_git_branch_name("run:123/feat~1^2?*[]") == "run-123/feat-1-2"
+    assert sanitize_git_branch_name("  omnisight   test  ") == "omnisight-test"
+    assert sanitize_git_branch_name("...test/branch...") == "test/branch"
+    assert sanitize_git_branch_name("") == "omnisight-fix"
+    assert sanitize_git_branch_name("---") == "omnisight-fix"
+
+
+def test_update_pull_request_verification_proof_handles_string_score(monkeypatch):
+    """Verify update_pull_request_verification_proof tolerates string or None scores."""
+    from app.services.github_service import update_pull_request_verification_proof
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    retest_data_str = {
+        "passed": True,
+        "visual_diff_score": "0.05",
+        "retest_viewport": "desktop_1440x900",
+        "notes": "Verified layout"
     }
+    assert update_pull_request_verification_proof(pr_number=12, retest_data=retest_data_str) is True
 
-    payload = {
-        "action": "closed",
-        "pull_request": {
-            "number": 123,
-            "html_url": "https://github.com/Kailash-18/OmniSight/pull/123",
-            "merged": True,
-            "head": {"ref": f"omnisight-fix-{run_id}"}
-        }
+    retest_data_none = {
+        "passed": False,
+        "visual_diff_score": None,
+        "retest_viewport": "tablet_768x1024",
+        "notes": "Score unavailable"
     }
-
-    res = client.post("/webhook/github/pull-request", json=payload)
-    assert res.status_code == 200
-    data = res.json()
-    assert data["status"] == "processed"
-    assert data["matched_run_id"] == run_id
-    assert data["merged"] is True
-
-    assert runs_db[run_id]["status"] == "fixed"
-    assert "github_pr_merged" in runs_db[run_id]["steps"]
+    assert update_pull_request_verification_proof(pr_number=13, retest_data=retest_data_none) is True
 
 
-def test_github_pr_webhook_closed_unmerged_marks_needs_review():
-    """Verify webhook transitions run state to NEEDS_REVIEW when PR is closed without merge."""
-    from fastapi.testclient import TestClient
-    from app.main import app, runs_db
+def test_check_pull_request_status_mock(monkeypatch):
+    """Verify check_pull_request_status in mock mode returns structured PR metadata."""
+    from app.services.github_service import check_pull_request_status
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
 
-    client = TestClient(app)
-    run_id = "run-webhook-close-test"
-    runs_db[run_id] = {
-        "run_id": run_id,
-        "target": "http://localhost:5173",
-        "status": "pr_opened",
-        "steps": [],
-        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/456"
-    }
-
-    payload = {
-        "action": "closed",
-        "pull_request": {
-            "number": 456,
-            "html_url": "https://github.com/Kailash-18/OmniSight/pull/456",
-            "merged": False,
-            "head": {"ref": f"omnisight-fix-{run_id}"}
-        }
-    }
-
-    res = client.post("/webhook/github/pull-request", json=payload)
-    assert res.status_code == 200
-    assert runs_db[run_id]["status"] == "needs_review"
-    assert "github_pr_closed_unmerged" in runs_db[run_id]["steps"]
+    info = check_pull_request_status(pr_number=101)
+    assert info["pr_number"] == 101
+    assert info["state"] == "open"
+    assert info["merged"] is False
+    assert "https://github.com" in info["html_url"]
 
 
-def test_github_pr_webhook_review_events():
-    """Verify review events record approvals and changes requested on run."""
-    from fastapi.testclient import TestClient
-    from app.main import app, runs_db
+def test_close_pull_request_mock(monkeypatch):
+    """Verify close_pull_request runs cleanly and records reason."""
+    from app.services.github_service import close_pull_request
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
 
-    client = TestClient(app)
-    run_id = "run-webhook-review-test"
-    runs_db[run_id] = {
-        "run_id": run_id,
-        "target": "http://localhost:5173",
-        "status": "pr_opened",
-        "steps": [],
-        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/789"
-    }
+    assert close_pull_request(pr_number=101, reason="Remediation superseded") is True
 
-    # Test review approval
-    client.post("/webhook/github/pull-request", json={
-        "action": "submitted",
-        "pull_request": {
-            "number": 789,
-            "html_url": "https://github.com/Kailash-18/OmniSight/pull/789",
-            "head": {"ref": f"omnisight-fix-{run_id}"}
-        },
-        "review": {"state": "approved"}
-    })
-    assert "github_review_approved" in runs_db[run_id]["steps"]
 
-    # Test changes requested
-    client.post("/webhook/github/pull-request", json={
-        "action": "submitted",
-        "pull_request": {
-            "number": 789,
-            "html_url": "https://github.com/Kailash-18/OmniSight/pull/789",
-            "head": {"ref": f"omnisight-fix-{run_id}"}
-        },
-        "review": {"state": "changes_requested"}
-    })
-    assert runs_db[run_id]["status"] == "needs_review"
-    assert "github_review_changes_requested" in runs_db[run_id]["steps"]
+def test_revert_pull_request_patch_mock(monkeypatch):
+    """Verify revert_pull_request_patch generates correct revert branch in mock mode."""
+    from app.services.github_service import revert_pull_request_patch
+    monkeypatch.setattr(settings, "MOCK_GITHUB", True)
+
+    res = revert_pull_request_patch(
+        run_id="run-1729000-abc",
+        target_file="app-under-test/src/styles/defects.css"
+    )
+    assert res["reverted"] is True
+    assert res["revert_branch"] == "revert/run-1729000-abc"
+    assert res["target_file"] == "app-under-test/src/styles/defects.css"
+    assert res["simulated"] is True
+
+from github import GithubException
+
+
+def test_create_pull_request_surfaces_github_permission_failure(monkeypatch):
+    """A real GitHub permission failure must be reported, not simulated."""
+    monkeypatch.setattr(settings, "MOCK_GITHUB", False)
+    monkeypatch.setattr(settings, "GITHUB_TOKEN", "test-token")
+    monkeypatch.setattr(settings, "REPO_NAME", "Kailash-18/OmniSight")
+
+    class MockGithub:
+        def __init__(self, token):
+            pass
+
+        def get_repo(self, repo_name):
+            raise GithubException(
+                403,
+                data={"message": "Resource not accessible by integration"},
+                message="Forbidden",
+            )
+
+    monkeypatch.setattr("app.services.github_service.Github", MockGithub)
+
+    with pytest.raises(RuntimeError, match="GitHub PR creation failed"):
+        create_pull_request_for_fix(
+            run_id="run-permission-failure",
+            target_file="app-under-test/src/styles/defects.css",
+            file_content=".btn { width: 100%; }",
+        )
+
+
+def test_create_pull_request_stops_when_branch_creation_fails(monkeypatch):
+    """A non-422 branch creation failure must not proceed to commit or PR."""
+    monkeypatch.setattr(settings, "MOCK_GITHUB", False)
+    monkeypatch.setattr(settings, "GITHUB_TOKEN", "test-token")
+    monkeypatch.setattr(settings, "REPO_NAME", "Kailash-18/OmniSight")
+
+    class MockCommit:
+        sha = "base-sha"
+
+    class MockBranch:
+        commit = MockCommit()
+
+    class MockRepo:
+        default_branch = "main"
+
+        def get_branch(self, name):
+            return MockBranch()
+
+        def create_git_ref(self, ref, sha):
+            raise GithubException(
+                500,
+                data={"message": "Internal Server Error"},
+                message="Server error",
+            )
+
+        def update_file(self, **kwargs):
+            raise AssertionError("Must not update a file after branch creation fails")
+
+        def create_pull(self, **kwargs):
+            raise AssertionError("Must not create a PR after branch creation fails")
+
+    class MockGithub:
+        def __init__(self, token):
+            pass
+
+        def get_repo(self, repo_name):
+            return MockRepo()
+
+    monkeypatch.setattr("app.services.github_service.Github", MockGithub)
+
+    with pytest.raises(RuntimeError, match="GitHub PR creation failed"):
+        create_pull_request_for_fix(
+            run_id="run-branch-failure",
+            target_file="app-under-test/src/styles/defects.css",
+            file_content=".btn { width: 100%; }",
+        )

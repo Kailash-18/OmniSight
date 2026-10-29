@@ -20,6 +20,7 @@ from app.schemas import (
     BuildWebhookPayload,
     CreatePRPayload,
     CreatePRResponse,
+    GitHubPRWebhookPayload,
     HealthCheckResponse,
     PatchSubmitPayload,
     RunDetailResponse,
@@ -564,3 +565,71 @@ def update_pr_verification(run_id: str):
 """
     success = add_pr_comment_with_retest_evidence(pr_number, comment_body)
     return {"status": "success", "pr_number": pr_number, "comment_posted": success}
+
+
+@app.post(
+    "/webhook/github/pull-request",
+    status_code=status.HTTP_200_OK,
+    summary="GitHub PR and Review Webhook Ingestion"
+)
+def receive_github_pr_webhook(payload: GitHubPRWebhookPayload):
+    """
+    Ingests GitHub pull_request and pull_request_review webhook events.
+    Matches the incoming PR to recorded audit runs and updates review & merge status.
+    """
+    pr_data = payload.pull_request
+    pr_number = pr_data.get("number")
+    pr_url = pr_data.get("html_url")
+    merged = pr_data.get("merged", False)
+    action = payload.action
+    head_ref = pr_data.get("head", {}).get("ref", "")
+
+    # Locate corresponding run by branch ref or PR url/number
+    matched_run_id = None
+    if head_ref and head_ref.startswith("omnisight-fix-"):
+        candidate_id = head_ref[len("omnisight-fix-"):]
+        if candidate_id in runs_db:
+            matched_run_id = candidate_id
+
+    if not matched_run_id and pr_url:
+        for r_id, r in runs_db.items():
+            if r.get("pr_url") == pr_url or (pr_number and str(r.get("pr_url", "")).endswith(f"/{pr_number}")):
+                matched_run_id = r_id
+                break
+
+    if matched_run_id:
+        run_entry = runs_db[matched_run_id]
+        if not run_entry.get("pr_url") and pr_url:
+            run_entry["pr_url"] = pr_url
+
+        if action == "closed" and merged:
+            run_entry["status"] = RunStatus.FIXED.value
+            run_entry.setdefault("steps", []).append("github_pr_merged")
+            run_entry["merged"] = True
+        elif action == "closed" and not merged:
+            run_entry["status"] = RunStatus.NEEDS_REVIEW.value
+            run_entry.setdefault("steps", []).append("github_pr_closed_unmerged")
+            run_entry["merged"] = False
+        elif action == "opened":
+            run_entry["status"] = RunStatus.PR_OPENED.value
+            run_entry.setdefault("steps", []).append("github_pr_opened")
+        elif action == "labeled":
+            labels = [lbl.get("name") for lbl in pr_data.get("labels", []) if isinstance(lbl, dict)]
+            run_entry["labels"] = labels
+
+        # Process review events
+        if payload.review:
+            review_state = payload.review.get("state", "").lower()
+            if review_state == "approved":
+                run_entry.setdefault("steps", []).append("github_review_approved")
+            elif review_state == "changes_requested":
+                run_entry["status"] = RunStatus.NEEDS_REVIEW.value
+                run_entry.setdefault("steps", []).append("github_review_changes_requested")
+
+    return {
+        "status": "processed",
+        "action": action,
+        "pr_number": pr_number,
+        "matched_run_id": matched_run_id,
+        "merged": merged,
+    }

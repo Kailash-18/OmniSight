@@ -652,3 +652,22 @@ class AuditScheduleListResponse(BaseModel):
     total: int = Field(..., description="Total number of registered schedules")
 
 
+class AuditAnnotation(BaseModel):
+    """A human QA reviewer annotation attached to a specific audit run."""
+    annotation_id: str = Field(..., description="Unique annotation identifier")
+    run_id: str = Field(..., description="Target audit run ID")
+    author: str = Field(..., description="Reviewer or team member who created the annotation")
+    body: str = Field(..., description="Annotation text or structured review note")
+    severity_override: Optional[str] = Field(default=None, description="Optional severity reassignment: low | medium | high | critical")
+    created_at: str = Field(..., description="ISO-8601 timestamp of annotation creation")
+    tags: List[str] = Field(default_factory=list, description="Free-form classification tags")
+
+
+class AnnotationCreatePayload(BaseModel):
+    """Request payload to attach a new annotation to an audit run."""
+    author: str = Field(..., description="Reviewer name or user ID")
+    body: str = Field(..., min_length=5, description="Annotation content (minimum 5 characters)")
+    severity_override: Optional[str] = Field(default=None, description="Optional severity reassignment")
+    tags: List[str] = Field(default_factory=list, description="Optional classification tags")
+
+

@@ -2188,3 +2188,44 @@ def get_sla_violations(threshold_hours: float = 24.0):
     )
 
 
+@app.get(
+    "/runs/analytics/heatmap",
+    response_model=DefectHeatmapResponse,
+    tags=["Analytics"],
+    summary="Defect Frequency Heatmap Across Viewport Dimensions"
+)
+def get_defect_heatmap():
+    """
+    Aggregate defect density across all audit runs by viewport dimension.
+    Returns per-viewport breakdown of defect counts and severity distribution.
+    """
+    from datetime import datetime, timezone
+    from collections import defaultdict
+    viewport_counts: dict = defaultdict(lambda: {"defect_count": 0, "severity_breakdown": {}})
+    total_runs = 0
+    for run_id, entry in runs_db.items():
+        vp = entry.get("viewport", "1280x720")
+        total_runs += 1
+        findings = entry.get("findings", [])
+        viewport_counts[vp]["defect_count"] += len(findings)
+        for f in findings:
+            sev = f.get("severity", "medium")
+            viewport_counts[vp]["severity_breakdown"][sev] = (
+                viewport_counts[vp]["severity_breakdown"].get(sev, 0) + 1
+            )
+    cells = [
+        ViewportHeatCell(
+            viewport=vp,
+            defect_count=data["defect_count"],
+            severity_breakdown=data["severity_breakdown"],
+        )
+        for vp, data in viewport_counts.items()
+    ]
+    hottest = max(cells, key=lambda c: c.defect_count).viewport if cells else None
+    return DefectHeatmapResponse(
+        total_runs_analyzed=total_runs,
+        viewports=cells,
+        hottest_viewport=hottest,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+    )
+

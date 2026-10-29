@@ -195,6 +195,7 @@ class RunRecordUpdatePayload(BaseModel):
     findings: list[FindingSchema] | None = None
     patch: PatchObject | None = None
     retry_count: int | None = None
+    retest_outcome: dict[str, Any] | None = None
     pr_url: str | None = None
     error: str | None = None
 
@@ -235,6 +236,7 @@ class RunDetailResponse(BaseModel):
     findings: list[FindingSchema] = Field(default_factory=list)
     patch: PatchObject | None = None
     retry_count: int = 0
+    retest_outcome: dict[str, Any] | None = None
     pr_url: str | None = None
     error: str | None = None
 

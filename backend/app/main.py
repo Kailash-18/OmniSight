@@ -66,6 +66,10 @@ from app.schemas import (
     AuditAnnotation,
     AnnotationCreatePayload,
     AnnotationListResponse,
+    SLAViolationRecord,
+    SLAViolationReport,
+    ViewportHeatCell,
+    DefectHeatmapResponse,
     FindingSchema,
     QuarantineRequest,
     QuarantineResponse,
@@ -2130,5 +2134,97 @@ def get_annotations(run_id: str):
         run_id=run_id,
         annotations=[AuditAnnotation(**a) for a in anns],
         total=len(anns),
+    )
+
+@app.get(
+    "/runs/analytics/sla-violations",
+    response_model=SLAViolationReport,
+    tags=["Analytics"],
+    summary="Report Audit Runs Breaching Time-to-Fix SLA Threshold"
+)
+def get_sla_violations(threshold_hours: float = 24.0):
+    """
+    Return audit runs that have exceeded the specified time-to-fix SLA in hours.
+    Default threshold is 24 hours. Analyzes all runs with non-terminal statuses.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    violations = []
+    for run_id, entry in runs_db.items():
+        run_status = entry.get("status", "unknown")
+        if run_status in ("completed", "cancelled"):
+            continue
+        created_raw = entry.get("created_at")
+        if created_raw is None:
+            continue
+        try:
+            created_dt = datetime.fromisoformat(str(created_raw).replace('Z', '+00:00'))
+            age_hours = (now - created_dt).total_seconds() / 3600.0
+        except (ValueError, TypeError):
+            age_hours = 0.0
+        if age_hours >= threshold_hours:
+            findings = entry.get("findings", [])
+            severities = [f.get("severity", "medium") for f in findings]
+            highest = "critical" if "critical" in severities else (
+                "high" if "high" in severities else (
+                    "medium" if "medium" in severities else "low"
+                )
+            )
+            violations.append(SLAViolationRecord(
+                run_id=run_id,
+                url=entry.get("url", ""),
+                status=run_status,
+                issue_count=entry.get("issue_count", 0),
+                age_hours=round(age_hours, 2),
+                sla_threshold_hours=threshold_hours,
+                severity=highest,
+            ))
+    return SLAViolationReport(
+        total_violations=len(violations),
+        threshold_hours=threshold_hours,
+        violations=violations,
+        generated_at=now.isoformat(),
+    )
+
+
+@app.get(
+    "/runs/analytics/heatmap",
+    response_model=DefectHeatmapResponse,
+    tags=["Analytics"],
+    summary="Defect Frequency Heatmap Across Viewport Dimensions"
+)
+def get_defect_heatmap():
+    """
+    Aggregate defect density across all audit runs by viewport dimension.
+    Returns per-viewport breakdown of defect counts and severity distribution.
+    """
+    from datetime import datetime, timezone
+    from collections import defaultdict
+    viewport_counts: dict = defaultdict(lambda: {"defect_count": 0, "severity_breakdown": {}})
+    total_runs = 0
+    for run_id, entry in runs_db.items():
+        vp = entry.get("viewport", "1280x720")
+        total_runs += 1
+        findings = entry.get("findings", [])
+        viewport_counts[vp]["defect_count"] += len(findings)
+        for f in findings:
+            sev = f.get("severity", "medium")
+            viewport_counts[vp]["severity_breakdown"][sev] = (
+                viewport_counts[vp]["severity_breakdown"].get(sev, 0) + 1
+            )
+    cells = [
+        ViewportHeatCell(
+            viewport=vp,
+            defect_count=data["defect_count"],
+            severity_breakdown=data["severity_breakdown"],
+        )
+        for vp, data in viewport_counts.items()
+    ]
+    hottest = max(cells, key=lambda c: c.defect_count).viewport if cells else None
+    return DefectHeatmapResponse(
+        total_runs_analyzed=total_runs,
+        viewports=cells,
+        hottest_viewport=hottest,
+        generated_at=datetime.now(timezone.utc).isoformat(),
     )
 

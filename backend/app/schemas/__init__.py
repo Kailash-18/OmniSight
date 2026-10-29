@@ -62,6 +62,10 @@ from app.schemas.run_schema import (
     AuditAnnotation,
     AnnotationCreatePayload,
     AnnotationListResponse,
+    SLAViolationRecord,
+    SLAViolationReport,
+    ViewportHeatCell,
+    DefectHeatmapResponse,
 )
 
 

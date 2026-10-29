@@ -2229,5 +2229,3 @@ def get_defect_heatmap():
         generated_at=datetime.now(timezone.utc).isoformat(),
     )
 
-
-# Week 3 Day 3 Milestones: Scheduling, QA Annotations, and Heatmap verified.

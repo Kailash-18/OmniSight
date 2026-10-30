@@ -2349,3 +2349,25 @@ def download_forensic_bundle_zip(run_id: str):
     )
 
 
+@app.post(
+    "/runs/{run_id}/verify-forensic-integrity",
+    response_model=ForensicIntegrityResponse,
+    tags=["Forensics"],
+    summary="Verify Cryptographic Integrity of Run Evidence Vault"
+)
+def verify_run_forensic_integrity(run_id: str):
+    """
+    Cryptographically recalculates SHA-256 digests across all stored run artifacts
+    and validates them against the recorded manifest to detect tampering or corruption.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_entry = runs_db[run_id]
+    bundle = create_forensic_bundle(run_id=run_id, run_data=run_entry)
+    integrity = verify_forensic_bundle_integrity(bundle)
+    return ForensicIntegrityResponse(**integrity)
+
+

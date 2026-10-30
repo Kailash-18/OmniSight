@@ -2,7 +2,8 @@
 OmniSight Services Package.
 Exposes core business logic modules including the Action Engine,
 Zero-Trust Patch Validator, GitHub Pull Request Automation Service,
-Defect Fingerprinting, Flakiness Quarantine, Policy Engine, and Outbound Notifications.
+Defect Fingerprinting, Flakiness Quarantine, Policy Engine, Outbound Notifications,
+Audit Scheduler, Forensic Bundling, Review Engine, and Remediation Certificate Authority.
 """
 
 import sys
@@ -56,6 +57,31 @@ from app.services.notification_service import (
     get_dispatched_events,
     clear_dispatched_events,
 )
+from app.services.schedule_service import (
+    register_schedule,
+    list_schedules,
+    get_schedule,
+    disable_schedule,
+    enable_schedule,
+    delete_schedule,
+    record_trigger,
+)
+from app.services.forensic_service import (
+    compute_sha256,
+    create_forensic_bundle,
+    verify_forensic_bundle_integrity,
+    export_forensic_zip_archive,
+)
+from app.services.review_engine import (
+    record_review_decision,
+    record_lead_override,
+    get_review_trail,
+    clear_reviews_db,
+)
+from app.services.certificate_service import (
+    generate_remediation_certificate,
+    export_certificate_markdown,
+)
 
 __all__ = [
     "validate_patch",
@@ -85,10 +111,29 @@ __all__ = [
     "get_quarantined_defects",
     "get_flakiness_report",
     "reset_flakiness_tracker",
+    "bulk_quarantine_defects",
+    "unquarantine_all_defects",
     "evaluate_merge_policy",
     "sign_webhook_payload",
     "build_outbound_event",
     "dispatch_notification",
     "get_dispatched_events",
     "clear_dispatched_events",
+    "register_schedule",
+    "list_schedules",
+    "get_schedule",
+    "disable_schedule",
+    "enable_schedule",
+    "delete_schedule",
+    "record_trigger",
+    "compute_sha256",
+    "create_forensic_bundle",
+    "verify_forensic_bundle_integrity",
+    "export_forensic_zip_archive",
+    "record_review_decision",
+    "record_lead_override",
+    "get_review_trail",
+    "clear_reviews_db",
+    "generate_remediation_certificate",
+    "export_certificate_markdown",
 ]

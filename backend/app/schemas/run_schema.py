@@ -783,3 +783,18 @@ class ReviewRecord(BaseModel):
     created_at: str = Field(..., description="ISO 8601 decision timestamp")
 
 
+class ReviewTrailResponse(BaseModel):
+    """Audit trail of all review decisions recorded for a run."""
+    run_id: str = Field(..., description="Audit run identifier")
+    total_reviews: int = Field(..., description="Total review actions recorded")
+    current_status: str = Field(..., description="Current run lifecycle status")
+    reviews: List[ReviewRecord] = Field(default_factory=list, description="List of recorded review decisions")
+
+
+class ReviewOverridePayload(BaseModel):
+    """Payload for QA Lead to override automated policy rejection."""
+    lead_reviewer_id: str = Field(..., min_length=2, description="QA Lead identity")
+    override_reason: str = Field(..., min_length=10, description="Detailed justification for policy override")
+    acknowledged_risks: Optional[List[str]] = Field(default=None, description="Explicitly acknowledged risk tags")
+
+

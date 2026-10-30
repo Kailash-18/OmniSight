@@ -68,3 +68,82 @@ def record_review_decision(
             run["review_status"] = "approved"
         elif decision_clean == "rejected":
             run["status"] = "failed"
+            run["reviewed_by"] = reviewer_id
+            run["review_status"] = "rejected"
+        elif decision_clean == "changes_requested":
+            run["status"] = "needs_review"
+            run["reviewed_by"] = reviewer_id
+            run["review_status"] = "changes_requested"
+        elif decision_clean == "override":
+            run["status"] = "fixed"
+            run["reviewed_by"] = reviewer_id
+            run["review_status"] = "lead_override"
+
+        # Append timeline entry
+        timeline = run.get("timeline", [])
+        timeline.append({
+            "event": f"Review Decision: {decision_clean.upper()}",
+            "reviewer": reviewer_id,
+            "timestamp": now_iso,
+            "notes": comments.strip()
+        })
+        run["timeline"] = timeline
+
+    return record
+
+
+def record_lead_override(
+    run_id: str,
+    lead_reviewer_id: str,
+    override_reason: str,
+    acknowledged_risks: Optional[List[str]] = None,
+    runs_db: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Allows authorized QA Leads to explicitly override automated policy rejections
+    (such as high blast-radius diffs or quarantined defect blocks).
+    """
+    if not override_reason or len(override_reason.strip()) < 10:
+        raise ValueError("Lead override reason must contain at least 10 characters justifying the bypass.")
+
+    risks_str = ", ".join(acknowledged_risks) if acknowledged_risks else "None acknowledged"
+    comments = f"EXECUTIVE OVERRIDE: {override_reason.strip()} | Acknowledged Risks: {risks_str}"
+
+    return record_review_decision(
+        run_id=run_id,
+        reviewer_id=lead_reviewer_id,
+        decision="override",
+        comments=comments,
+        auto_merge_authorized=True,
+        risk_acknowledgement=risks_str,
+        runs_db=runs_db
+    )
+
+
+def get_review_trail(run_id: str) -> List[Dict[str, Any]]:
+    """Returns the full history of review decisions for a given run ID."""
+    return list(reviews_db.get(run_id, []))
+
+
+def clear_reviews_db() -> None:
+    """Clears the review decisions registry (used in test isolation)."""
+    reviews_db.clear()
+
+
+def get_review_by_id(run_id: str, decision_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a specific review decision record by decision ID."""
+    trail = reviews_db.get(run_id, [])
+    for rec in trail:
+        if rec.get("decision_id") == decision_id:
+            return rec
+    return None
+
+
+def count_reviews_by_decision(run_id: str) -> Dict[str, int]:
+    """Returns frequency breakdown of recorded review decisions for a run."""
+    trail = reviews_db.get(run_id, [])
+    counts: Dict[str, int] = {}
+    for rec in trail:
+        d = rec.get("decision", "unknown")
+        counts[d] = counts.get(d, 0) + 1
+    return counts

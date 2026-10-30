@@ -33,6 +33,7 @@ from app.schemas import (
 )
 from app.services.action_engine import action_engine
 from app.services.patch_validator import validate_patch
+from app.services.notification_service import dispatch_notification
 from app.services.github_service import (
     create_pull_request_for_fix,
     generate_pr_markdown_description,
@@ -85,6 +86,27 @@ def _validate_target_host(target_url: str) -> str:
             detail=f"Invalid target URL: {e!s}"
         )
 
+
+@app.post(
+    "/webhooks/test-dispatch",
+    tags=["CI/CD Webhook"],
+    summary="Simulate and Verify Outbound Webhook Event Dispatch"
+)
+def test_outbound_webhook_dispatch(
+    target_url: str = "http://localhost:9000/webhook",
+    event_type: str = "run.completed",
+    run_id: str = "run-test-dispatch",
+    secret: str = "test-secret-key"
+):
+    """Simulates outbound webhook delivery with HMAC SHA-256 payload signing."""
+    return dispatch_notification(
+        target_url=target_url,
+        event_type=event_type,
+        run_id=run_id,
+        data={"status": "fixed", "summary": "Visual regression cleared."},
+        secret=secret,
+        mock_mode=True
+    )
 
 @app.get("/health", response_model=HealthCheckResponse, status_code=status.HTTP_200_OK)
 def health_check():

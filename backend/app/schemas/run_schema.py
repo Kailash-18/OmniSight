@@ -199,6 +199,7 @@ class PatchSubmitPayload(BaseModel):
     pr_title: str = Field(default="OmniSight Automated Visual Defect Fix", description="PR title")
     pr_body: str = Field(default="", description="Detailed PR description with evidence")
     labels: List[str] = Field(default_factory=lambda: ["omnisight", "automated-fix"], description="GitHub labels to attach to created PR")
+    auto_create_pr: bool = Field(default=False, description="Whether to automatically open PR if patch passes")
 
 
 class GitHubPullRequestInfo(BaseModel):
@@ -710,3 +711,75 @@ class DefectHeatmapResponse(BaseModel):
     viewports: List[ViewportHeatCell] = Field(default_factory=list, description="Per-viewport defect heat data")
     hottest_viewport: Optional[str] = Field(default=None, description="Viewport with highest defect density")
     generated_at: str = Field(..., description="ISO-8601 report generation timestamp")
+
+
+# ---------------------------------------------------------------------------
+# Week 3 Day 4 Deliverables: Forensic Bundling, Review Decisions & Certificates
+# ---------------------------------------------------------------------------
+
+class ForensicArtifact(BaseModel):
+    """Metadata envelope for a single forensic artifact."""
+    filename: str = Field(..., description="Artifact filename")
+    byte_size: int = Field(..., description="Size of artifact in bytes")
+    sha256: str = Field(..., description="SHA-256 cryptographic hash of artifact content")
+    mime_type: str = Field(default="application/json", description="MIME content type")
+    content: Optional[str] = Field(default=None, description="Serialized artifact content")
+
+
+class ForensicManifest(BaseModel):
+    """Digital manifest certifying artifact digests and root forensic checksum."""
+    bundle_id: str = Field(..., description="Unique bundle identifier")
+    run_id: str = Field(..., description="Associated audit run identifier")
+    created_at: str = Field(..., description="ISO 8601 creation timestamp")
+    schema_version: str = Field(default="1.0-forensic-certified", description="Forensic bundle schema version")
+    root_checksum: str = Field(..., description="Root SHA-256 cryptographic checksum")
+    artifact_count: int = Field(..., description="Count of enclosed artifacts")
+    artifact_digests: Dict[str, str] = Field(default_factory=dict, description="Artifact filename to SHA-256 digest mapping")
+
+
+class ForensicBundle(BaseModel):
+    """Complete immutable forensic audit bundle."""
+    bundle_id: str = Field(..., description="Unique forensic bundle identifier")
+    run_id: str = Field(..., description="Audit run identifier")
+    manifest: ForensicManifest = Field(..., description="Digital verification manifest")
+    root_checksum: str = Field(..., description="Root SHA-256 checksum")
+    artifacts: Dict[str, ForensicArtifact] = Field(default_factory=dict, description="Enclosed artifacts")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Run execution metadata")
+    findings: List[Any] = Field(default_factory=list, description="Extracted findings")
+    patch_diff: str = Field(default="", description="Unified patch diff")
+    retest_outcome: Optional[Dict[str, Any]] = Field(default=None, description="Retest verification outcome")
+    timeline: List[Any] = Field(default_factory=list, description="Execution timeline events")
+
+
+class ForensicIntegrityResponse(BaseModel):
+    """Verification outcome of forensic bundle cryptographic integrity check."""
+    is_valid: bool = Field(..., description="True if all artifact hashes and root checksum match")
+    run_id: str = Field(..., description="Associated audit run identifier")
+    root_checksum: str = Field(..., description="Recorded root checksum")
+    recomputed_checksum: str = Field(..., description="Re-evaluated root checksum")
+    tampered_artifacts: List[str] = Field(default_factory=list, description="List of corrupted or modified artifacts if any")
+    verified_at: str = Field(..., description="ISO 8601 verification timestamp")
+    status: str = Field(..., description="Verification status (VERIFIED_AUTHENTIC or TAMPERING_DETECTED)")
+
+
+class ReviewDecisionPayload(BaseModel):
+    """Payload to record a formal human QA review decision for a run."""
+    reviewer_id: str = Field(..., min_length=2, description="Identity of reviewer (e.g. qa-lead, reviewer-1)")
+    decision: str = Field(..., description="Decision: approved | rejected | changes_requested | override")
+    comments: str = Field(..., min_length=5, description="Review justification and sign-off remarks")
+    auto_merge_authorized: bool = Field(default=False, description="Authorize automated pull request merge")
+    risk_acknowledgement: Optional[str] = Field(default=None, description="Acknowledged visual or layout risks")
+
+
+class ReviewRecord(BaseModel):
+    """A single logged human QA review decision."""
+    decision_id: str = Field(..., description="Unique review decision identifier")
+    run_id: str = Field(..., description="Audit run identifier")
+    reviewer_id: str = Field(..., description="Reviewer identity")
+    decision: str = Field(..., description="Review decision")
+    comments: str = Field(..., description="Review comments")
+    auto_merge_authorized: bool = Field(default=False, description="Auto-merge authorized flag")
+    risk_acknowledgement: Optional[str] = Field(default=None, description="Risk acknowledgement note")
+    created_at: str = Field(..., description="ISO 8601 decision timestamp")
+
+

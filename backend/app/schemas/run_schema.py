@@ -798,3 +798,22 @@ class ReviewOverridePayload(BaseModel):
     acknowledged_risks: Optional[List[str]] = Field(default=None, description="Explicitly acknowledged risk tags")
 
 
+class RemediationCertificateResponse(BaseModel):
+    """Cryptographically sealed Certificate of Visual Remediation."""
+    certificate_id: str = Field(..., description="Unique compliance certificate ID (CERT-OMNI-...)")
+    run_id: str = Field(..., description="Audit run identifier")
+    target_url: str = Field(..., description="Audited application target URL")
+    status: str = Field(..., description="Certification status (CERTIFIED_FIXED | RETEST_PENDING)")
+    issued_at: str = Field(..., description="ISO 8601 issuance timestamp")
+    viewports_evaluated: List[str] = Field(default_factory=list, description="Viewports evaluated")
+    defects_resolved_count: int = Field(..., description="Number of visual defects remediated")
+    visual_delta_ratio: float = Field(..., description="Visual diff delta ratio (e.g. 0.00 for pixel-identical)")
+    verification_result: str = Field(..., description="Sandbox retest verification outcome")
+    forensic_checksum: str = Field(..., description="SHA-256 root forensic bundle digest")
+    policy_gate_status: str = Field(..., description="Merge policy clearance status")
+    primary_reviewer: str = Field(..., description="Primary QA reviewer or pipeline authority")
+    review_decision: str = Field(..., description="Formal review decision")
+    issuer: str = Field(..., description="Issuing authority")
+    cryptographic_seal: str = Field(..., description="SHA-256 digital verification seal")
+
+

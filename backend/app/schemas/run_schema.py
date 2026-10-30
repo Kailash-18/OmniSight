@@ -783,3 +783,53 @@ class ReviewRecord(BaseModel):
     created_at: str = Field(..., description="ISO 8601 decision timestamp")
 
 
+class ReviewTrailResponse(BaseModel):
+    """Audit trail of all review decisions recorded for a run."""
+    run_id: str = Field(..., description="Audit run identifier")
+    total_reviews: int = Field(..., description="Total review actions recorded")
+    current_status: str = Field(..., description="Current run lifecycle status")
+    reviews: List[ReviewRecord] = Field(default_factory=list, description="List of recorded review decisions")
+
+
+class ReviewOverridePayload(BaseModel):
+    """Payload for QA Lead to override automated policy rejection."""
+    lead_reviewer_id: str = Field(..., min_length=2, description="QA Lead identity")
+    override_reason: str = Field(..., min_length=10, description="Detailed justification for policy override")
+    acknowledged_risks: Optional[List[str]] = Field(default=None, description="Explicitly acknowledged risk tags")
+
+
+class RemediationCertificateResponse(BaseModel):
+    """Cryptographically sealed Certificate of Visual Remediation."""
+    certificate_id: str = Field(..., description="Unique compliance certificate ID (CERT-OMNI-...)")
+    run_id: str = Field(..., description="Audit run identifier")
+    target_url: str = Field(..., description="Audited application target URL")
+    status: str = Field(..., description="Certification status (CERTIFIED_FIXED | RETEST_PENDING)")
+    issued_at: str = Field(..., description="ISO 8601 issuance timestamp")
+    viewports_evaluated: List[str] = Field(default_factory=list, description="Viewports evaluated")
+    defects_resolved_count: int = Field(..., description="Number of visual defects remediated")
+    visual_delta_ratio: float = Field(..., description="Visual diff delta ratio (e.g. 0.00 for pixel-identical)")
+    verification_result: str = Field(..., description="Sandbox retest verification outcome")
+    forensic_checksum: str = Field(..., description="SHA-256 root forensic bundle digest")
+    policy_gate_status: str = Field(..., description="Merge policy clearance status")
+    primary_reviewer: str = Field(..., description="Primary QA reviewer or pipeline authority")
+    review_decision: str = Field(..., description="Formal review decision")
+    issuer: str = Field(..., description="Issuing authority")
+    cryptographic_seal: str = Field(..., description="SHA-256 digital verification seal")
+
+
+class CreatePRPayload(BaseModel):
+    """Payload to trigger or re-run GitHub PR creation for a run with validated patch."""
+    target_file: Optional[str] = Field(default=None, description="Optional target file override")
+    file_content: Optional[str] = Field(default=None, description="Optional modified file content override")
+    commit_message: Optional[str] = Field(default=None, description="Custom Git commit message")
+    pr_title: Optional[str] = Field(default=None, description="Custom Pull Request title")
+    pr_body: Optional[str] = Field(default=None, description="Custom Markdown Pull Request description")
+    labels: Optional[List[str]] = Field(default=None, description="Optional issue/PR labels")
+
+
+class CreatePRResponse(BaseModel):
+    """Response returned upon PR creation or mock PR generation."""
+    status: str = "success"
+    run_id: str
+    pr_url: str
+    message: str = "Pull Request created successfully."

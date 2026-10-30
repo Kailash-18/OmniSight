@@ -2462,3 +2462,128 @@ def submit_lead_override(run_id: str, payload: ReviewOverridePayload):
     return ReviewRecord(**record)
 
 
+@app.get(
+    "/runs/{run_id}/certificate",
+    response_model=RemediationCertificateResponse,
+    tags=["Certificate Authority"],
+    summary="Generate Cryptographic Certificate of Visual Remediation"
+)
+def get_remediation_certificate(run_id: str):
+    """
+    Issues an official, tamper-proof Certificate of Visual Remediation
+    with digital cryptographic seal, visual delta score, and reviewer attribution.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_entry = runs_db[run_id]
+    trail = get_review_trail(run_id)
+    cert = generate_remediation_certificate(run_id=run_id, run_data=run_entry, review_trail=trail)
+    return RemediationCertificateResponse(**cert)
+
+
+@app.get(
+    "/runs/{run_id}/certificate/markdown",
+    tags=["Certificate Authority"],
+    summary="Export Remediation Certificate in Markdown Format"
+)
+def export_certificate_markdown_doc(run_id: str):
+    """
+    Renders the Certificate of Visual Remediation as a GitHub-flavored Markdown document.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_entry = runs_db[run_id]
+    trail = get_review_trail(run_id)
+    cert = generate_remediation_certificate(run_id=run_id, run_data=run_entry, review_trail=trail)
+    md = export_certificate_markdown(cert)
+    return {
+        "certificate_id": cert["certificate_id"],
+        "run_id": run_id,
+        "markdown": md
+    }
+
+
+@app.post(
+    "/runs/{run_id}/create-pr",
+    response_model=CreatePRResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Audit Runs"],
+    summary="Create Evidence-Backed Pull Request for Run"
+)
+def create_run_pull_request(run_id: str, payload: Optional[CreatePRPayload] = None):
+    """Creates an isolated feature branch and opens a GitHub Pull Request with before/after visual proof."""
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+
+    run_entry = runs_db[run_id]
+    patch = run_entry.get("patch") or {}
+
+    target_file = (payload.target_file if payload and payload.target_file else None) or patch.get("target_file")
+    if not target_file:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Run '{run_id}' does not have an approved patch target file."
+        )
+
+    file_content = (payload.file_content if payload and payload.file_content else None) or patch.get("file_content", "")
+    diff = patch.get("diff", "")
+
+    evidence = run_entry.get("evidence_paths") or {}
+    before_shots = evidence.get("before_screenshots") or evidence.get("screenshots") or []
+    after_shots = evidence.get("after_screenshots") or []
+    before_url = before_shots[0] if before_shots else None
+    after_url = after_shots[0] if after_shots else None
+
+    retest_outcome = run_entry.get("retest_outcome") or {}
+    verif_status = (
+        "Verified Fixed in Isolated Sandbox"
+        if retest_outcome.get("passed")
+        else "Approved by Zero-Trust Patch Validator"
+    )
+
+    pr_title = (payload.pr_title if payload and payload.pr_title else None) or f"fix(visual): automated repair for {run_id}"
+    pr_body = (payload.pr_body if payload and payload.pr_body else None) or generate_pr_markdown_description(
+        defect_title=f"Automated Visual Repair ({target_file})",
+        viewport=retest_outcome.get("retest_viewport", "all"),
+        target_file=target_file,
+        diff=diff,
+        verification_status=verif_status,
+        before_screenshot_url=before_url,
+        after_screenshot_url=after_url,
+    )
+    commit_msg = (payload.commit_message if payload and payload.commit_message else None) or f"fix(ui): OmniSight auto-repair for {target_file} ({run_id})"
+    labels = (payload.labels if payload and payload.labels else None) or ["omnisight", "automated-fix"]
+
+    try:
+        pr_url = create_pull_request_for_fix(
+            run_id=run_id,
+            target_file=target_file,
+            file_content=file_content,
+            commit_message=commit_msg,
+            pr_title=pr_title,
+            pr_body=pr_body,
+            labels=labels
+        )
+        run_entry["pr_url"] = pr_url
+        run_entry["status"] = RunStatus.PR_OPENED.value
+        return CreatePRResponse(
+            status="success",
+            run_id=run_id,
+            pr_url=pr_url,
+            message="Pull Request created successfully."
+        )
+    except Exception as e:
+        run_entry["error"] = str(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PR automation failed: {str(e)}"
+        )

@@ -51,18 +51,18 @@ def create_forensic_bundle(
     and execution timeline into a cryptographically sealed package.
     """
     now_iso = datetime.now(UTC).isoformat()
-    findings = run_data.get("findings", [])
+    findings = run_data.get("findings") or []
     patch = run_data.get("patch")
     retest = run_data.get("retest_outcome")
-    timeline = run_data.get("timeline", [])
+    timeline = run_data.get("timeline") or []
 
     # 1. Prepare discrete artifact payloads
     findings_json = canonical_json(findings)
     patch_diff = ""
     if isinstance(patch, dict):
-        patch_diff = patch.get("diff", "")
+        patch_diff = patch.get("diff") or ""
     elif hasattr(patch, "diff"):
-        patch_diff = getattr(patch, "diff", "")
+        patch_diff = getattr(patch, "diff") or ""
 
     retest_json = canonical_json(retest if retest is not None else {})
     timeline_json = canonical_json(timeline)

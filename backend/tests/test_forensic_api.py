@@ -171,3 +171,25 @@ def test_api_milestones_reflects_week_3_day_4():
     data = resp.json()
     assert data["week_3_day_4_deliverables"] == "completed"
     assert "75%" in data["week_3_progress"]
+
+
+def test_api_review_404():
+    resp = client.post("/runs/ghost-run-999/review", json={
+        "reviewer_id": "alice",
+        "decision": "approved",
+        "comments": "Should 404 cleanly"
+    })
+    assert resp.status_code == 404
+
+
+def test_api_override_404():
+    resp = client.post("/runs/ghost-run-999/override", json={
+        "lead_reviewer_id": "alice",
+        "override_reason": "Justification for nonexistent run"
+    })
+    assert resp.status_code == 404
+
+
+def test_api_certificate_404():
+    resp = client.get("/runs/ghost-run-999/certificate")
+    assert resp.status_code == 404

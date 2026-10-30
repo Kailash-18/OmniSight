@@ -70,3 +70,15 @@ def test_export_certificate_markdown_content(sample_run_data):
     assert cert["certificate_id"] in md
     assert cert["cryptographic_seal"] in md
     assert "VERIFIED FIXED & CERTIFIED" in md
+
+
+def test_verify_certificate_seal(sample_run_data):
+    from backend.app.services.certificate_service import verify_certificate_seal
+
+    cert = generate_remediation_certificate(run_id="run-cert-500", run_data=sample_run_data)
+    assert verify_certificate_seal(cert) is True
+
+    # Tamper with certificate data
+    tampered = dict(cert)
+    tampered["visual_delta_ratio"] = 0.50
+    assert verify_certificate_seal(tampered) is False

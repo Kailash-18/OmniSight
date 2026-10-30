@@ -153,3 +153,21 @@ def test_get_bundle_summary(sample_run_data):
     assert summary["artifact_count"] >= 5
     assert len(summary["root_checksum"]) == 64
     assert summary["schema_version"] == "1.0-forensic-certified"
+
+
+def test_create_forensic_bundle_with_none_fields():
+    data_with_nones = {
+        "run_id": "run-nones",
+        "target": "http://localhost:5173",
+        "status": "queued",
+        "findings": None,
+        "patch": None,
+        "retest_outcome": None,
+        "timeline": None
+    }
+    bundle = create_forensic_bundle("run-nones", data_with_nones)
+    assert bundle["run_id"] == "run-nones"
+    assert bundle["findings"] == []
+    assert bundle["patch_diff"] == ""
+    assert bundle["timeline"] == []
+    assert len(bundle["root_checksum"]) == 64

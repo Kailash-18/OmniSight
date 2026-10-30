@@ -737,3 +737,28 @@ class ForensicManifest(BaseModel):
     artifact_digests: Dict[str, str] = Field(default_factory=dict, description="Artifact filename to SHA-256 digest mapping")
 
 
+class ForensicBundle(BaseModel):
+    """Complete immutable forensic audit bundle."""
+    bundle_id: str = Field(..., description="Unique forensic bundle identifier")
+    run_id: str = Field(..., description="Audit run identifier")
+    manifest: ForensicManifest = Field(..., description="Digital verification manifest")
+    root_checksum: str = Field(..., description="Root SHA-256 checksum")
+    artifacts: Dict[str, ForensicArtifact] = Field(default_factory=dict, description="Enclosed artifacts")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Run execution metadata")
+    findings: List[Any] = Field(default_factory=list, description="Extracted findings")
+    patch_diff: str = Field(default="", description="Unified patch diff")
+    retest_outcome: Optional[Dict[str, Any]] = Field(default=None, description="Retest verification outcome")
+    timeline: List[Any] = Field(default_factory=list, description="Execution timeline events")
+
+
+class ForensicIntegrityResponse(BaseModel):
+    """Verification outcome of forensic bundle cryptographic integrity check."""
+    is_valid: bool = Field(..., description="True if all artifact hashes and root checksum match")
+    run_id: str = Field(..., description="Associated audit run identifier")
+    root_checksum: str = Field(..., description="Recorded root checksum")
+    recomputed_checksum: str = Field(..., description="Re-evaluated root checksum")
+    tampered_artifacts: List[str] = Field(default_factory=list, description="List of corrupted or modified artifacts if any")
+    verified_at: str = Field(..., description="ISO 8601 verification timestamp")
+    status: str = Field(..., description="Verification status (VERIFIED_AUTHENTIC or TAMPERING_DETECTED)")
+
+

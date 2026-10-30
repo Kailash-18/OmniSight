@@ -11,7 +11,7 @@
 
 ---
 
-## 📋 Overview
+## ðŸ“‹ Overview
 
 The OmniSight Backend service acts as the central intelligence and security clearinghouse for the autonomous visual self-healing loop:
 1. **CI/CD Gateway (`/webhook/build`)**: Ingests build events from external CI/CD pipelines (or manual QA triggers) and schedules browser audit runs.
@@ -22,21 +22,21 @@ The OmniSight Backend service acts as the central intelligence and security clea
 
 ---
 
-## 📦 Core Modules & Engineering Deliverables (Member 1)
+## ðŸ“¦ Core Modules & Engineering Deliverables (Member 1)
 
 | Module | Core Responsibility | Status | Technical Implementation |
 | :--- | :--- | :---: | :--- |
-| **API Gateway & Ingestion Engine** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/webhook/github`, `/runs`, `/runs/metrics/summary`, shared Pydantic data schemas. |
-| **Multimodal Action Engine** | VLM Parsing & Code Block Extraction | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), single-quote & smart-quote recovery, natural language isolation, and structured findings. |
-| **Zero-Trust Security Validator** | Safe Code Modification Guardrails | ✅ Completed | Path traversal defense, allowlist checks, CSS directive filters (`@import`, `behavior`, `expression`, `javascript:`), and 97 passing tests. |
-| **Pull Request Automation Service** | Bounded Self-Healing & Evidence PRs | ✅ Completed | Automated PR creation, PR labeling, lifecycle webhook tracking, retest comments, and markdown evidence export. |
-| **Retest Sync & Forensic Engine** | Verification Sync & Compliance Logs | ✅ Completed | Retest result ingestion (`/runs/{run_id}/retest-result`), PR proof updater, event timeline, finding status patch, and forensic JSON bundle. |
-| **Cloud Infrastructure as Code** | Production Hardening & Cloud Deploy | ✅ Prepared | Terraform parameterized infrastructure module (`backend/terraform/`) with zero hardcoded credentials. |
+| **API Gateway & Ingestion Engine** | Foundation & API Scaffolding | âœ… Completed | FastAPI service, `/health`, `/webhook/build`, `/webhook/github`, `/runs`, `/runs/metrics/summary`, shared Pydantic data schemas. |
+| **Multimodal Action Engine** | VLM Parsing & Code Block Extraction | âœ… Completed | Multimodal JSON/diff extractor (`action_engine.py`), single-quote & smart-quote recovery, natural language isolation, and structured findings. |
+| **Zero-Trust Security Validator** | Safe Code Modification Guardrails | âœ… Completed | Path traversal defense, allowlist checks, CSS directive filters (`@import`, `behavior`, `expression`, `javascript:`), and 97 passing tests. |
+| **Pull Request Automation Service** | Bounded Self-Healing & Evidence PRs | âœ… Completed | Automated PR creation, PR labeling, lifecycle webhook tracking, retest comments, and markdown evidence export. |
+| **Retest Sync & Forensic Engine** | Verification Sync & Compliance Logs | âœ… Completed | Retest result ingestion (`/runs/{run_id}/retest-result`), PR proof updater, event timeline, finding status patch, and forensic JSON bundle. |
+| **Cloud Infrastructure as Code** | Production Hardening & Cloud Deploy | âœ… Prepared | Terraform parameterized infrastructure module (`backend/terraform/`) with zero hardcoded credentials. |
 
 
 ---
 
-## 🏛️ System Architecture
+## ðŸ�›ï¸� System Architecture
 
 ```mermaid
 flowchart TD
@@ -63,7 +63,7 @@ flowchart TD
 
 ---
 
-## 🔒 Security Guardrails & Zero-Trust Architecture
+## ðŸ”’ Security Guardrails & Zero-Trust Architecture
 
 To ensure the AI cannot harm repository integrity or internal network services, the backend enforces the following controls:
 
@@ -88,7 +88,7 @@ To ensure the AI cannot harm repository integrity or internal network services, 
 
 ---
 
-## 📡 API Reference
+## ðŸ“¡ API Reference
 
 ### 1. Health Check
 * **Endpoint**: `GET /health`
@@ -338,7 +338,7 @@ To ensure the AI cannot harm repository integrity or internal network services, 
 
 ---
 
-## 🛠️ Environment Configuration & Zero Hardcoding
+## ðŸ› ï¸� Environment Configuration & Zero Hardcoding
 
 Credentials and settings are managed through environment variables. **No API keys or tokens are hardcoded into the source code.**
 
@@ -358,7 +358,7 @@ cp backend/.env.example backend/.env
 
 ---
 
-## ☁️ Terraform Deployment Security (`backend/terraform/`)
+## â˜�ï¸� Terraform Deployment Security (`backend/terraform/`)
 
 Infrastructure definitions for deploying the backend containerized service are located in `backend/terraform/`:
 * `variables.tf`: All parameters (CPU, memory, region, allowed hosts, and sensitive tokens) are parameterized via Terraform variables. The GitHub token is flagged as `sensitive = true`.
@@ -380,7 +380,7 @@ terraform plan
 
 ---
 
-## 🧪 Running the Backend & Tests
+## ðŸ§ª Running the Backend & Tests
 
 ### 1. Install Dependencies
 ```bash
@@ -427,7 +427,7 @@ curl -X GET http://localhost:8000/runs
 
 ---
 
-## ✅ System Integration Verification Matrix
+## âœ… System Integration Verification Matrix
 
 | Area | Component | Verification Status | Test Coverage |
 | :--- | :--- | :---: | :--- |
@@ -448,3 +448,23 @@ curl -X GET http://localhost:8000/runs
 | **Audit Forensics** | Event Timeline & SHA-256 Bundle | PASSED | `test_run_timeline_ordered_event_history`, `test_export_run_forensic_bundle` |
 
 
+
+---
+
+## ðŸ”’ Week 3 Day 4: Forensic Bundling, Review Decisions & Remediation Certificates
+
+| Capability | Module | Endpoint | Deliverable Description |
+| :--- | :--- | :--- | :--- |
+| **Forensic Bundling** | `forensic_service.py` | `GET /runs/{id}/forensic-bundle` | Aggregates metadata, findings, diffs, and retest proofs with per-artifact SHA-256 digests. |
+| **ZIP Package Streaming** | `forensic_service.py` | `GET /runs/{id}/forensic-bundle/download` | In-memory ZIP archive streaming with `manifest.json`, `findings.json`, `patch.diff`, and `audit_log.txt`. |
+| **Tamper Verification** | `forensic_service.py` | `POST /runs/{id}/verify-forensic-integrity` | Cryptographically verifies artifact hashes against recorded root checksum. |
+| **QA Review Decisions** | `review_engine.py` | `POST /runs/{id}/review`, `GET /runs/{id}/review` | Formal human review decision logging (`approved`, `rejected`, `changes_requested`, `override`). |
+| **QA Lead Policy Override** | `review_engine.py` | `POST /runs/{id}/override` | Executive override for gated or high-risk runs with required risk acknowledgements. |
+| **Remediation Certificates** | `certificate_service.py` | `GET /runs/{id}/certificate`, `.../markdown` | Cryptographically sealed Certificate of Visual Remediation with digital SHA-256 integrity seal. |
+
+### Test Verification
+The backend test suite stands at **246 automated passing tests** with 100% pass rate.
+```bash
+python -m pytest backend/tests/ -q
+# 246 passed in 4.52s
+```

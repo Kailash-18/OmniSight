@@ -762,3 +762,24 @@ class ForensicIntegrityResponse(BaseModel):
     status: str = Field(..., description="Verification status (VERIFIED_AUTHENTIC or TAMPERING_DETECTED)")
 
 
+class ReviewDecisionPayload(BaseModel):
+    """Payload to record a formal human QA review decision for a run."""
+    reviewer_id: str = Field(..., min_length=2, description="Identity of reviewer (e.g. qa-lead, reviewer-1)")
+    decision: str = Field(..., description="Decision: approved | rejected | changes_requested | override")
+    comments: str = Field(..., min_length=5, description="Review justification and sign-off remarks")
+    auto_merge_authorized: bool = Field(default=False, description="Authorize automated pull request merge")
+    risk_acknowledgement: Optional[str] = Field(default=None, description="Acknowledged visual or layout risks")
+
+
+class ReviewRecord(BaseModel):
+    """A single logged human QA review decision."""
+    decision_id: str = Field(..., description="Unique review decision identifier")
+    run_id: str = Field(..., description="Audit run identifier")
+    reviewer_id: str = Field(..., description="Reviewer identity")
+    decision: str = Field(..., description="Review decision")
+    comments: str = Field(..., description="Review comments")
+    auto_merge_authorized: bool = Field(default=False, description="Auto-merge authorized flag")
+    risk_acknowledgement: Optional[str] = Field(default=None, description="Risk acknowledgement note")
+    created_at: str = Field(..., description="ISO 8601 decision timestamp")
+
+

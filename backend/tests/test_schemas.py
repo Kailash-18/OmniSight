@@ -391,3 +391,90 @@ def test_batch_matrix_and_tagging_schemas():
     assert "smoke" in tags_pl.tags
     assert len(tags_pl.tags) == 3
 
+
+
+def test_forensic_artifact_and_manifest_schemas():
+    """Verify ForensicArtifact and ForensicManifest schema instantiation and validation."""
+    from app.schemas import ForensicArtifact, ForensicManifest, ForensicIntegrityResponse
+
+    art = ForensicArtifact(
+        filename="findings.json",
+        byte_size=1024,
+        sha256="a" * 64,
+        mime_type="application/json"
+    )
+    assert art.filename == "findings.json"
+    assert art.byte_size == 1024
+    assert len(art.sha256) == 64
+
+    manifest = ForensicManifest(
+        bundle_id="bundle-run-1-abc12345",
+        run_id="run-1",
+        created_at="2026-10-30T12:00:00Z",
+        schema_version="1.0-forensic-certified",
+        root_checksum="b" * 64,
+        artifact_count=1,
+        artifact_digests={"findings.json": "a" * 64}
+    )
+    assert manifest.artifact_count == 1
+    assert manifest.root_checksum == "b" * 64
+
+    integrity = ForensicIntegrityResponse(
+        is_valid=True,
+        run_id="run-1",
+        root_checksum="b" * 64,
+        recomputed_checksum="b" * 64,
+        tampered_artifacts=[],
+        verified_at="2026-10-30T12:00:00Z",
+        status="VERIFIED_AUTHENTIC"
+    )
+    assert integrity.is_valid is True
+    assert integrity.status == "VERIFIED_AUTHENTIC"
+
+
+def test_review_and_certificate_schemas():
+    """Verify ReviewDecisionPayload, ReviewRecord, and RemediationCertificateResponse schemas."""
+    from app.schemas import (
+        ReviewDecisionPayload,
+        ReviewRecord,
+        ReviewOverridePayload,
+        RemediationCertificateResponse,
+    )
+
+    rev_pl = ReviewDecisionPayload(
+        reviewer_id="qa-lead-alice",
+        decision="approved",
+        comments="Approved for merge without visual regressions.",
+        auto_merge_authorized=True
+    )
+    assert rev_pl.decision == "approved"
+    assert rev_pl.auto_merge_authorized is True
+
+    override_pl = ReviewOverridePayload(
+        lead_reviewer_id="qa-director",
+        override_reason="Critical customer production hotfix deployment.",
+        acknowledged_risks=["fast_track"]
+    )
+    assert override_pl.lead_reviewer_id == "qa-director"
+    assert "fast_track" in override_pl.acknowledged_risks
+
+    cert = RemediationCertificateResponse(
+        certificate_id="CERT-OMNI-A1B2C3D4E5",
+        run_id="run-101",
+        target_url="http://localhost:5173",
+        status="CERTIFIED_FIXED",
+        issued_at="2026-10-30T12:00:00Z",
+        viewports_evaluated=["1280x720", "375x667"],
+        defects_resolved_count=2,
+        visual_delta_ratio=0.0,
+        verification_result="PASSED",
+        forensic_checksum="c" * 64,
+        policy_gate_status="cleared",
+        primary_reviewer="qa-lead-alice",
+        review_decision="approved",
+        issuer="OmniSight Authority",
+        cryptographic_seal="d" * 64
+    )
+    assert cert.certificate_id == "CERT-OMNI-A1B2C3D4E5"
+    assert cert.visual_delta_ratio == 0.0
+    assert cert.verification_result == "PASSED"

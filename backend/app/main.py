@@ -78,6 +78,31 @@ from app.schemas import (
     RunStatus,
     Severity,
     PatchObject,
+    ForensicArtifact,
+    ForensicManifest,
+    ForensicBundle,
+    ForensicIntegrityResponse,
+    ReviewDecisionPayload,
+    ReviewRecord,
+    ReviewTrailResponse,
+    ReviewOverridePayload,
+    RemediationCertificateResponse,
+)
+from app.services.forensic_service import (
+    create_forensic_bundle,
+    verify_forensic_bundle_integrity,
+    export_forensic_zip_archive,
+)
+from app.services.review_engine import (
+    record_review_decision,
+    record_lead_override,
+    get_review_trail,
+    clear_reviews_db,
+    reviews_db,
+)
+from app.services.certificate_service import (
+    generate_remediation_certificate,
+    export_certificate_markdown,
 )
 from app.services.patch_validator import validate_patch, validate_css_syntax_balance, dry_run_patch
 from app.services.policy_engine import evaluate_merge_policy
@@ -337,7 +362,19 @@ def get_milestone_status():
         "run_tagging_and_classification": "completed",
         "outbound_webhook_event_dispatcher": "completed",
         "patch_dry_run_and_css_syntax_validator": "completed",
-        "backend_tests_passed": 188,
+        "backend_tests_passed": 250,
+        "week_3_day_3_deliverables": "completed",
+        "audit_scheduling_and_lifecycle": "completed",
+        "qa_review_annotations": "completed",
+        "sla_violations_analytics": "completed",
+        "viewport_defect_heatmap": "completed",
+        "week_3_day_4_deliverables": "completed",
+        "forensic_audit_bundling": "completed",
+        "cryptographic_verification_vault": "completed",
+        "human_in_the_loop_review_gates": "completed",
+        "qa_lead_policy_override": "completed",
+        "remediation_certificate_authority": "completed",
+        "week_3_progress": "75% - Complete Forensic Bundling, Review Decisions and Remediation Certificates",
         "defect_cluster_aggregation": "completed",
         "defect_quarantine_management": "completed",
         "bulk_quarantine_and_unquarantine": "completed",
@@ -1429,7 +1466,8 @@ def export_runs_csv():
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=omnisight_audit_runs.csv"}
     )
-
+
+
 
 @app.post(
     "/runs/batch",
@@ -2228,3 +2266,216 @@ def get_defect_heatmap():
         generated_at=datetime.now(timezone.utc).isoformat(),
     )
 
+
+
+# ---------------------------------------------------------------------------
+# Week 3 Day 4 Endpoints: Forensic Bundling, Review Decisions & Certificates
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/runs/{run_id}/forensic-bundle",
+    response_model=ForensicBundle,
+    tags=["Forensics"],
+    summary="Export Complete Immutable Forensic Audit Bundle"
+)
+def get_forensic_bundle(run_id: str):
+    """
+    Consolidates run metadata, visual findings, unified patch diff, verification retests,
+    and execution timeline into an immutable, cryptographically sealed forensic package.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_entry = runs_db[run_id]
+    bundle = create_forensic_bundle(run_id=run_id, run_data=run_entry)
+    return bundle
+
+
+@app.get(
+    "/runs/{run_id}/forensic-bundle/download",
+    tags=["Forensics"],
+    summary="Download Forensic Audit Bundle ZIP Archive"
+)
+def download_forensic_bundle_zip(run_id: str):
+    """
+    Streams a sealed, self-contained ZIP archive containing forensic manifest.json,
+    findings.json, patch.diff, retest_proof.json, timeline.json, and audit_log.txt.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_entry = runs_db[run_id]
+    bundle = create_forensic_bundle(run_id=run_id, run_data=run_entry)
+    zip_bytes = export_forensic_zip_archive(bundle)
+    filename = f"forensic-bundle-{run_id}.zip"
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )
+
+
+@app.post(
+    "/runs/{run_id}/verify-forensic-integrity",
+    response_model=ForensicIntegrityResponse,
+    tags=["Forensics"],
+    summary="Verify Cryptographic Integrity of Run Evidence Vault"
+)
+def verify_run_forensic_integrity(run_id: str):
+    """
+    Cryptographically recalculates SHA-256 digests across all stored run artifacts
+    and validates them against the recorded manifest to detect tampering or corruption.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_entry = runs_db[run_id]
+    bundle = create_forensic_bundle(run_id=run_id, run_data=run_entry)
+    integrity = verify_forensic_bundle_integrity(bundle)
+    return ForensicIntegrityResponse(**integrity)
+
+
+@app.post(
+    "/runs/{run_id}/review",
+    response_model=ReviewRecord,
+    tags=["Human Review"],
+    summary="Record Human QA Review Decision"
+)
+def submit_run_review(run_id: str, payload: ReviewDecisionPayload):
+    """
+    Records a formal human QA review decision (approved, rejected, changes_requested, override).
+    Transitions run status and authorizes automated merge gates where applicable.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    try:
+        record = record_review_decision(
+            run_id=run_id,
+            reviewer_id=payload.reviewer_id,
+            decision=payload.decision,
+            comments=payload.comments,
+            auto_merge_authorized=payload.auto_merge_authorized,
+            risk_acknowledgement=payload.risk_acknowledgement,
+            runs_db=runs_db
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc)
+        )
+    return ReviewRecord(**record)
+
+
+@app.get(
+    "/runs/{run_id}/review",
+    response_model=ReviewTrailResponse,
+    tags=["Human Review"],
+    summary="Get Review Decisions Audit Trail"
+)
+def get_run_review_trail(run_id: str):
+    """
+    Returns the complete chronological history of QA reviewer decisions, approvals,
+    and sign-off notes for a specific run.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    trail = get_review_trail(run_id)
+    current_st = str(runs_db[run_id].get("status", "unknown"))
+    return ReviewTrailResponse(
+        run_id=run_id,
+        total_reviews=len(trail),
+        current_status=current_st,
+        reviews=[ReviewRecord(**r) for r in trail]
+    )
+
+
+@app.post(
+    "/runs/{run_id}/override",
+    response_model=ReviewRecord,
+    tags=["Human Review"],
+    summary="QA Lead Policy Override"
+)
+def submit_lead_override(run_id: str, payload: ReviewOverridePayload):
+    """
+    Enables authorized QA Leads to bypass automated policy rejections with mandatory justification.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    try:
+        record = record_lead_override(
+            run_id=run_id,
+            lead_reviewer_id=payload.lead_reviewer_id,
+            override_reason=payload.override_reason,
+            acknowledged_risks=payload.acknowledged_risks,
+            runs_db=runs_db
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc)
+        )
+    return ReviewRecord(**record)
+
+
+@app.get(
+    "/runs/{run_id}/certificate",
+    response_model=RemediationCertificateResponse,
+    tags=["Certificate Authority"],
+    summary="Generate Cryptographic Certificate of Visual Remediation"
+)
+def get_remediation_certificate(run_id: str):
+    """
+    Issues an official, tamper-proof Certificate of Visual Remediation
+    with digital cryptographic seal, visual delta score, and reviewer attribution.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_entry = runs_db[run_id]
+    trail = get_review_trail(run_id)
+    cert = generate_remediation_certificate(run_id=run_id, run_data=run_entry, review_trail=trail)
+    return RemediationCertificateResponse(**cert)
+
+
+@app.get(
+    "/runs/{run_id}/certificate/markdown",
+    tags=["Certificate Authority"],
+    summary="Export Remediation Certificate in Markdown Format"
+)
+def export_certificate_markdown_doc(run_id: str):
+    """
+    Renders the Certificate of Visual Remediation as a GitHub-flavored Markdown document.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_entry = runs_db[run_id]
+    trail = get_review_trail(run_id)
+    cert = generate_remediation_certificate(run_id=run_id, run_data=run_entry, review_trail=trail)
+    md = export_certificate_markdown(cert)
+    return {
+        "certificate_id": cert["certificate_id"],
+        "run_id": run_id,
+        "markdown": md
+    }

@@ -78,3 +78,96 @@ def test_create_forensic_bundle_structure(sample_run_data):
     assert manifest["artifact_count"] >= 5
 
     artifacts = bundle["artifacts"]
+    assert "metadata.json" in artifacts
+    assert "findings.json" in artifacts
+    assert "patch.diff" in artifacts
+    assert "retest_proof.json" in artifacts
+    assert "timeline.json" in artifacts
+
+    for name, art in artifacts.items():
+        assert len(art["sha256"]) == 64
+        assert art["byte_size"] >= 0
+
+
+def test_forensic_bundle_integrity_verification_pass(sample_run_data):
+    bundle = create_forensic_bundle(run_id="run-forensic-test-101", run_data=sample_run_data)
+    result = verify_forensic_bundle_integrity(bundle)
+
+    assert result["is_valid"] is True
+    assert result["status"] == "VERIFIED_AUTHENTIC"
+    assert result["tampered_artifacts"] == []
+    assert result["root_checksum"] == result["recomputed_checksum"]
+
+
+def test_forensic_bundle_tamper_detection_modified_content(sample_run_data):
+    bundle = create_forensic_bundle(run_id="run-forensic-test-101", run_data=sample_run_data)
+
+    # Tamper with the findings artifact content
+    bundle["artifacts"]["findings.json"]["content"] = json.dumps([{"tampered": True}])
+
+    result = verify_forensic_bundle_integrity(bundle)
+    assert result["is_valid"] is False
+    assert result["status"] == "TAMPERING_DETECTED"
+    assert any("findings.json" in err for err in result["tampered_artifacts"])
+
+
+def test_forensic_bundle_tamper_detection_missing_artifact(sample_run_data):
+    bundle = create_forensic_bundle(run_id="run-forensic-test-101", run_data=sample_run_data)
+
+    # Delete an artifact
+    del bundle["artifacts"]["patch.diff"]
+
+    result = verify_forensic_bundle_integrity(bundle)
+    assert result["is_valid"] is False
+    assert any("patch.diff" in err for err in result["tampered_artifacts"])
+
+
+def test_export_forensic_zip_archive_validity(sample_run_data):
+    bundle = create_forensic_bundle(run_id="run-forensic-test-101", run_data=sample_run_data)
+    zip_bytes = export_forensic_zip_archive(bundle)
+
+    assert len(zip_bytes) > 0
+    # Unpack in-memory and verify zip files
+    zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    file_list = zf.namelist()
+
+    assert "manifest.json" in file_list
+    assert "findings.json" in file_list
+    assert "patch.diff" in file_list
+    assert "retest_proof.json" in file_list
+    assert "timeline.json" in file_list
+    assert "audit_log.txt" in file_list
+
+    # Verify audit_log content
+    audit_text = zf.read("audit_log.txt").decode("utf-8")
+    assert "OmniSight Certified Forensic Audit Bundle" in audit_text
+    assert bundle["root_checksum"] in audit_text
+
+
+def test_get_bundle_summary(sample_run_data):
+    from backend.app.services.forensic_service import get_bundle_summary
+    bundle = create_forensic_bundle(run_id="run-forensic-test-101", run_data=sample_run_data)
+    summary = get_bundle_summary(bundle)
+
+    assert summary["run_id"] == "run-forensic-test-101"
+    assert summary["artifact_count"] >= 5
+    assert len(summary["root_checksum"]) == 64
+    assert summary["schema_version"] == "1.0-forensic-certified"
+
+
+def test_create_forensic_bundle_with_none_fields():
+    data_with_nones = {
+        "run_id": "run-nones",
+        "target": "http://localhost:5173",
+        "status": "queued",
+        "findings": None,
+        "patch": None,
+        "retest_outcome": None,
+        "timeline": None
+    }
+    bundle = create_forensic_bundle("run-nones", data_with_nones)
+    assert bundle["run_id"] == "run-nones"
+    assert bundle["findings"] == []
+    assert bundle["patch_diff"] == ""
+    assert bundle["timeline"] == []
+    assert len(bundle["root_checksum"]) == 64

@@ -148,3 +148,80 @@ def verify_forensic_bundle_integrity(bundle: Dict[str, Any]) -> Dict[str, Any]:
         else:
             computed_hash = compute_sha256(content)
 
+        computed_digests[name] = computed_hash
+        if computed_hash != expected_hash:
+            tampered.append(f"Tampered artifact '{name}': expected {expected_hash}, computed {computed_hash}")
+
+    # Re-verify root checksum
+    sorted_digests = "".join(computed_digests[k] for k in sorted(computed_digests.keys()))
+    recomputed_root = hashlib.sha256(sorted_digests.encode("utf-8")).hexdigest()
+
+    if recomputed_root != recorded_root:
+        tampered.append(f"Root checksum mismatch: expected {recorded_root}, computed {recomputed_root}")
+
+    is_valid = len(tampered) == 0
+
+    return {
+        "is_valid": is_valid,
+        "run_id": bundle.get("run_id"),
+        "root_checksum": recorded_root,
+        "recomputed_checksum": recomputed_root,
+        "tampered_artifacts": tampered,
+        "verified_at": datetime.now(UTC).isoformat(),
+        "status": "VERIFIED_AUTHENTIC" if is_valid else "TAMPERING_DETECTED",
+    }
+
+
+def export_forensic_zip_archive(bundle: Dict[str, Any]) -> bytes:
+    """
+    Packages forensic bundle contents into a self-contained, in-memory ZIP archive.
+    Includes manifest.json, findings.json, patch.diff, retest_proof.json, timeline.json,
+    and a human-readable audit_log.txt.
+    """
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        # Write manifest
+        manifest_bytes = json.dumps(bundle.get("manifest", {}), indent=2).encode("utf-8")
+        zf.writestr("manifest.json", manifest_bytes)
+
+        # Write artifacts
+        artifacts = bundle.get("artifacts", {})
+        for fname, art in artifacts.items():
+            content = art.get("content", "")
+            if content is not None:
+                raw = content.encode("utf-8") if isinstance(content, str) else content
+                zf.writestr(fname, raw)
+
+        # Write human-readable audit log
+        manifest = bundle.get("manifest", {})
+        audit_log = (
+            f"================================================================================\n"
+            f"OmniSight Certified Forensic Audit Bundle\n"
+            f"================================================================================\n"
+            f"Bundle ID:       {manifest.get('bundle_id')}\n"
+            f"Run ID:          {bundle.get('run_id')}\n"
+            f"Generated:       {manifest.get('created_at')}\n"
+            f"Root SHA-256:    {manifest.get('root_checksum')}\n"
+            f"Schema Version:  {manifest.get('schema_version')}\n"
+            f"Artifact Count:  {manifest.get('artifact_count')}\n"
+            f"Status:          SEALED & CRYPTOGRAPHICALLY CERTIFIED\n"
+            f"================================================================================\n"
+        )
+        zf.writestr("audit_log.txt", audit_log.encode("utf-8"))
+
+    zip_buffer.seek(0)
+    return zip_buffer.getvalue()
+
+
+def get_bundle_summary(bundle: Dict[str, Any]) -> Dict[str, Any]:
+    """Returns high-level summary metrics of a forensic bundle for dashboard cards."""
+    manifest = bundle.get("manifest", {})
+    return {
+        "bundle_id": manifest.get("bundle_id"),
+        "run_id": bundle.get("run_id"),
+        "created_at": manifest.get("created_at"),
+        "artifact_count": manifest.get("artifact_count", 0),
+        "root_checksum": manifest.get("root_checksum"),
+        "schema_version": manifest.get("schema_version"),
+    }

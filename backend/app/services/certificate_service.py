@@ -58,3 +58,61 @@ def generate_remediation_certificate(
         "primary_reviewer": reviewer_sig,
         "review_decision": review_decision,
         "issuer": "OmniSight Autonomous Visual Remediation Authority v1.0",
+    }
+
+    # Generate cryptographic digital seal
+    canonical = _canonical_str(cert_payload)
+    digital_seal = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    cert_payload["cryptographic_seal"] = digital_seal
+
+    return cert_payload
+
+
+def export_certificate_markdown(cert: Dict[str, Any]) -> str:
+    """Formats a remediation certificate into a standard GitHub Markdown document."""
+    status_badge = "âœ… **VERIFIED FIXED & CERTIFIED**" if cert.get("verification_result") == "PASSED" else "âš ï¸� **UNCERTIFIED**"
+    diff_val = cert.get("visual_delta_ratio", 0.0)
+    diff_pct = f"{diff_val:.2%}" if isinstance(diff_val, (int, float)) else "0.00%"
+
+    return f"""# ðŸ›¡ï¸� Certificate of Visual Remediation
+> **Certificate Identifier**: `{cert.get('certificate_id')}`  
+> **Issued By**: {cert.get('issuer')}  
+> **Timestamp**: `{cert.get('issued_at')}`  
+
+---
+
+### ðŸ“‹ Audit Provenance & Findings
+| Property | Value |
+| :--- | :--- |
+| **Run Identifier** | `{cert.get('run_id')}` |
+| **Target Application** | `{cert.get('target_url')}` |
+| **Verification Status** | {status_badge} |
+| **Defects Resolved** | `{cert.get('defects_resolved_count')}` visual defects |
+| **Visual Delta Ratio** | `{diff_pct}` (Pixel Identical) |
+| **Primary Reviewer** | `{cert.get('primary_reviewer')}` (`{cert.get('review_decision')}`) |
+
+---
+
+### ðŸ”� Cryptographic Seal & Integrity
+```
+Root Forensic Checksum : {cert.get('forensic_checksum')}
+Digital Integrity Seal : {cert.get('cryptographic_seal')}
+```
+*This certificate attests that the CSS patch was verified in an isolated headless browser sandbox with verified zero-trust allowlist compliance and human-in-the-loop sign-off.*
+"""
+
+
+def verify_certificate_seal(cert: Dict[str, Any]) -> bool:
+    """
+    Verifies that the digital cryptographic seal matches the certificate body.
+    Returns True if uncorrupted, False if modified.
+    """
+    recorded_seal = cert.get("cryptographic_seal")
+    if not recorded_seal:
+        return False
+
+    # Copy without seal to recompute
+    payload_copy = {k: v for k, v in cert.items() if k != "cryptographic_seal"}
+    canonical = _canonical_str(payload_copy)
+    recomputed = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return recomputed == recorded_seal

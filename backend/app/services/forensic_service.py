@@ -68,3 +68,83 @@ def create_forensic_bundle(
     timeline_json = canonical_json(timeline)
 
     metadata_payload = {
+        "run_id": run_id,
+        "target": run_data.get("target", run_data.get("url", "unknown")),
+        "status": str(run_data.get("status", "unknown")),
+        "start_time": run_data.get("start_time", run_data.get("created_at", now_iso)),
+        "issue_count": run_data.get("issue_count", len(findings)),
+        "pr_url": run_data.get("pr_url"),
+        "retry_count": run_data.get("retry_count", 0),
+        "tags": run_data.get("tags", []),
+    }
+    metadata_json = canonical_json(metadata_payload)
+
+    # 2. Build individual artifact envelopes with SHA-256 signatures
+    artifacts = {
+        "metadata.json": build_artifact_envelope("metadata.json", metadata_json, "application/json"),
+        "findings.json": build_artifact_envelope("findings.json", findings_json, "application/json"),
+        "patch.diff": build_artifact_envelope("patch.diff", patch_diff, "text/x-diff"),
+        "retest_proof.json": build_artifact_envelope("retest_proof.json", retest_json, "application/json"),
+        "timeline.json": build_artifact_envelope("timeline.json", timeline_json, "application/json"),
+    }
+
+    # Include any optional supplemental artifacts (e.g. annotations, review decisions)
+    if extra_artifacts:
+        for fname, content in extra_artifacts.items():
+            content_str = content if isinstance(content, (str, bytes)) else canonical_json(content)
+            artifacts[fname] = build_artifact_envelope(fname, content_str)
+
+    # 3. Compute root forensic checksum over sorted artifact hashes
+    sorted_digests = "".join(artifacts[k]["sha256"] for k in sorted(artifacts.keys()))
+    root_checksum = hashlib.sha256(sorted_digests.encode("utf-8")).hexdigest()
+
+    manifest = {
+        "bundle_id": f"bundle-{run_id}-{root_checksum[:12]}",
+        "run_id": run_id,
+        "created_at": now_iso,
+        "schema_version": "1.0-forensic-certified",
+        "root_checksum": root_checksum,
+        "artifact_count": len(artifacts),
+        "artifact_digests": {k: v["sha256"] for k, v in artifacts.items()},
+    }
+
+    return {
+        "bundle_id": manifest["bundle_id"],
+        "run_id": run_id,
+        "manifest": manifest,
+        "root_checksum": root_checksum,
+        "artifacts": artifacts,
+        "metadata": metadata_payload,
+        "findings": findings,
+        "patch_diff": patch_diff,
+        "retest_outcome": retest,
+        "timeline": timeline,
+    }
+
+
+def verify_forensic_bundle_integrity(bundle: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Verifies that a forensic bundle has not been tampered with or modified.
+    Re-computes individual artifact SHA-256 digests and confirms match against root manifest.
+    """
+    manifest = bundle.get("manifest", {})
+    recorded_root = manifest.get("root_checksum", bundle.get("root_checksum", ""))
+    recorded_digests = manifest.get("artifact_digests", {})
+    artifacts = bundle.get("artifacts", {})
+
+    tampered: List[str] = []
+    computed_digests: Dict[str, str] = {}
+
+    for name, expected_hash in recorded_digests.items():
+        if name not in artifacts:
+            tampered.append(f"Missing artifact: {name}")
+            continue
+
+        artifact = artifacts[name]
+        content = artifact.get("content")
+        if content is None:
+            # If content was omitted from memory, check recorded sha256 consistency
+            computed_hash = artifact.get("sha256", "")
+        else:
+            computed_hash = compute_sha256(content)
+

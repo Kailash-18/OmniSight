@@ -2371,3 +2371,94 @@ def verify_run_forensic_integrity(run_id: str):
     return ForensicIntegrityResponse(**integrity)
 
 
+@app.post(
+    "/runs/{run_id}/review",
+    response_model=ReviewRecord,
+    tags=["Human Review"],
+    summary="Record Human QA Review Decision"
+)
+def submit_run_review(run_id: str, payload: ReviewDecisionPayload):
+    """
+    Records a formal human QA review decision (approved, rejected, changes_requested, override).
+    Transitions run status and authorizes automated merge gates where applicable.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    try:
+        record = record_review_decision(
+            run_id=run_id,
+            reviewer_id=payload.reviewer_id,
+            decision=payload.decision,
+            comments=payload.comments,
+            auto_merge_authorized=payload.auto_merge_authorized,
+            risk_acknowledgement=payload.risk_acknowledgement,
+            runs_db=runs_db
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc)
+        )
+    return ReviewRecord(**record)
+
+
+@app.get(
+    "/runs/{run_id}/review",
+    response_model=ReviewTrailResponse,
+    tags=["Human Review"],
+    summary="Get Review Decisions Audit Trail"
+)
+def get_run_review_trail(run_id: str):
+    """
+    Returns the complete chronological history of QA reviewer decisions, approvals,
+    and sign-off notes for a specific run.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    trail = get_review_trail(run_id)
+    current_st = str(runs_db[run_id].get("status", "unknown"))
+    return ReviewTrailResponse(
+        run_id=run_id,
+        total_reviews=len(trail),
+        current_status=current_st,
+        reviews=[ReviewRecord(**r) for r in trail]
+    )
+
+
+@app.post(
+    "/runs/{run_id}/override",
+    response_model=ReviewRecord,
+    tags=["Human Review"],
+    summary="QA Lead Policy Override"
+)
+def submit_lead_override(run_id: str, payload: ReviewOverridePayload):
+    """
+    Enables authorized QA Leads to bypass automated policy rejections with mandatory justification.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    try:
+        record = record_lead_override(
+            run_id=run_id,
+            lead_reviewer_id=payload.lead_reviewer_id,
+            override_reason=payload.override_reason,
+            acknowledged_risks=payload.acknowledged_risks,
+            runs_db=runs_db
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc)
+        )
+    return ReviewRecord(**record)
+
+

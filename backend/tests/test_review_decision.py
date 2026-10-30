@@ -135,3 +135,22 @@ def test_get_review_trail_ordering():
     assert len(trail) == 2
     assert trail[0]["decision"] == "changes_requested"
     assert trail[1]["decision"] == "approved"
+
+
+def test_get_review_by_id_and_counts():
+    from backend.app.services.review_engine import get_review_by_id, count_reviews_by_decision
+
+    runs_db = {"r-stat": {"run_id": "r-stat", "timeline": []}}
+    r1 = record_review_decision("r-stat", "rev1", "changes_requested", "Change padding", runs_db=runs_db)
+    r2 = record_review_decision("r-stat", "rev2", "approved", "Approved now", runs_db=runs_db)
+
+    found = get_review_by_id("r-stat", r1["decision_id"])
+    assert found is not None
+    assert found["decision"] == "changes_requested"
+
+    not_found = get_review_by_id("r-stat", "nonexistent-id")
+    assert not_found is None
+
+    counts = count_reviews_by_decision("r-stat")
+    assert counts["changes_requested"] == 1
+    assert counts["approved"] == 1

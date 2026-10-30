@@ -199,6 +199,7 @@ class PatchSubmitPayload(BaseModel):
     pr_title: str = Field(default="OmniSight Automated Visual Defect Fix", description="PR title")
     pr_body: str = Field(default="", description="Detailed PR description with evidence")
     labels: List[str] = Field(default_factory=lambda: ["omnisight", "automated-fix"], description="GitHub labels to attach to created PR")
+    auto_create_pr: bool = Field(default=False, description="Whether to automatically open PR if patch passes")
 
 
 class GitHubPullRequestInfo(BaseModel):
@@ -710,3 +711,29 @@ class DefectHeatmapResponse(BaseModel):
     viewports: List[ViewportHeatCell] = Field(default_factory=list, description="Per-viewport defect heat data")
     hottest_viewport: Optional[str] = Field(default=None, description="Viewport with highest defect density")
     generated_at: str = Field(..., description="ISO-8601 report generation timestamp")
+
+
+# ---------------------------------------------------------------------------
+# Week 3 Day 4 Deliverables: Forensic Bundling, Review Decisions & Certificates
+# ---------------------------------------------------------------------------
+
+class ForensicArtifact(BaseModel):
+    """Metadata envelope for a single forensic artifact."""
+    filename: str = Field(..., description="Artifact filename")
+    byte_size: int = Field(..., description="Size of artifact in bytes")
+    sha256: str = Field(..., description="SHA-256 cryptographic hash of artifact content")
+    mime_type: str = Field(default="application/json", description="MIME content type")
+    content: Optional[str] = Field(default=None, description="Serialized artifact content")
+
+
+class ForensicManifest(BaseModel):
+    """Digital manifest certifying artifact digests and root forensic checksum."""
+    bundle_id: str = Field(..., description="Unique bundle identifier")
+    run_id: str = Field(..., description="Associated audit run identifier")
+    created_at: str = Field(..., description="ISO 8601 creation timestamp")
+    schema_version: str = Field(default="1.0-forensic-certified", description="Forensic bundle schema version")
+    root_checksum: str = Field(..., description="Root SHA-256 cryptographic checksum")
+    artifact_count: int = Field(..., description="Count of enclosed artifacts")
+    artifact_digests: Dict[str, str] = Field(default_factory=dict, description="Artifact filename to SHA-256 digest mapping")
+
+

@@ -212,3 +212,16 @@ def export_forensic_zip_archive(bundle: Dict[str, Any]) -> bytes:
 
     zip_buffer.seek(0)
     return zip_buffer.getvalue()
+
+
+def get_bundle_summary(bundle: Dict[str, Any]) -> Dict[str, Any]:
+    """Returns high-level summary metrics of a forensic bundle for dashboard cards."""
+    manifest = bundle.get("manifest", {})
+    return {
+        "bundle_id": manifest.get("bundle_id"),
+        "run_id": bundle.get("run_id"),
+        "created_at": manifest.get("created_at"),
+        "artifact_count": manifest.get("artifact_count", 0),
+        "root_checksum": manifest.get("root_checksum"),
+        "schema_version": manifest.get("schema_version"),
+    }

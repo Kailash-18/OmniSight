@@ -448,3 +448,23 @@ curl -X GET http://localhost:8000/runs
 | **Audit Forensics** | Event Timeline & SHA-256 Bundle | PASSED | `test_run_timeline_ordered_event_history`, `test_export_run_forensic_bundle` |
 
 
+
+---
+
+## 🔒 Week 3 Day 4: Forensic Bundling, Review Decisions & Remediation Certificates
+
+| Capability | Module | Endpoint | Deliverable Description |
+| :--- | :--- | :--- | :--- |
+| **Forensic Bundling** | `forensic_service.py` | `GET /runs/{id}/forensic-bundle` | Aggregates metadata, findings, diffs, and retest proofs with per-artifact SHA-256 digests. |
+| **ZIP Package Streaming** | `forensic_service.py` | `GET /runs/{id}/forensic-bundle/download` | In-memory ZIP archive streaming with `manifest.json`, `findings.json`, `patch.diff`, and `audit_log.txt`. |
+| **Tamper Verification** | `forensic_service.py` | `POST /runs/{id}/verify-forensic-integrity` | Cryptographically verifies artifact hashes against recorded root checksum. |
+| **QA Review Decisions** | `review_engine.py` | `POST /runs/{id}/review`, `GET /runs/{id}/review` | Formal human review decision logging (`approved`, `rejected`, `changes_requested`, `override`). |
+| **QA Lead Policy Override** | `review_engine.py` | `POST /runs/{id}/override` | Executive override for gated or high-risk runs with required risk acknowledgements. |
+| **Remediation Certificates** | `certificate_service.py` | `GET /runs/{id}/certificate`, `.../markdown` | Cryptographically sealed Certificate of Visual Remediation with digital SHA-256 integrity seal. |
+
+### Test Verification
+The backend test suite stands at **246 automated passing tests** with 100% pass rate.
+```bash
+python -m pytest backend/tests/ -q
+# 246 passed in 4.52s
+```

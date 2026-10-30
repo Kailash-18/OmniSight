@@ -191,7 +191,8 @@ def test_submit_valid_patch_opens_pr(client: TestClient):
         "diff": "-.btn { width: 500px; }\n+.btn { width: 100%; }",
         "file_content": ".btn { width: 100%; }",
         "pr_title": "OmniSight Auto-repair for checkout button clipping",
-        "pr_body": "Verified fix for mobile checkout button clipping."
+        "pr_body": "Verified fix for mobile checkout button clipping.",
+        "auto_create_pr": True
     }
     submit_res = client.post(f"/runs/{run_id}/submit-patch", json=valid_patch)
     assert submit_res.status_code == 200

@@ -199,6 +199,7 @@ class PatchSubmitPayload(BaseModel):
     pr_title: str = Field(default="OmniSight Automated Visual Defect Fix", description="PR title")
     pr_body: str = Field(default="", description="Detailed PR description with evidence")
     labels: List[str] = Field(default_factory=lambda: ["omnisight", "automated-fix"], description="GitHub labels to attach to created PR")
+    auto_create_pr: bool = Field(default=False, description="Whether to automatically open PR if patch passes")
 
 
 class GitHubPullRequestInfo(BaseModel):
@@ -434,7 +435,8 @@ class PatchRevertResponse(BaseModel):
     message: str
     timestamp: str
 
-
+
+
 
 class DefectFingerprint(BaseModel):
     """Deterministic visual defect fingerprint and normalized signature."""
@@ -813,3 +815,21 @@ class RemediationCertificateResponse(BaseModel):
     review_decision: str = Field(..., description="Formal review decision")
     issuer: str = Field(..., description="Issuing authority")
     cryptographic_seal: str = Field(..., description="SHA-256 digital verification seal")
+
+
+class CreatePRPayload(BaseModel):
+    """Payload to trigger or re-run GitHub PR creation for a run with validated patch."""
+    target_file: Optional[str] = Field(default=None, description="Optional target file override")
+    file_content: Optional[str] = Field(default=None, description="Optional modified file content override")
+    commit_message: Optional[str] = Field(default=None, description="Custom Git commit message")
+    pr_title: Optional[str] = Field(default=None, description="Custom Pull Request title")
+    pr_body: Optional[str] = Field(default=None, description="Custom Markdown Pull Request description")
+    labels: Optional[List[str]] = Field(default=None, description="Optional issue/PR labels")
+
+
+class CreatePRResponse(BaseModel):
+    """Response returned upon PR creation or mock PR generation."""
+    status: str = "success"
+    run_id: str
+    pr_url: str
+    message: str = "Pull Request created successfully."

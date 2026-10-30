@@ -817,3 +817,19 @@ class RemediationCertificateResponse(BaseModel):
     cryptographic_seal: str = Field(..., description="SHA-256 digital verification seal")
 
 
+class CreatePRPayload(BaseModel):
+    """Payload to trigger or re-run GitHub PR creation for a run with validated patch."""
+    target_file: Optional[str] = Field(default=None, description="Optional target file override")
+    file_content: Optional[str] = Field(default=None, description="Optional modified file content override")
+    commit_message: Optional[str] = Field(default=None, description="Custom Git commit message")
+    pr_title: Optional[str] = Field(default=None, description="Custom Pull Request title")
+    pr_body: Optional[str] = Field(default=None, description="Custom Markdown Pull Request description")
+    labels: Optional[List[str]] = Field(default=None, description="Optional issue/PR labels")
+
+
+class CreatePRResponse(BaseModel):
+    """Response returned upon PR creation or mock PR generation."""
+    status: str = "success"
+    run_id: str
+    pr_url: str
+    message: str = "Pull Request created successfully."

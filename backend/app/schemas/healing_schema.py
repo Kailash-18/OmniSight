@@ -42,3 +42,41 @@ class HealingSummaryResponse(BaseModel):
     resolution_status: str = Field(..., description="Final resolution outcome (e.g. fixed, escalated, rolled_back)")
     duration_seconds: float = Field(..., description="Total elapsed remediation time in seconds", ge=0.0)
     pr_url: Optional[str] = Field(default=None, description="Associated GitHub Pull Request URL if opened")
+
+class PRLabelCalculationRequest(BaseModel):
+    """Payload to compute dynamic GitHub PR labels for visual defects."""
+    finding_count: int = Field(default=1, description="Total number of detected visual findings", ge=0)
+    max_severity: str = Field(default="medium", description="Highest severity among detected defects")
+    viewport_name: str = Field(default="desktop", description="Target viewport device profile")
+    is_verified: bool = Field(default=True, description="Whether patch has passed sandbox visual retest")
+    defect_categories: List[str] = Field(default_factory=list, description="Unique categories of detected defects")
+
+
+class PRLabelCalculationResponse(BaseModel):
+    """Computed GitHub label metadata for automated PR triage."""
+    labels: List[str] = Field(..., description="List of sanitized GitHub label names")
+    color_map: Dict[str, str] = Field(default_factory=dict, description="Hex color mapping per label")
+    priority_level: str = Field(..., description="Computed triage priority (P0, P1, P2, P3)")
+
+class RollbackPreviewRequest(BaseModel):
+    """Request payload to simulate a patch rollback for a failed healing run."""
+    run_id: str = Field(..., description="Unique audit run identifier", min_length=3)
+    target_file: str = Field(..., description="Relative path of file to restore")
+    reason: str = Field(default="visual_regression_detected", description="Operator or automated rationale for rollback")
+
+    @field_validator("target_file")
+    @classmethod
+    def validate_target_file(cls, v: str) -> str:
+        clean = v.strip().replace("\\", "/")
+        if ".." in clean or clean.startswith("/"):
+            raise ValueError("Target file path must be a clean relative path without traversal")
+        return clean
+
+
+class RollbackPreviewResponse(BaseModel):
+    """Simulation preview of a file rollback operation."""
+    run_id: str = Field(..., description="Unique audit run identifier")
+    target_file: str = Field(..., description="File selected for rollback")
+    is_restorable: bool = Field(..., description="Whether clean pristine state can be restored")
+    restored_status: str = Field(default="rolled_back", description="Target state after rollback")
+    audit_event_logged: bool = Field(default=True, description="Confirmation that rollback was recorded in timeline")

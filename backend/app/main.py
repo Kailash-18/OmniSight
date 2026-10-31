@@ -2599,3 +2599,29 @@ def create_run_pull_request(run_id: str, payload: Optional[CreatePRPayload] = No
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"PR automation failed: {str(e)}"
         )
+
+@app.post(
+    "/runs/{run_id}/healing-strategy",
+    response_model=HealingStrategyResponse,
+    tags=["Self-Healing Lifecycle"],
+    summary="Evaluate automated self-healing strategy for a run"
+)
+async def evaluate_run_healing_strategy(run_id: str, payload: HealingStrategyRequest):
+    """Evaluates current visual diff and iteration count to determine optimal healing action."""
+    if run_id not in runs_db:
+        # Fallback simulation if run was not pre-registered
+        runs_db[run_id] = {"id": run_id, "status": "verifying", "timeline": []}
+
+    decision = healing_engine.evaluate_strategy(
+        run_id=run_id,
+        visual_diff_score=payload.visual_diff_score,
+        iteration_count=payload.iteration_count,
+        max_retries=payload.max_retries
+    )
+    healing_engine.record_healing_cycle(
+        run_id=run_id,
+        iteration=payload.iteration_count,
+        diff_score=payload.visual_diff_score,
+        strategy=decision.strategy.value
+    )
+    return decision

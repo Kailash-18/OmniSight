@@ -167,8 +167,13 @@ export default function RunDetail({ runId, link }) {
       </section>
 
       <section className="panel" aria-labelledby="h-review">
-        <h2 id="h-review">Review</h2>
-        <ReviewPanel key={run.run_id} runId={run.run_id} patch={patch} />
+        <ReviewPanel
+          key={run.run_id}
+          runId={run.run_id}
+          patch={patch}
+          prUrl={run.pr_url}
+          onPrCreated={(url) => setState((s) => ({ ...s, run: { ...s.run, pr_url: url, status: 'pr_opened' } }))}
+        />
       </section>
     </article>
   )

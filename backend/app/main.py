@@ -2653,3 +2653,15 @@ async def compute_run_pr_labels(run_id: str, payload: PRLabelCalculationRequest)
         is_verified=payload.is_verified,
         defect_categories=payload.defect_categories
     )
+
+@app.post(
+    "/runs/{run_id}/rollback-preview",
+    response_model=RollbackPreviewResponse,
+    tags=["Self-Healing Lifecycle"],
+    summary="Simulate patch rollback and verify restorable state"
+)
+async def preview_run_patch_rollback(run_id: str, payload: RollbackPreviewRequest):
+    """Verifies that target file can be cleanly rolled back to its pristine pre-patch baseline."""
+    if run_id not in runs_db:
+        runs_db[run_id] = {"id": run_id, "status": "needs_review", "timeline": []}
+    return healing_engine.preview_rollback(run_id, payload.target_file, payload.reason)

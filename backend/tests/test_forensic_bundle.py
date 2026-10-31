@@ -142,3 +142,14 @@ def test_export_forensic_zip_archive_validity(sample_run_data):
     audit_text = zf.read("audit_log.txt").decode("utf-8")
     assert "OmniSight Certified Forensic Audit Bundle" in audit_text
     assert bundle["root_checksum"] in audit_text
+
+
+def test_get_bundle_summary(sample_run_data):
+    from backend.app.services.forensic_service import get_bundle_summary
+    bundle = create_forensic_bundle(run_id="run-forensic-test-101", run_data=sample_run_data)
+    summary = get_bundle_summary(bundle)
+
+    assert summary["run_id"] == "run-forensic-test-101"
+    assert summary["artifact_count"] >= 5
+    assert len(summary["root_checksum"]) == 64
+    assert summary["schema_version"] == "1.0-forensic-certified"

@@ -73,7 +73,12 @@ export default function RunDetail({ runId, link }) {
           <h1 className="mono run-title">{run.run_id} <MockTag /></h1>
           <p className="muted">{formatTime(run.start_time)} · <span className="mono"><TargetLink target={run.target} /></span></p>
         </div>
-        <StatusBadge status={run.status} />
+        <div className="head-actions">
+          <button type="button" className="btn btn-small" data-testid="sync-run-status" onClick={load} title="Check latest run & webhook status">
+            ↻ Sync status
+          </button>
+          <StatusBadge status={run.status} />
+        </div>
       </div>
 
       <section className="panel" aria-labelledby="h-summary">

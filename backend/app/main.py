@@ -2625,3 +2625,15 @@ async def evaluate_run_healing_strategy(run_id: str, payload: HealingStrategyReq
         strategy=decision.strategy.value
     )
     return decision
+
+@app.get(
+    "/runs/{run_id}/healing-summary",
+    response_model=HealingSummaryResponse,
+    tags=["Self-Healing Lifecycle"],
+    summary="Get multi-iteration self-healing cycle summary"
+)
+async def get_run_healing_summary(run_id: str):
+    """Retrieves aggregate summary of all self-healing iterations for a given run."""
+    if run_id not in runs_db and run_id not in healing_engine.healing_cycles_db:
+        raise HTTPException(status_code=404, detail=f"Audit run '{run_id}' not found")
+    return healing_engine.get_healing_summary(run_id)

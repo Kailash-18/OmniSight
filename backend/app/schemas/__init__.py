@@ -66,6 +66,15 @@ from app.schemas.run_schema import (
     SLAViolationReport,
     ViewportHeatCell,
     DefectHeatmapResponse,
+    ForensicArtifact,
+    ForensicManifest,
+    ForensicBundle,
+    ForensicIntegrityResponse,
+    ReviewDecisionPayload,
+    ReviewRecord,
+    ReviewTrailResponse,
+    ReviewOverridePayload,
+    RemediationCertificateResponse,
 )
 
 
@@ -120,6 +129,23 @@ __all__ = [
     "PatchDryRunPayload",
     "PatchDryRunResponse",
     "RunDeduplicationResponse",
+    "AuditSchedulePayload",
+    "AuditScheduleResponse",
+    "AuditScheduleListResponse",
+    "AuditAnnotation",
+    "AnnotationCreatePayload",
+    "AnnotationListResponse",
+    "SLAViolationRecord",
+    "SLAViolationReport",
+    "ViewportHeatCell",
+    "DefectHeatmapResponse",
+    "ForensicArtifact",
+    "ForensicManifest",
+    "ForensicBundle",
+    "ForensicIntegrityResponse",
+    "ReviewDecisionPayload",
+    "ReviewRecord",
+    "ReviewTrailResponse",
+    "ReviewOverridePayload",
+    "RemediationCertificateResponse",
 ]
-
-

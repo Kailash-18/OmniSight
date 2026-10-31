@@ -31,6 +31,10 @@ test('screenshot names parse for both runner and contract styles', () => {
   assert.equal(parseShot('artifacts/runs/r1/retest/mobile_390x844_cart_after.png').key, 'mobile_390x844_cart')
   assert.equal(parseShot('retest_desktop_1280x800_checkout.png').key, 'desktop_1280x800_checkout')
   assert.equal(parseShot('weird.png').viewport, null)
+  // Windows path with backslashes
+  assert.deepEqual(parseShot('C:\\Users\\me\\OmniSight\\artifacts\\runs\\r1\\screenshots\\mobile_390x844_cart.png'),
+    { key: 'mobile_390x844_cart', viewport: 'mobile_390x844', page: 'cart' })
+  assert.equal(parseShot('C:\\Users\\me\\OmniSight\\artifacts\\runs\\r1\\retest\\desktop_1440x900_checkout_after.png').key, 'desktop_1440x900_checkout')
 })
 
 test('before/after pairing matches by viewport and page', () => {

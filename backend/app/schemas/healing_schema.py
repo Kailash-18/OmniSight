@@ -22,3 +22,23 @@ class HealingStrategyRequest(BaseModel):
     visual_diff_score: float = Field(..., description="Current visual diff mismatch ratio (0.00 to 1.00)", ge=0.0, le=1.0)
     iteration_count: int = Field(default=1, description="Current iteration number", ge=1)
     max_retries: int = Field(default=2, description="Upper bound on allowable autonomous retries", ge=1, le=5)
+
+class HealingStrategyResponse(BaseModel):
+    """Strategy recommendation evaluated for a visual healing cycle."""
+    run_id: str = Field(..., description="Audit run identifier")
+    strategy: HealingStrategyType = Field(..., description="Recommended self-healing strategy")
+    action_rationale: str = Field(..., description="Reasoning and evaluation justification", min_length=10)
+    recommended_action: str = Field(..., description="Specific next step for orchestrator loop")
+    rollback_recommended: bool = Field(default=False, description="Whether immediate patch rollback is advised")
+    can_auto_merge: bool = Field(default=False, description="Whether the run qualifies for automated merging")
+
+
+class HealingSummaryResponse(BaseModel):
+    """High-level summary of an audit run's complete self-healing cycle."""
+    run_id: str = Field(..., description="Unique audit run identifier")
+    total_iterations: int = Field(..., description="Number of healing cycles executed", ge=1)
+    initial_diff_score: float = Field(..., description="Initial visual diff mismatch ratio", ge=0.0, le=1.0)
+    final_diff_score: float = Field(..., description="Final visual diff mismatch ratio achieved", ge=0.0, le=1.0)
+    resolution_status: str = Field(..., description="Final resolution outcome (e.g. fixed, escalated, rolled_back)")
+    duration_seconds: float = Field(..., description="Total elapsed remediation time in seconds", ge=0.0)
+    pr_url: Optional[str] = Field(default=None, description="Associated GitHub Pull Request URL if opened")

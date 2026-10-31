@@ -25,6 +25,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.schemas import (
+    CreatePRPayload,
+    CreatePRResponse,
     HealthCheckResponse,
     BuildWebhookPayload,
     RunTriggerPayload,
@@ -115,6 +117,7 @@ from app.services.flakiness_service import get_flakiness_report, quarantine_defe
 from app.services.fingerprint_service import deduplicate_findings
 from app.services.action_engine import action_engine
 from app.services.github_service import (
+    generate_pr_markdown_description,
     create_pull_request_for_fix,
     add_pr_comment_with_retest_evidence,
     check_pull_request_status,
@@ -349,6 +352,9 @@ def get_milestone_status():
         "retest_synchronization": "completed",
         "forensics_and_hardening": "completed",
         "week_1_foundation": "completed",
+        "week_2_action_engine": "completed",
+        "week_2_day_3_integration": "completed",
+        "week_3_pr_automation": "completed",
         "week_2_full_deliverables": "completed",
         "lifecycle_and_api_expansion": "completed",
         "remediation_mttr_and_checksum_verification": "completed",
@@ -990,47 +996,69 @@ def submit_and_validate_patch(run_id: str, payload: PatchSubmitPayload):
             detail=validation_result["validator_errors"]
         )
 
-    # 2. If valid, open a GitHub Pull Request
+    # 2. Handle patch and optional PR opening
     sanitized_target = validation_result["target_file"]
-    try:
-        pr_url = create_pull_request_for_fix(
-            run_id=run_id,
-            target_file=sanitized_target,
-            file_content=payload.file_content,
-            commit_message=f"fix(ui): OmniSight auto-repair for {sanitized_target}",
-            pr_title=payload.pr_title,
-            pr_body=payload.pr_body,
-            labels=payload.labels
-        )
-        runs_db[run_id]["status"] = RunStatus.PR_OPENED.value
-        runs_db[run_id]["pr_url"] = pr_url
-        runs_db[run_id]["patch"] = {
-            "target_file": sanitized_target,
-            "diff": payload.diff,
-            "validation_status": True,
-            "validator_errors": None,
-            "labels": payload.labels
-        }
-        _append_timeline_event(
-            run_id=run_id,
-            event_type="pr_opened",
-            description=f"Automated PR opened at {pr_url}",
-            metadata={"pr_url": pr_url, "target_file": sanitized_target}
-        )
-        return {"status": "success", "pr_url": pr_url}
-    except Exception as e:
-        runs_db[run_id]["status"] = RunStatus.FAILED.value
-        runs_db[run_id]["error"] = str(e)
-        _append_timeline_event(
-            run_id=run_id,
-            event_type="pr_failed",
-            description=f"PR automation failed: {str(e)}",
-            metadata={"error": str(e)}
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"PR automation failed: {str(e)}"
-        )
+    pr_url = None
+    if getattr(payload, 'auto_create_pr', False):
+        try:
+            pr_body = payload.pr_body or generate_pr_markdown_description(
+                defect_title=payload.pr_title,
+                viewport="all",
+                target_file=sanitized_target,
+                diff=payload.diff,
+                verification_status="Approved by Zero-Trust Patch Validator"
+            )
+            pr_url = create_pull_request_for_fix(
+                run_id=run_id,
+                target_file=sanitized_target,
+                file_content=payload.file_content or "",
+                commit_message=f"fix(ui): OmniSight auto-repair for {sanitized_target} ({run_id})",
+                pr_title=payload.pr_title,
+                pr_body=pr_body,
+                labels=payload.labels or ["omnisight", "automated-fix"]
+            )
+            runs_db[run_id]["status"] = RunStatus.PR_OPENED.value
+            runs_db[run_id]["pr_url"] = pr_url
+            _append_timeline_event(
+                run_id=run_id,
+                event_type="pr_opened",
+                description=f"Automated PR opened at {pr_url}",
+                metadata={"pr_url": pr_url, "target_file": sanitized_target}
+            )
+        except Exception as e:
+            runs_db[run_id]["status"] = RunStatus.FAILED.value
+            runs_db[run_id]["error"] = str(e)
+            _append_timeline_event(
+                run_id=run_id,
+                event_type="pr_failed",
+                description=f"PR automation failed: {str(e)}",
+                metadata={"error": str(e)}
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"PR automation failed: {str(e)}"
+            )
+    else:
+        runs_db[run_id]["status"] = RunStatus.AUDITED.value
+
+    runs_db[run_id]["patch"] = {
+        "target_file": sanitized_target,
+        "diff": payload.diff,
+        "file_content": payload.file_content,
+        "validation_status": True,
+        "validator_errors": None,
+        "labels": payload.labels
+    }
+
+    response_data = {
+        "status": "success",
+        "run_id": run_id,
+        "validation_status": True,
+        "message": f"Patch for {sanitized_target} passed all zero-trust security guardrails."
+    }
+    if pr_url:
+        response_data["pr_url"] = pr_url
+    return response_data
 
 
 @app.post(
@@ -2479,3 +2507,83 @@ def export_certificate_markdown_doc(run_id: str):
         "run_id": run_id,
         "markdown": md
     }
+
+
+@app.post(
+    "/runs/{run_id}/create-pr",
+    response_model=CreatePRResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Audit Runs"],
+    summary="Create Evidence-Backed Pull Request for Run"
+)
+def create_run_pull_request(run_id: str, payload: Optional[CreatePRPayload] = None):
+    """Creates an isolated feature branch and opens a GitHub Pull Request with before/after visual proof."""
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+
+    run_entry = runs_db[run_id]
+    patch = run_entry.get("patch") or {}
+
+    target_file = (payload.target_file if payload and payload.target_file else None) or patch.get("target_file")
+    if not target_file:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Run '{run_id}' does not have an approved patch target file."
+        )
+
+    file_content = (payload.file_content if payload and payload.file_content else None) or patch.get("file_content", "")
+    diff = patch.get("diff", "")
+
+    evidence = run_entry.get("evidence_paths") or {}
+    before_shots = evidence.get("before_screenshots") or evidence.get("screenshots") or []
+    after_shots = evidence.get("after_screenshots") or []
+    before_url = before_shots[0] if before_shots else None
+    after_url = after_shots[0] if after_shots else None
+
+    retest_outcome = run_entry.get("retest_outcome") or {}
+    verif_status = (
+        "Verified Fixed in Isolated Sandbox"
+        if retest_outcome.get("passed")
+        else "Approved by Zero-Trust Patch Validator"
+    )
+
+    pr_title = (payload.pr_title if payload and payload.pr_title else None) or f"fix(visual): automated repair for {run_id}"
+    pr_body = (payload.pr_body if payload and payload.pr_body else None) or generate_pr_markdown_description(
+        defect_title=f"Automated Visual Repair ({target_file})",
+        viewport=retest_outcome.get("retest_viewport", "all"),
+        target_file=target_file,
+        diff=diff,
+        verification_status=verif_status,
+        before_screenshot_url=before_url,
+        after_screenshot_url=after_url,
+    )
+    commit_msg = (payload.commit_message if payload and payload.commit_message else None) or f"fix(ui): OmniSight auto-repair for {target_file} ({run_id})"
+    labels = (payload.labels if payload and payload.labels else None) or ["omnisight", "automated-fix"]
+
+    try:
+        pr_url = create_pull_request_for_fix(
+            run_id=run_id,
+            target_file=target_file,
+            file_content=file_content,
+            commit_message=commit_msg,
+            pr_title=pr_title,
+            pr_body=pr_body,
+            labels=labels
+        )
+        run_entry["pr_url"] = pr_url
+        run_entry["status"] = RunStatus.PR_OPENED.value
+        return CreatePRResponse(
+            status="success",
+            run_id=run_id,
+            pr_url=pr_url,
+            message="Pull Request created successfully."
+        )
+    except Exception as e:
+        run_entry["error"] = str(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PR automation failed: {str(e)}"
+        )

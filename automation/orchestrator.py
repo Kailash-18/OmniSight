@@ -120,6 +120,7 @@ class Orchestrator:
         auto_retest: bool = True,
         auto_create_pr: Optional[bool] = None,
         scenario: str = "checkout_flow",
+        bundle_forensics: bool = False,
     ) -> Dict[str, Any]:
         """
         Executes the closed remediation loop:
@@ -342,6 +343,27 @@ class Orchestrator:
                     pr_url=pr_url,
                 )
 
+            forensic_bundle = None
+            if bundle_forensics:
+                try:
+                    from automation.forensics import create_forensic_bundle
+                    forensic_bundle = create_forensic_bundle(
+                        run_id=evidence.run_id,
+                        run_dir=evidence.run_dir,
+                        run_data={
+                            "run_id": evidence.run_id,
+                            "status": final_status,
+                            "target_url": app_url,
+                            "scenario": scenario,
+                            "pr_url": pr_url,
+                            "retest_outcome": retest_outcome,
+                        }
+                    )
+                    if self.sync_backend and self.backend_client:
+                        self.backend_client.generate_forensics(evidence.run_id)
+                except Exception as b_err:
+                    forensic_bundle = {"error": str(b_err)}
+
             return {
                 "run_id": evidence.run_id,
                 "status": final_status,
@@ -354,6 +376,7 @@ class Orchestrator:
                 ),
                 "pr_url": pr_url,
                 "evidence_paths": updated_evidence_paths,
+                "forensic_bundle": forensic_bundle,
                 "annotated_screenshots": audit_report.annotated_screenshots,
                 "screenshots_count": len(run_results["screenshots"]),
                 "viewports_evaluated": run_results["viewports_evaluated"],

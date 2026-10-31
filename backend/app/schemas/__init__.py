@@ -153,3 +153,14 @@ __all__ = [
     "ReviewOverridePayload",
     "RemediationCertificateResponse",
 ]
+
+from backend.app.schemas.healing_schema import (
+    HealingStrategyType,
+    HealingStrategyRequest,
+    HealingStrategyResponse,
+    HealingSummaryResponse,
+    PRLabelCalculationRequest,
+    PRLabelCalculationResponse,
+    RollbackPreviewRequest,
+    RollbackPreviewResponse,
+)

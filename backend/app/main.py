@@ -2637,3 +2637,19 @@ async def get_run_healing_summary(run_id: str):
     if run_id not in runs_db and run_id not in healing_engine.healing_cycles_db:
         raise HTTPException(status_code=404, detail=f"Audit run '{run_id}' not found")
     return healing_engine.get_healing_summary(run_id)
+
+@app.post(
+    "/runs/{run_id}/compute-labels",
+    response_model=PRLabelCalculationResponse,
+    tags=["PR Automation"],
+    summary="Compute dynamic GitHub PR labels for visual defects"
+)
+async def compute_run_pr_labels(run_id: str, payload: PRLabelCalculationRequest):
+    """Computes contextual GitHub triage labels based on defect severity and viewport."""
+    return healing_engine.compute_pr_labels(
+        finding_count=payload.finding_count,
+        max_severity=payload.max_severity,
+        viewport_name=payload.viewport_name,
+        is_verified=payload.is_verified,
+        defect_categories=payload.defect_categories
+    )

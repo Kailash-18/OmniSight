@@ -67,3 +67,26 @@ def test_compute_pr_labels_triage_and_colors():
     assert "defect:element-clipping" in res.labels
     assert res.priority_level == "P0"
     assert "severity:critical" in res.color_map
+
+def test_record_healing_cycles_and_summary():
+    """Verify multi-cycle recording and aggregate summary calculation."""
+    engine = HealingEngine()
+    engine.record_healing_cycle("run-105", iteration=1, diff_score=0.25, strategy="iterative_refinement")
+    engine.record_healing_cycle("run-105", iteration=2, diff_score=0.001, strategy="immediate_patch")
+
+    summary = engine.get_healing_summary("run-105")
+    assert summary.run_id == "run-105"
+    assert summary.total_iterations == 2
+    assert summary.initial_diff_score == 0.25
+    assert summary.final_diff_score == 0.001
+    assert summary.resolution_status == "fixed"
+    assert summary.duration_seconds > 0.0
+
+
+def test_rollback_preview_request_validation():
+    """Verify rollback preview validates path traversal defensively."""
+    req = RollbackPreviewRequest(run_id="run-106", target_file="app-under-test/src/styles/defects.css")
+    assert req.target_file == "app-under-test/src/styles/defects.css"
+
+    with pytest.raises(ValueError):
+        RollbackPreviewRequest(run_id="run-106", target_file="../../backend/app/main.py")

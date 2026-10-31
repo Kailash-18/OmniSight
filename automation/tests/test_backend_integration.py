@@ -213,6 +213,9 @@ def test_orchestrator_closed_loop_backend_sync(
     assert len(backend_details["findings"]) > 0
     assert backend_details["patch"] is not None
     assert backend_details["patch"]["validation_status"] is True
+    assert "evidence_paths" in backend_details
+    assert "after_screenshots" in backend_details["evidence_paths"]
+    assert len(backend_details["evidence_paths"]["after_screenshots"]) > 0
 
 
 def test_backend_client_register_run_with_scenario(backend_client: BackendClient):

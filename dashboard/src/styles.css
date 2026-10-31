@@ -145,6 +145,10 @@ ul.alert { padding-left: 32px; }
 .retest-summary { margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; background: #fafbfc; }
 .retest-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 
+.forensic-card { border: 1px solid var(--line); border-radius: 8px; padding: 16px; background: #fafbfc; margin-top: 8px; }
+.forensic-facts { margin: 12px 0; }
+.forensic-actions { margin-top: 14px; }
+
 @media (max-width: 720px) {
   .wrap { padding: 0 16px; }
   .pair-grid { grid-template-columns: 1fr; }

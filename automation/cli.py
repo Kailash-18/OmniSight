@@ -55,6 +55,11 @@ def main() -> int:
         help="Automatically open Pull Request upon verified fixed patch",
     )
     parser.add_argument(
+        "--bundle-forensics",
+        action="store_true",
+        help="Compile and package an immutable forensic ZIP bundle with SHA-256 checksums",
+    )
+    parser.add_argument(
         "--sync-backend",
         action="store_true",
         help="Synchronize audit progress, findings, and patch with FastAPI backend gateway",
@@ -106,6 +111,7 @@ def main() -> int:
         viewports=args.viewports,
         auto_retest=not args.no_retest,
         auto_create_pr=args.auto_pr,
+        bundle_forensics=args.bundle_forensics,
     )
 
     if args.json_output:
@@ -144,6 +150,13 @@ def main() -> int:
 
         if result.get("pr_url"):
             print(f"\nPull Request:  {result['pr_url']}")
+
+        bundle = result.get("forensic_bundle")
+        if bundle and not bundle.get("error"):
+            print(f"\nForensic Bundle: {bundle.get('bundle_name')}")
+            print(f"  SHA-256:      {bundle.get('sha256')}")
+            print(f"  Size:         {bundle.get('size_bytes')} bytes ({bundle.get('artifact_count')} artifacts)")
+            print(f"  Archive:      {bundle.get('bundle_file')}")
 
         if args.sync_backend and backend_client and result.get("run_id"):
             print(f"Backend Run:   {args.backend_url}/runs/{result.get('run_id')}")

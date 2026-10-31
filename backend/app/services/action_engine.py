@@ -1,20 +1,26 @@
+# -*- coding: utf-8 -*-
 """
 Action Engine for OmniSight.
 Parses natural language and multimodal responses from VLMs, isolates structured findings
 and executable code blocks, and validates patches against strict security guardrails.
 """
 
-import ast
+import sys
 import json
 import re
-from typing import Any
+from pathlib import Path
+from typing import Dict, Any, List, Optional, Tuple
+
+_backend_root = str(Path(__file__).resolve().parent.parent.parent)
+if _backend_root not in sys.path:
+    sys.path.insert(0, _backend_root)
 
 from app.schemas.run_schema import (
-    DefectCategory,
     FindingSchema,
     PatchObject,
-    Severity,
     VLMParseResponse,
+    DefectCategory,
+    Severity,
 )
 from app.services.patch_validator import validate_patch
 
@@ -23,12 +29,13 @@ class ActionEngine:
     """Action Engine for extracting, parsing, and verifying VLM visual defect audits."""
 
     @staticmethod
-    def extract_code_blocks(text: str) -> list[dict[str, str]]:
+    def extract_code_blocks(text: str) -> List[Dict[str, str]]:
         """
         Extracts all markdown-fenced code blocks from prose text.
-        Returns a list of dicts with 'lang' and 'code'.
+        Supports both backtick (```) and tilde (~~~) fences with LF or CRLF endings.
+        Returns a list of dicts with 'lang' (lowercase) and 'code'.
         """
-        pattern = r"```([a-zA-Z0-9_\-\+]*)\s*\n(.*?)```"
+        pattern = r"(?:```|~~~)([a-zA-Z0-9_\-\+]*)[^\S\r\n]*(?:\r?\n)(.*?)(?:```|~~~)"
         matches = re.findall(pattern, text, re.DOTALL)
         blocks = []
         for lang, code in matches:
@@ -53,58 +60,75 @@ class ActionEngine:
         except (ValueError, TypeError):
             return 0.8
 
-    @staticmethod
-    def _normalize_category(cat_val: Any) -> tuple[DefectCategory, str | None]:
-        """Normalizes defect categories handling case and hyphens."""
+    CATEGORY_SYNONYMS = {
+        "overlap": DefectCategory.ELEMENT_OVERLAP,
+        "clipping": DefectCategory.ELEMENT_CLIPPING,
+        "clipped": DefectCategory.ELEMENT_CLIPPING,
+        "clip": DefectCategory.ELEMENT_CLIPPING,
+        "obstruction": DefectCategory.ELEMENT_OBSTRUCTION,
+        "obstructed": DefectCategory.ELEMENT_OBSTRUCTION,
+        "contrast": DefectCategory.CONTRAST_ISSUE,
+        "contrast_issue": DefectCategory.CONTRAST_ISSUE,
+        "color_contrast": DefectCategory.CONTRAST_ISSUE,
+        "overflow": DefectCategory.LAYOUT_OVERFLOW,
+        "layout_overflow": DefectCategory.LAYOUT_OVERFLOW,
+    }
+
+    SEVERITY_SYNONYMS = {
+        "crit": Severity.CRITICAL,
+        "critical": Severity.CRITICAL,
+        "blocker": Severity.CRITICAL,
+        "high": Severity.HIGH,
+        "major": Severity.HIGH,
+        "med": Severity.MEDIUM,
+        "medium": Severity.MEDIUM,
+        "normal": Severity.MEDIUM,
+        "low": Severity.LOW,
+        "minor": Severity.LOW,
+        "trivial": Severity.LOW,
+    }
+
+    @classmethod
+    def _normalize_category(cls, cat_val: Any) -> Tuple[DefectCategory, Optional[str]]:
+        """Normalizes defect categories handling case, hyphens, and common VLM synonyms."""
         warning = None
         s = str(cat_val).strip().lower().replace("-", "_")
+        if s in cls.CATEGORY_SYNONYMS:
+            return cls.CATEGORY_SYNONYMS[s], warning
         try:
             return DefectCategory(s), warning
         except ValueError:
             return DefectCategory.ELEMENT_OVERLAP, f"Unknown category '{cat_val}', normalized to element_overlap."
 
-    @staticmethod
-    def _normalize_severity(sev_val: Any) -> tuple[Severity, str | None]:
-        """Normalizes severity strings handling case."""
+    @classmethod
+    def _normalize_severity(cls, sev_val: Any) -> Tuple[Severity, Optional[str]]:
+        """Normalizes severity strings handling case, level codes, and common VLM synonyms."""
         warning = None
         s = str(sev_val).strip().lower()
+        if s in cls.SEVERITY_SYNONYMS:
+            return cls.SEVERITY_SYNONYMS[s], warning
         try:
             return Severity(s), warning
         except ValueError:
             return Severity.MEDIUM, f"Unknown severity '{sev_val}', normalized to medium."
 
-    @staticmethod
-    def _normalize_quotes(text: str) -> str:
-        """
-        Normalizes smart/curly quotes (U+201C, U+201D, U+2018, U+2019)
-        and other Unicode quote anomalies commonly produced by LLMs/VLMs.
-        """
-        if not text:
-            return text
-        replacements = {
-            "\u201c": '"',
-            "\u201d": '"',
-            "\u2018": "'",
-            "\u2019": "'",
-            "\u00ab": '"',
-            "\u00bb": '"',
-            "\u2032": "'",
-            "\u2033": '"',
-        }
-        for orig, repl in replacements.items():
-            text = text.replace(orig, repl)
-        return text
-
     @classmethod
-    def extract_json_object(cls, text: str) -> tuple[Any | None, list[str]]:
+    def extract_json_object(cls, text: str) -> Tuple[Optional[Any], List[str]]:
         """
         Robustly extracts the primary JSON object or list from raw VLM output.
-        Handles pure JSON, markdown fenced JSON, and JSON surrounded by natural language.
-        Normalizes smart quotes and recovers Python single-quoted dictionary literals.
+        Handles pure JSON, markdown fenced JSON, single-quoted dicts, and smart quotes.
         Uses strict=False to tolerate literal control characters in diff strings.
         """
+        import ast
         errors = []
-        cleaned_text = cls._normalize_quotes(text.strip())
+        # Normalize Unicode smart/curly quotes to standard ASCII quotes
+        cleaned_text = (
+            text.strip()
+            .replace("“", '"')
+            .replace("”", '"')
+            .replace("‘", "'")
+            .replace("’", "'")
+        )
 
         # Strategy 1: Check for ```json ... ``` or generic ``` ... ``` markdown block
         code_blocks = cls.extract_code_blocks(cleaned_text)
@@ -115,10 +139,11 @@ class ActionEngine:
                     if isinstance(data, (dict, list)):
                         return data, errors
                 except json.JSONDecodeError:
+                    # Try single-quoted python literal fallback
                     try:
-                        parsed_literal = ast.literal_eval(block["code"])
-                        if isinstance(parsed_literal, (dict, list)):
-                            return parsed_literal, errors
+                        data = ast.literal_eval(block["code"])
+                        if isinstance(data, (dict, list)):
+                            return data, errors
                     except Exception:
                         continue
 
@@ -128,45 +153,36 @@ class ActionEngine:
             if isinstance(data, (dict, list)):
                 return data, errors
         except json.JSONDecodeError:
-            try:
-                parsed_literal = ast.literal_eval(cleaned_text)
-                if isinstance(parsed_literal, (dict, list)):
-                    return parsed_literal, errors
-            except Exception:
-                pass
+            pass
 
         # Strategy 3: Find outermost balanced curly braces or brackets in prose
-        candidates = []
         for start_char, end_char in [("{", "}"), ("[", "]")]:
             start_idx = cleaned_text.find(start_char)
             end_idx = cleaned_text.rfind(end_char)
             if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                candidates.append((start_idx, end_idx, cleaned_text[start_idx:end_idx + 1]))
-
-        # Sort candidates so the earliest occurring bracket pair is tried first
-        candidates.sort(key=lambda c: (c[0], -(c[1] - c[0])))
-
-        for _, _, candidate in candidates:
-            try:
-                data = json.loads(candidate, strict=False)
-                if isinstance(data, (dict, list)):
-                    return data, []
-            except json.JSONDecodeError:
-                sanitized = re.sub(r",\s*([\]}])", r"\1", candidate)
+                candidate = cleaned_text[start_idx:end_idx + 1]
                 try:
-                    data = json.loads(sanitized, strict=False)
+                    data = json.loads(candidate, strict=False)
                     if isinstance(data, (dict, list)):
-                        return data, []
+                        return data, errors
                 except json.JSONDecodeError:
-                    # Strategy 4: Fallback for single-quoted Python dictionary representation
+                    # Attempt light sanitization (remove trailing commas before closing brackets)
+                    sanitized = re.sub(r",\s*([\]}])", r"\1", candidate)
                     try:
-                        parsed_literal = ast.literal_eval(candidate)
-                        if isinstance(parsed_literal, (dict, list)):
-                            return parsed_literal, []
-                    except Exception:
-                        pass
+                        data = json.loads(sanitized, strict=False)
+                        if isinstance(data, (dict, list)):
+                            return data, errors
+                    except json.JSONDecodeError:
+                        # Strategy 4: Try ast.literal_eval on candidate for single-quoted structures
+                        try:
+                            data = ast.literal_eval(candidate)
+                            if isinstance(data, (dict, list)):
+                                return data, errors
+                        except Exception as err:
+                            errors.append(f"Failed to decode embedded JSON structure: {str(err)}")
 
-        return None, ["No valid JSON structure could be isolated from model response."]
+        errors.append("No valid JSON structure could be isolated from model response.")
+        return None, errors
 
     @classmethod
     def parse_vlm_response(cls, raw_vlm_output: str) -> VLMParseResponse:
@@ -191,46 +207,13 @@ class ActionEngine:
         data, parse_errors = cls.extract_json_object(raw_vlm_output)
 
         if data is None:
-            # Check if there is an isolated diff code block even without JSON findings
-            code_blocks = cls.extract_code_blocks(raw_vlm_output)
-            diff_blocks = [b for b in code_blocks if b["lang"] in ("diff", "patch", "css")]
-            if diff_blocks:
-                diff_text = diff_blocks[0]["code"]
-                target_file = None
-                diff_target_match = re.search(r"^\+\+\+\s+(?:b/)?([^\t\r\n]+)", diff_text, re.MULTILINE)
-                if diff_target_match:
-                    target_file = diff_target_match.group(1).strip()
-                if not target_file:
-                    target_file = "app-under-test/src/styles/defects.css"
-
-                proposed_patch = PatchObject(
-                    target_file=target_file,
-                    diff=diff_text,
-                    explanation="Isolated code block extracted from prose"
-                )
-                val_result = validate_patch(proposed_patch.target_file, proposed_patch.diff)
-                validation_status = val_result["validation_status"]
-                validator_errors = val_result["validator_errors"]
-                proposed_patch.validation_status = validation_status
-                proposed_patch.validator_errors = validator_errors
-
-                return VLMParseResponse(
-                    is_valid=True,
-                    findings=[],
-                    summary="Diff code block extracted from response without structured findings JSON",
-                    proposed_patch=proposed_patch,
-                    validation_status=validation_status,
-                    validator_errors=validator_errors,
-                    parse_errors=["No structured findings JSON provided, extracted diff block."]
-                )
-
             return VLMParseResponse(
                 is_valid=False,
                 findings=[],
                 summary=None,
                 proposed_patch=None,
                 validation_status=False,
-                validator_errors="Unable to parse JSON or diff block from VLM response.",
+                validator_errors="Unable to parse JSON from VLM response.",
                 parse_errors=parse_errors
             )
 
@@ -245,7 +228,7 @@ class ActionEngine:
             proposed_patch_data = data.get("proposed_patch")
 
         # 1. Parse findings
-        parsed_findings: list[FindingSchema] = []
+        parsed_findings: List[FindingSchema] = []
         for idx, item in enumerate(raw_findings):
             if not isinstance(item, dict):
                 parse_errors.append(f"Finding at index {idx} is not an object.")
@@ -261,6 +244,19 @@ class ActionEngine:
 
             confidence = cls._normalize_confidence(item.get("confidence", 0.8))
 
+            fp = item.get("fingerprint")
+            if not fp:
+                try:
+                    from app.services.fingerprint_service import generate_defect_fingerprint
+                    fp = generate_defect_fingerprint(
+                        category=category,
+                        target_element=item.get("target_element"),
+                        viewport=str(item.get("viewport", "all")),
+                        suggested_change=str(item.get("suggested_change", ""))
+                    )
+                except Exception:
+                    fp = None
+
             try:
                 finding = FindingSchema(
                     id=str(item.get("id", f"defect-{idx+1}")),
@@ -272,14 +268,15 @@ class ActionEngine:
                     confidence=confidence,
                     suggested_change=str(item.get("suggested_change", "")),
                     rationale=str(item.get("rationale", "")),
-                    status=str(item.get("status", "detected"))
+                    status=str(item.get("status", "detected")),
+                    fingerprint=fp
                 )
                 parsed_findings.append(finding)
             except Exception as e:
-                parse_errors.append(f"Failed to validate finding schema at index {idx}: {e!s}")
+                parse_errors.append(f"Failed to validate finding schema at index {idx}: {str(e)}")
 
         # 2. Extract proposed patch
-        proposed_patch: PatchObject | None = None
+        proposed_patch: Optional[PatchObject] = None
 
         if isinstance(proposed_patch_data, dict):
             target_file = proposed_patch_data.get("target_file", "").strip()
@@ -296,16 +293,10 @@ class ActionEngine:
             code_blocks = cls.extract_code_blocks(raw_vlm_output)
             diff_blocks = [b["code"] for b in code_blocks if b["lang"] in ("diff", "patch", "css")]
             if diff_blocks:
-                diff_text = diff_blocks[0]
-                target_file = None
-                diff_target_match = re.search(r"^\+\+\+\s+(?:b/)?([^\t\r\n]+)", diff_text, re.MULTILINE)
-                if diff_target_match:
-                    target_file = diff_target_match.group(1).strip()
-                if not target_file:
-                    target_file = data.get("target_file", "app-under-test/src/styles/defects.css") if isinstance(data, dict) else "app-under-test/src/styles/defects.css"
+                target_file = (data.get("target_file") if isinstance(data, dict) else None) or "app-under-test/src/styles/defects.css"
                 proposed_patch = PatchObject(
                     target_file=target_file,
-                    diff=diff_text,
+                    diff=diff_blocks[0],
                     explanation="Isolated code block extracted from VLM response"
                 )
 
@@ -317,6 +308,7 @@ class ActionEngine:
             val_result = validate_patch(proposed_patch.target_file, proposed_patch.diff)
             validation_status = val_result["validation_status"]
             validator_errors = val_result["validator_errors"]
+            proposed_patch.target_file = val_result.get("target_file", proposed_patch.target_file)
             proposed_patch.validation_status = validation_status
             proposed_patch.validator_errors = validator_errors
         else:

@@ -128,3 +128,22 @@ def get_review_trail(run_id: str) -> List[Dict[str, Any]]:
 def clear_reviews_db() -> None:
     """Clears the review decisions registry (used in test isolation)."""
     reviews_db.clear()
+
+
+def get_review_by_id(run_id: str, decision_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a specific review decision record by decision ID."""
+    trail = reviews_db.get(run_id, [])
+    for rec in trail:
+        if rec.get("decision_id") == decision_id:
+            return rec
+    return None
+
+
+def count_reviews_by_decision(run_id: str) -> Dict[str, int]:
+    """Returns frequency breakdown of recorded review decisions for a run."""
+    trail = reviews_db.get(run_id, [])
+    counts: Dict[str, int] = {}
+    for rec in trail:
+        d = rec.get("decision", "unknown")
+        counts[d] = counts.get(d, 0) + 1
+    return counts

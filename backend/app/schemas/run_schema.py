@@ -265,4 +265,15 @@ class GitHubPRWebhookPayload(BaseModel):
     pull_request: dict[str, Any] = Field(..., description="Pull request details from GitHub webhook")
     review: dict[str, Any] | None = Field(default=None, description="Review metadata if review event")
     repository: dict[str, Any] | None = Field(default=None, description="Repository metadata")
-    sender: dict[str, Any] | None = Field(default=None, description="Event sender metadata")
+    sender: dict[str, Any] | None = Field(default=None, description="Event sender metadata")
+
+
+class ForensicBundleResponse(BaseModel):
+    """Immutable forensic audit bundle metadata with cryptographic verification."""
+    run_id: str = Field(..., description="Audit run identifier")
+    bundle_name: str = Field(..., description="ZIP archive filename")
+    sha256_checksum: str = Field(..., description="SHA-256 cryptographic hash of the bundle archive")
+    artifact_count: int = Field(..., description="Total count of bundled forensic artifacts")
+    size_bytes: int = Field(..., description="Archive file size in bytes")
+    download_url: str = Field(..., description="Download URL for the forensic bundle ZIP")
+    manifest: dict[str, Any] = Field(default_factory=dict, description="Tamper-evident manifest details")

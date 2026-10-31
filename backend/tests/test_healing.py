@@ -48,3 +48,22 @@ def test_iterative_refinement_within_budget():
     assert resp.strategy == HealingStrategyType.ITERATIVE_REFINEMENT
     assert resp.can_auto_merge is False
     assert resp.rollback_recommended is False
+
+def test_compute_pr_labels_triage_and_colors():
+    """Verify dynamic label calculation produces standard tags, viewport tags, and severity levels."""
+    engine = HealingEngine()
+    res = engine.compute_pr_labels(
+        finding_count=2,
+        max_severity="critical",
+        viewport_name="mobile",
+        is_verified=True,
+        defect_categories=["element_clipping", "contrast_issue"]
+    )
+    assert "omnisight" in res.labels
+    assert "automated-fix" in res.labels
+    assert "severity:critical" in res.labels
+    assert "viewport:mobile" in res.labels
+    assert "status:retest-verified" in res.labels
+    assert "defect:element-clipping" in res.labels
+    assert res.priority_level == "P0"
+    assert "severity:critical" in res.color_map

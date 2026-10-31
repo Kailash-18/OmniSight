@@ -1,3 +1,15 @@
+
+from backend.app.schemas.healing_schema import (
+    HealingStrategyType,
+    HealingStrategyRequest,
+    HealingStrategyResponse,
+    HealingSummaryResponse,
+    PRLabelCalculationRequest,
+    PRLabelCalculationResponse,
+    RollbackPreviewRequest,
+    RollbackPreviewResponse,
+)
+from backend.app.services.healing_service import healing_engine
 # -*- coding: utf-8 -*-
 """
 FastAPI CI/CD Gateway and Action Engine API for OmniSight.

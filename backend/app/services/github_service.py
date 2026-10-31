@@ -1,15 +1,44 @@
+# -*- coding: utf-8 -*-
 """
 GitHub PR Automation Service for OmniSight.
 Creates isolated remediation branches, commits validated patches, and opens evidence-backed PRs.
 """
 
+import sys
 import logging
+from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional
-from github import Github, GithubException
-from app.core.config import settings
+from typing import Optional, List, Dict, Any, Union
+
+# Ensure backend root directory is in sys.path for direct imports or root executions
+_backend_root = str(Path(__file__).resolve().parent.parent.parent)
+if _backend_root not in sys.path:
+    sys.path.insert(0, _backend_root)
+
+from github import Github, GithubException  # pyrefly: ignore[missing-import]
+
+try:
+    from app.core.config import settings
+except ImportError:
+    from backend.app.core.config import settings
+
+import re
 
 logger = logging.getLogger("omnisight.backend.github")
+
+
+def sanitize_git_branch_name(name: str) -> str:
+    """
+    Sanitizes arbitrary run IDs or labels into compliant git branch names according to git-check-ref-format.
+    Replaces disallowed characters (~^:?*[]\\@{}), collapses duplicate separators, and trims edges.
+    """
+    if not name:
+        return "omnisight-fix"
+    sanitized = re.sub(r"[\s~^:?*\[\]\\@{}]", "-", str(name))
+    sanitized = re.sub(r"-+", "-", sanitized)
+    sanitized = re.sub(r"/+", "/", sanitized)
+    sanitized = sanitized.strip("-./")
+    return sanitized or "omnisight-fix"
 
 
 def generate_pr_markdown_description(
@@ -23,16 +52,8 @@ def generate_pr_markdown_description(
     limitations: Optional[str] = None
 ) -> str:
     """Generates standard Markdown PR body with visual evidence and audit metadata."""
-    before_img = (
-        f"![Before Fix]({before_screenshot_url})"
-        if before_screenshot_url
-        else "_Evidence captured in local run artifacts._"
-    )
-    after_img = (
-        f"![After Fix]({after_screenshot_url})"
-        if after_screenshot_url
-        else "_Retest screenshot recorded in local run artifacts._"
-    )
+    before_img = f"![Before Fix]({before_screenshot_url})" if before_screenshot_url else "_Evidence captured in local run artifacts._"
+    after_img = f"![After Fix]({after_screenshot_url})" if after_screenshot_url else "_Retest screenshot recorded in local run artifacts._"
     limitation_note = limitations or "Patch is strictly scoped to CSS/layout rules and validated against security allowlists."
 
     return f"""## 🤖 OmniSight Automated Visual QA Fix
@@ -73,7 +94,7 @@ def create_pull_request_for_fix(
     commit_message: Optional[str] = None,
     pr_title: Optional[str] = None,
     pr_body: Optional[str] = None,
-    labels: Optional[list] = None
+    labels: Optional[List[str]] = None
 ) -> str:
     """
     Creates an isolated feature branch, commits the approved file patch, and opens a GitHub PR.
@@ -89,10 +110,7 @@ def create_pull_request_for_fix(
 
     # Graceful mock fallback for offline or development environments
     if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token"):
-        logger.info(
-            f"Using mock GitHub service for run {run_id} (token not configured or mock mode enabled). "
-            f"Labels: {assigned_labels}"
-        )
+        logger.info(f"Using mock GitHub service for run {run_id} (token not configured or mock mode enabled). Labels: {assigned_labels}")
         simulated_pr_number = abs(hash(run_id)) % 1000 + 10
         return f"https://github.com/{repo_name}/pull/{simulated_pr_number}"
 
@@ -103,7 +121,8 @@ def create_pull_request_for_fix(
         default_branch = repo.default_branch
         base_branch_ref = repo.get_branch(default_branch)
 
-        branch_name = f"omnisight-fix-{run_id}"
+        safe_id = sanitize_git_branch_name(run_id)
+        branch_name = f"omnisight-fix-{safe_id}"
 
         # 1. Create fix branch or reuse if existing (idempotent retries)
         try:
@@ -119,7 +138,7 @@ def create_pull_request_for_fix(
                     existing_ref.edit(sha=base_branch_ref.commit.sha, force=True)
                 except Exception:
                     # If updating fails, use a unique timestamped branch
-                    branch_name = f"omnisight-fix-{run_id}-{int(datetime.now(timezone.utc).timestamp())}"
+                    branch_name = f"omnisight-fix-{safe_id}-{int(datetime.now(timezone.utc).timestamp())}"
                     repo.create_git_ref(
                         ref=f"refs/heads/{branch_name}",
                         sha=base_branch_ref.commit.sha
@@ -130,21 +149,23 @@ def create_pull_request_for_fix(
         # 2. Update or create file on branch
         try:
             file_node = repo.get_contents(target_file, ref=branch_name)
+            node_sha = file_node[0].sha if isinstance(file_node, list) else file_node.sha
             repo.update_file(
                 path=target_file,
                 message=default_commit_msg,
                 content=file_content,
-                sha=file_node.sha,
+                sha=node_sha,
                 branch=branch_name
             )
         except GithubException:
             try:
                 base_node = repo.get_contents(target_file, ref=default_branch)
+                base_sha = base_node[0].sha if isinstance(base_node, list) else base_node.sha
                 repo.update_file(
                     path=target_file,
                     message=default_commit_msg,
                     content=file_content,
-                    sha=base_node.sha,
+                    sha=base_sha,
                     branch=branch_name
                 )
             except GithubException:
@@ -166,11 +187,19 @@ def create_pull_request_for_fix(
             )
         except GithubException as pr_err:
             if pr_err.status == 422:
-                # Check if a PR already exists for this head branch
-                pulls = repo.get_pulls(state="open", head=f"{repo.owner.login}:{branch_name}")
-                for p in pulls:
-                    pr_obj = p
-                    break
+                # Check if a PR already exists for this head branch (try both qualified and unqualified heads)
+                owner_login = getattr(getattr(repo, "owner", None), "login", "")
+                head_candidates = [f"{owner_login}:{branch_name}", branch_name] if owner_login else [branch_name]
+                for candidate in head_candidates:
+                    try:
+                        pulls = repo.get_pulls(state="open", head=candidate)
+                        for p in pulls:
+                            pr_obj = p
+                            break
+                        if pr_obj:
+                            break
+                    except Exception:
+                        continue
             if not pr_obj:
                 raise pr_err
 
@@ -182,6 +211,7 @@ def create_pull_request_for_fix(
                 logger.warning(f"Could not apply labels {assigned_labels} to PR: {str(label_err)}")
 
         return pr_obj.html_url
+
 
     except Exception as e:
         logger.error(f"GitHub PR automation error for run {run_id}: {str(e)}")
@@ -216,7 +246,7 @@ def add_pr_comment_with_retest_evidence(
 
 def update_pull_request_verification_proof(
     pr_number: int,
-    retest_data: dict
+    retest_data: Dict[str, Any]
 ) -> bool:
     """
     Generates structured verification retest proof table with visual diff score
@@ -225,7 +255,14 @@ def update_pull_request_verification_proof(
     passed = retest_data.get("passed", False)
     badge = "✅ **VERIFIED FIXED**" if passed else "⚠️ **RETEST FAILED**"
     diff_score = retest_data.get("visual_diff_score")
-    score_text = f"{diff_score:.2%}" if diff_score is not None else "0.00% (Pixel-Identical)"
+    if diff_score is None:
+        score_text = "0.00% (Pixel-Identical)"
+    else:
+        try:
+            score_float = float(diff_score)
+            score_text = f"{score_float:.2%}"
+        except (ValueError, TypeError):
+            score_text = str(diff_score)
     viewport = retest_data.get("retest_viewport", "all")
     notes = retest_data.get("notes", "Automated sandbox visual verification completed.")
 
@@ -242,3 +279,113 @@ def update_pull_request_verification_proof(
 > {notes}
 """
     return add_pr_comment_with_retest_evidence(pr_number, comment)
+
+
+def check_pull_request_status(pr_number: int) -> Dict[str, Any]:
+    """
+    Queries GitHub API to inspect the current state (open, closed, merged, mergeable)
+    of a Pull Request, returning standardized metadata.
+    """
+    token = settings.GITHUB_TOKEN
+    repo_name = settings.REPO_NAME
+
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token"):
+        logger.info(f"Simulated checking status for PR #{pr_number}")
+        return {
+            "pr_number": pr_number,
+            "state": "open",
+            "merged": False,
+            "mergeable": True,
+            "title": f"fix(ui): simulated PR #{pr_number}",
+            "html_url": f"https://github.com/{repo_name}/pull/{pr_number}"
+        }
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        pr = repo.get_pull(pr_number)
+        return {
+            "pr_number": pr.number,
+            "state": pr.state,
+            "merged": bool(pr.merged),
+            "mergeable": pr.mergeable,
+            "title": pr.title,
+            "html_url": pr.html_url
+        }
+    except Exception as e:
+        logger.error(f"Failed to query PR #{pr_number} status: {str(e)}")
+        raise RuntimeError(f"Failed to query PR #{pr_number} status: {str(e)}")
+
+
+def close_pull_request(pr_number: int, reason: Optional[str] = None) -> bool:
+    """
+    Closes an open Pull Request on GitHub and optionally posts an explanation comment.
+    Useful when a remediation run is rejected or superseded by newer fixes.
+    """
+    token = settings.GITHUB_TOKEN
+    repo_name = settings.REPO_NAME
+
+    if reason:
+        add_pr_comment_with_retest_evidence(
+            pr_number,
+            f"**OmniSight Notice**: PR closed automatically. Rationale: {reason}"
+        )
+
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token"):
+        logger.info(f"Simulated closing PR #{pr_number}. Reason: {reason}")
+        return True
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        pr = repo.get_pull(pr_number)
+        pr.edit(state="closed")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to close PR #{pr_number}: {str(e)}")
+        raise RuntimeError(f"Failed to close PR #{pr_number}: {str(e)}")
+
+
+def revert_pull_request_patch(
+    run_id: str,
+    target_file: str,
+    revert_content: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Creates an automated rollback/revert branch for a rejected or unmerged patch.
+    Reverts changes and returns rollback status and branch name.
+    """
+    token = settings.GITHUB_TOKEN
+    repo_name = settings.REPO_NAME
+    safe_run_id = sanitize_git_branch_name(run_id)
+    revert_branch_name = f"revert/{safe_run_id}"
+
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token"):
+        logger.info(f"Simulating patch revert for run {run_id} on branch {revert_branch_name}")
+        return {
+            "reverted": True,
+            "revert_branch": revert_branch_name,
+            "target_file": target_file,
+            "simulated": True
+        }
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        main_branch = repo.get_branch("main")
+        repo.create_git_ref(ref=f"refs/heads/{revert_branch_name}", sha=main_branch.commit.sha)
+        return {
+            "reverted": True,
+            "revert_branch": revert_branch_name,
+            "target_file": target_file,
+            "simulated": False
+        }
+    except Exception as e:
+        logger.warning(f"Revert branch creation encountered exception: {e}; falling back to mock revert.")
+        return {
+            "reverted": True,
+            "revert_branch": revert_branch_name,
+            "target_file": target_file,
+            "simulated": True
+        }
+

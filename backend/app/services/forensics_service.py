@@ -56,7 +56,11 @@ def compile_forensic_bundle(
     artifacts_to_pack: list[Path] = []
     for root, _, files in run_dir.walk():
         for file in files:
-            if file.startswith("forensic_bundle_") or file == "checksums.sha256":
+            if (
+                file.startswith("forensic_bundle_")
+                or file.endswith(".sha256")
+                or file == "forensic_manifest.json"
+            ):
                 continue
             artifacts_to_pack.append(Path(root) / file)
 

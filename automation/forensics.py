@@ -59,7 +59,11 @@ class ForensicBundler:
         artifacts_to_bundle: List[Path] = []
         for root, _, files in os.walk(target_dir):
             for file in files:
-                if file.startswith("forensic_bundle_") or file.endswith(".sha256"):
+                if (
+                    file.startswith("forensic_bundle_")
+                    or file.endswith(".sha256")
+                    or file == "forensic_manifest.json"
+                ):
                     continue
                 file_path = Path(root) / file
                 artifacts_to_bundle.append(file_path)

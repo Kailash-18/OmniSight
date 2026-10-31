@@ -137,3 +137,8 @@ __all__ = [
     "generate_remediation_certificate",
     "export_certificate_markdown",
 ]
+
+from backend.app.services.healing_service import (
+    HealingEngine,
+    healing_engine,
+)

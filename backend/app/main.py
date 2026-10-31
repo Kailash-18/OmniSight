@@ -118,8 +118,8 @@ def get_milestone_status():
         "week_1_foundation": "completed",
         "week_2_action_engine": "completed",
         "week_2_day_3_integration": "completed",
-        "week_3_pr_automation": "in_progress",
-        "week_3_progress": "20% - Closed-loop PR automation engine, verification proof comments, and webhook ingestion",
+        "week_3_pr_automation": "completed",
+        "week_3_progress": "100% - Closed-loop PR automation, bidirectional webhooks, dashboard review controls, and forensic audit bundling",
         "allowed_targets": settings.ALLOWED_TARGET_HOSTS,
         "allowed_patch_files": settings.ALLOWED_PATCH_FILES,
     }

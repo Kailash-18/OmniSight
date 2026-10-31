@@ -14,12 +14,16 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from app.core.config import settings
 from app.schemas import (
     BuildWebhookPayload,
     CreatePRPayload,
     CreatePRResponse,
+    DefectCategory,
+    FindingSchema,
+    ForensicBundleResponse,
     GitHubPRWebhookPayload,
     HealthCheckResponse,
     PatchSubmitPayload,
@@ -28,11 +32,13 @@ from app.schemas import (
     RunStatus,
     RunSummaryResponse,
     RunTriggerPayload,
+    Severity,
     VLMParseRequest,
     VLMParseResponse,
 )
 from app.services.action_engine import action_engine
 from app.services.patch_validator import validate_patch
+from app.services.forensics_service import compile_forensic_bundle, get_forensic_bundle_path
 from app.services.github_service import (
     create_pull_request_for_fix,
     generate_pr_markdown_description,
@@ -659,3 +665,76 @@ def receive_github_pr_webhook(payload: GitHubPRWebhookPayload):
         "matched_run_id": matched_run_id,
         "merged": merged,
     }
+
+
+@app.post(
+    "/runs/{run_id}/forensics",
+    response_model=ForensicBundleResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Compile Immutable Forensic Audit Bundle for Run"
+)
+def create_run_forensic_bundle(run_id: str):
+    """
+    Compiles an immutable, tamper-evident forensic bundle for the run containing
+    DOM snapshots, console logs, visual screenshots, patch diffs, and SHA-256 checksums.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_entry = runs_db[run_id]
+    bundle_data = compile_forensic_bundle(run_id=run_id, run_data=run_entry)
+    run_entry["forensics"] = bundle_data
+    return ForensicBundleResponse(**bundle_data)
+
+
+@app.get(
+    "/runs/{run_id}/forensics",
+    response_model=ForensicBundleResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve Forensic Bundle Metadata and Manifest"
+)
+def get_run_forensic_bundle(run_id: str):
+    """
+    Retrieves cryptographic metadata, SHA-256 checksums, and artifact index for a run bundle.
+    Compiles bundle on-the-fly if not yet cached.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_entry = runs_db[run_id]
+    bundle_data = run_entry.get("forensics")
+    if not bundle_data:
+        bundle_data = compile_forensic_bundle(run_id=run_id, run_data=run_entry)
+        run_entry["forensics"] = bundle_data
+    return ForensicBundleResponse(**bundle_data)
+
+
+@app.get(
+    "/runs/{run_id}/forensics/download",
+    status_code=status.HTTP_200_OK,
+    summary="Download Immutable Forensic ZIP Archive"
+)
+def download_run_forensic_bundle(run_id: str):
+    """
+    Streams the compiled immutable forensic ZIP archive for compliance, audit, and offline review.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    bundle_path = get_forensic_bundle_path(run_id)
+    if not bundle_path or not bundle_path.exists():
+        bundle_data = compile_forensic_bundle(run_id=run_id, run_data=runs_db[run_id])
+        runs_db[run_id]["forensics"] = bundle_data
+        bundle_path = Path(bundle_data["bundle_path"])
+
+    return FileResponse(
+        path=str(bundle_path),
+        media_type="application/zip",
+        filename=f"forensic_bundle_{run_id}.zip"
+    )

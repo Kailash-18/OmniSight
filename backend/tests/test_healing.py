@@ -90,3 +90,60 @@ def test_rollback_preview_request_validation():
 
     with pytest.raises(ValueError):
         RollbackPreviewRequest(run_id="run-106", target_file="../../backend/app/main.py")
+
+from fastapi.testclient import TestClient
+from backend.app.main import app
+
+client = TestClient(app)
+
+
+def test_api_healing_strategy_and_summary_flow():
+    """Integration test verifying healing strategy evaluation and summary retrieval endpoints."""
+    # Step 1: Evaluate strategy
+    payload = {
+        "run_id": "test-heal-run-99",
+        "visual_diff_score": 0.003,
+        "iteration_count": 1,
+        "max_retries": 2
+    }
+    resp = client.post("/runs/test-heal-run-99/healing-strategy", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["strategy"] == "immediate_patch"
+    assert data["can_auto_merge"] is True
+
+    # Step 2: Get healing summary
+    sum_resp = client.get("/runs/test-heal-run-99/healing-summary")
+    assert sum_resp.status_code == 200
+    sum_data = sum_resp.json()
+    assert sum_data["run_id"] == "test-heal-run-99"
+    assert sum_data["resolution_status"] == "fixed"
+
+
+def test_api_compute_labels_endpoint():
+    """Integration test for computing PR triage labels."""
+    req_data = {
+        "finding_count": 3,
+        "max_severity": "high",
+        "viewport_name": "mobile_375x667",
+        "is_verified": True,
+        "defect_categories": ["element_overlap"]
+    }
+    resp = client.post("/runs/test-label-run-1/compute-labels", json=req_data)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "omnisight" in data["labels"]
+    assert "severity:high" in data["labels"]
+    assert data["priority_level"] == "P1"
+
+
+def test_api_rollback_preview_endpoint():
+    """Integration test for patch rollback preview."""
+    req = {
+        "run_id": "test-rb-run-1",
+        "target_file": "app-under-test/src/styles/defects.css",
+        "reason": "visual_regression"
+    }
+    resp = client.post("/runs/test-rb-run-1/rollback-preview", json=req)
+    assert resp.status_code == 200
+    assert resp.json()["is_restorable"] is True

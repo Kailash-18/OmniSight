@@ -42,3 +42,18 @@ class HealingSummaryResponse(BaseModel):
     resolution_status: str = Field(..., description="Final resolution outcome (e.g. fixed, escalated, rolled_back)")
     duration_seconds: float = Field(..., description="Total elapsed remediation time in seconds", ge=0.0)
     pr_url: Optional[str] = Field(default=None, description="Associated GitHub Pull Request URL if opened")
+
+class PRLabelCalculationRequest(BaseModel):
+    """Payload to compute dynamic GitHub PR labels for visual defects."""
+    finding_count: int = Field(default=1, description="Total number of detected visual findings", ge=0)
+    max_severity: str = Field(default="medium", description="Highest severity among detected defects")
+    viewport_name: str = Field(default="desktop", description="Target viewport device profile")
+    is_verified: bool = Field(default=True, description="Whether patch has passed sandbox visual retest")
+    defect_categories: List[str] = Field(default_factory=list, description="Unique categories of detected defects")
+
+
+class PRLabelCalculationResponse(BaseModel):
+    """Computed GitHub label metadata for automated PR triage."""
+    labels: List[str] = Field(..., description="List of sanitized GitHub label names")
+    color_map: Dict[str, str] = Field(default_factory=dict, description="Hex color mapping per label")
+    priority_level: str = Field(..., description="Computed triage priority (P0, P1, P2, P3)")

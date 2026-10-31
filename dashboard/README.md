@@ -81,20 +81,24 @@ contract example's `retest_` prefix. These PNGs are committed through one narrow
     not `/cart` or `/checkout`, because the store's cart is in memory and a direct link would open an empty page.
     The page comes from the finding's screenshot name.
   - Before/after screenshots paired by viewport and page.
+  - Retest verification proof summary (mismatch delta, tested viewport, sandbox rollback confirmation).
   - Patch diff with its validation result.
-  - Review panel.
+  - Forensic audit bundle card with "Download Forensic Packet (.zip)" action.
+  - Review panel with local approval/rejection and direct "🚀 Open Pull Request" button.
 - **States:** loading, empty, filter-empty, backend error with retry, run not found, unknown page, missing screenshot,
   and image failed to load.
 
-## Review state
+## Review & PR Automation Controls
 
-Approve/Reject (with an optional note) is **saved in the browser only** (`localStorage`). The backend has no review
-endpoint yet, and this never approves or merges anything on GitHub. Patches the validator rejected can't be approved.
+* **Local Review**: Approve/Reject with reviewer notes saved locally in `localStorage`.
+* **Automated GitHub PR Creation**: Reviewers can click **"🚀 Open Pull Request"** to directly trigger `/runs/{run_id}/create-pr` via the backend gateway and receive the opened PR link.
+* **Forensic Audit Download**: Compliance packet with SHA-256 manifests downloadable directly via the dashboard.
 
 ## Test IDs
 
-`mock-banner`, `data-source`, `mock-tag`, `status-filter`, `runs-table`, `run-row-{run_id}`, `status-badge`
+`mock-banner`, `data-source`, `mock-tag`, `status-filter`, `runs-refresh`, `sync-run-status`, `runs-table`, `run-row-{run_id}`, `status-badge`
 (`data-status`), `runs-loading`, `runs-error`, `runs-retry`, `runs-empty`, `run-detail`, `back-to-runs`,
 `retry-count`, `pr-link`, `run-error-message`, `finding-{id}`, `confidence`, `evidence-pair-{viewport}_{page}`,
+`retest-proof-summary`, `retest-badge`, `forensic-bundle-card`, `download-forensic-bundle`,
 `shot-missing`, `shot-failed`, `patch-valid`, `patch-invalid`, `validator-errors`, `patch-diff`, `review-panel`,
-`review-note`, `review-approve`, `review-reject`, `review-result`, `review-unavailable`, `run-not-found`, `page-not-found`.
+`review-note`, `review-approve`, `review-reject`, `review-create-pr`, `review-pr-link`, `pr-active-banner`, `review-result`, `review-unavailable`, `run-not-found`, `page-not-found`.

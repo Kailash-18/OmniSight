@@ -100,3 +100,19 @@ Digital Integrity Seal : {cert.get('cryptographic_seal')}
 ```
 *This certificate attests that the CSS patch was verified in an isolated headless browser sandbox with verified zero-trust allowlist compliance and human-in-the-loop sign-off.*
 """
+
+
+def verify_certificate_seal(cert: Dict[str, Any]) -> bool:
+    """
+    Verifies that the digital cryptographic seal matches the certificate body.
+    Returns True if uncorrupted, False if modified.
+    """
+    recorded_seal = cert.get("cryptographic_seal")
+    if not recorded_seal:
+        return False
+
+    # Copy without seal to recompute
+    payload_copy = {k: v for k, v in cert.items() if k != "cryptographic_seal"}
+    canonical = _canonical_str(payload_copy)
+    recomputed = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return recomputed == recorded_seal

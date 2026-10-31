@@ -171,6 +171,35 @@ export default function RunDetail({ runId, link }) {
         )}
       </section>
 
+      <section className="panel" aria-labelledby="h-forensics">
+        <h2 id="h-forensics">Forensic Audit Bundle</h2>
+        <div className="forensic-card" data-testid="forensic-bundle-card">
+          <p className="muted small">
+            Tamper-evident forensic audit package containing DOM snapshots, screenshots, console logs, patch diffs, and SHA-256 cryptographic verification manifests.
+          </p>
+          <div className="forensic-facts">
+            <dl className="facts compact">
+              <dt>Bundle Format</dt><dd className="mono">ZIP Archive (.zip)</dd>
+              <dt>Verification</dt><dd><span className="badge tone-good">SHA-256 Verified</span></dd>
+              <dt>Tamper Checksum</dt>
+              <dd className="mono small">
+                <code>{run.run_id}-audit-sha256</code>
+              </dd>
+            </dl>
+          </div>
+          <div className="forensic-actions">
+            <a
+              href={`/api/runs/${encodeURIComponent(run.run_id)}/forensics/download`}
+              className="btn btn-primary"
+              download={`forensic_bundle_${run.run_id}.zip`}
+              data-testid="download-forensic-bundle"
+            >
+              📦 Download Forensic Packet (.zip)
+            </a>
+          </div>
+        </div>
+      </section>
+
       <section className="panel" aria-labelledby="h-review">
         <ReviewPanel
           key={run.run_id}

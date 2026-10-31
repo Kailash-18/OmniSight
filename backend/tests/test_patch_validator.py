@@ -3,7 +3,7 @@ Unit Tests for Patch Security Validator (Member 1).
 Verifies path traversal protection, file allowlist, extension boundaries, and code injection defenses.
 """
 
-from app.services.patch_validator import validate_patch
+from app.services.patch_validator import validate_patch, validate_css_safety
 
 
 def test_valid_css_patch_accepted():
@@ -124,6 +124,21 @@ def test_reject_script_injection_in_css():
         assert "injection pattern detected" in res["validator_errors"]
 
 
+def test_accept_app_css_and_index_css():
+    diff = "-.root { margin: 0; }\n+.root { margin: 4px; }"
+    for target in ["app-under-test/src/App.css", "app-under-test/src/index.css"]:
+        res = validate_patch(target, diff)
+        assert res["validation_status"] is True
+        assert res["validator_errors"] is None
+
+
+def test_accept_leading_dot_slash():
+    diff = "-.btn { width: 500px; }\n+.btn { width: 100%; }"
+    res = validate_patch("./app-under-test/src/styles/defects.css", diff)
+    assert res["validation_status"] is True
+    assert res["target_file"] == "app-under-test/src/styles/defects.css"
+
+
 def test_target_path_prefix_normalization():
     diff = "-old\n+new"
     for prefixed in [
@@ -138,24 +153,279 @@ def test_target_path_prefix_normalization():
         assert res["validator_errors"] is None
 
 
-def test_validate_patch_with_file_content():
+def test_reject_script_injection_in_file_content():
     target = "app-under-test/src/styles/defects.css"
-    diff = "-old\n+new"
+    diff = "-.btn { width: 500px; }\n+.btn { width: 100%; }"
+    bad_content = ".btn { width: 100%; } <script>evil()</script>"
+    res = validate_patch(target, diff, file_content=bad_content)
+    assert res["validation_status"] is False
+    assert "Malicious script injection" in res["validator_errors"]
 
-    # Valid file content
-    good_content = ".container { display: flex; }"
-    res = validate_patch(target, diff, file_content=good_content)
+
+def test_reject_null_byte_in_file_content():
+    target = "app-under-test/src/styles/defects.css"
+    diff = "-.btn { width: 500px; }\n+.btn { width: 100%; }"
+    bad_content = ".btn { width: 100%; }\x00/* hidden payload */"
+    res = validate_patch(target, diff, file_content=bad_content)
+    assert res["validation_status"] is False
+    assert "Null byte detected in file content payload" in res["validator_errors"]
+
+
+def test_patch_validator_whitespace_tolerance():
+    """Verify patch validator gracefully handles surrounding whitespace and newlines."""
+    target = "  app-under-test/src/styles/defects.css  \n"
+    diff = "  \n\n -.btn { width: 500px; }\n+.btn { width: 100%; }\n\n  "
+    res = validate_patch(target, diff)
     assert res["validation_status"] is True
+    assert res["target_file"] == "app-under-test/src/styles/defects.css"
 
-    # Malicious file content
-    bad_content = ".container { display: flex; } <script>alert(1)</script>"
-    res_bad = validate_patch(target, diff, file_content=bad_content)
-    assert res_bad["validation_status"] is False
-    assert "injection pattern detected in file content" in res_bad["validator_errors"]
 
-    # Null byte in file content
-    null_content = ".container { \x00 display: flex; }"
-    res_null = validate_patch(target, diff, file_content=null_content)
-    assert res_null["validation_status"] is False
-    assert "Null byte detected" in res_null["validator_errors"]
+def test_reject_css_import_directive():
+    """Verify @import directives in CSS diff or file content are strictly rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+@import url('https://evil.attacker.com/leak.css');\n+.btn { width: 100%; }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "@import" in res["validator_errors"]
+
+
+def test_reject_css_behavior_directive():
+    """Verify behavior: property in CSS diff or file content is rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+.banner { behavior: url(evil.htc); }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "behavior" in res["validator_errors"]
+
+
+def test_reject_css_moz_binding_directive():
+    """Verify -moz-binding property in CSS is rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+.banner { -moz-binding: url(evil.xml#xss); }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "-moz-binding" in res["validator_errors"]
+
+
+def test_accept_valid_responsive_css_media_queries():
+    """Verify valid CSS with @media queries and standard layout rules passes validation."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = """
++@media (max-width: 600px) {
++  .checkout-container {
++    display: flex;
++    flex-direction: column;
++    width: 100%;
++  }
++}
+"""
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is True
+    assert res["validator_errors"] is None
+
+
+def test_reject_css_expression_directive():
+    """Verify CSS expression() execution is rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+.btn { width: expression(alert(1)); }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "expression" in res["validator_errors"]
+
+    valid, err = validate_css_safety(".btn { width: expression(alert(1)); }")
+    assert valid is False
+    assert "expression" in err
+
+
+def test_reject_css_javascript_url_scheme():
+    """Verify javascript: protocol inside url() is rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+.hero { background: url('javascript:alert(1)'); }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "javascript" in res["validator_errors"]
+
+    valid, err = validate_css_safety(".hero { background: url('javascript:alert(1)'); }")
+    assert valid is False
+    assert "javascript:" in err
+
+
+def test_reject_css_data_html_url_scheme():
+    """Verify data:text/html protocol inside url() is rejected."""
+    target = "app-under-test/src/styles/defects.css"
+    diff = "+.hero { background: url('data:text/html,malicious'); }"
+    res = validate_patch(target, diff)
+    assert res["validation_status"] is False
+    assert "data" in res["validator_errors"]
+
+    valid, err = validate_css_safety(".hero { background: url('data:text/html,payload'); }")
+    assert valid is False
+    assert "data:text/html" in err
+
+
+def test_reject_windows_reserved_device_names():
+    """Verify target files containing Windows reserved device names are rejected."""
+    for dev in ("con.css", "prn.css", "aux.css", "nul.css", "com1.css", "lpt1.css"):
+        res = validate_patch(f"app-under-test/src/styles/{dev}", "+.test {}")
+        assert res["validation_status"] is False
+        assert "Windows reserved device name" in res["validator_errors"]
+
+
+def test_reject_css_vbscript_url_scheme():
+    """Verify vbscript: protocol inside url() is rejected."""
+    valid, err = validate_css_safety(".card { background: url('vbscript:msgbox(1)'); }")
+    assert valid is False
+    assert "vbscript:" in err
+
+
+def test_assess_patch_risk_scoring():
+    """Verify assess_patch_risk returns appropriate risk classifications."""
+    from app.services.patch_validator import assess_patch_risk
+
+    low_risk = assess_patch_risk(
+        "app-under-test/src/styles/defects.css",
+        "+.btn { padding: 10px; }\n-.btn { padding: 0; }"
+    )
+    assert low_risk["risk_level"] == "low"
+    assert low_risk["auto_merge_eligible"] is True
+
+    high_risk_jsx = assess_patch_risk(
+        "app-under-test/src/App.jsx",
+        "+<button onClick={handleClick}>Submit</button>"
+    )
+    assert high_risk_jsx["risk_level"] == "high"
+    assert high_risk_jsx["auto_merge_eligible"] is False
+
+
+
+
+
+
+
+def test_validate_css_syntax_balance_balanced():
+    """Verify well-formed CSS with balanced braces and comments passes."""
+    from app.services.patch_validator import validate_css_syntax_balance
+    valid_css = """
+    /* Header Styles */
+    .header {{
+        display: flex;
+        /* nested comment */
+        padding: 10px;
+    }}
+    .footer {{ margin: 0; }}
+    """
+    ok, err = validate_css_syntax_balance(valid_css)
+    assert ok is True
+    assert err is None
+
+
+def test_validate_css_syntax_balance_unclosed_brace():
+    """Verify unclosed curly brace is caught."""
+    from app.services.patch_validator import validate_css_syntax_balance
+    bad_css = ".header {{ display: flex; padding: 10px;"
+    ok, err = validate_css_syntax_balance(bad_css)
+    assert ok is False
+    assert "Unbalanced CSS curly braces" in err
+
+
+def test_validate_css_syntax_balance_unmatched_closing_brace():
+    """Verify extraneous closing brace is detected."""
+    from app.services.patch_validator import validate_css_syntax_balance
+    bad_css = ".header {{ display: flex; }} }}"
+    ok, err = validate_css_syntax_balance(bad_css)
+    assert ok is False
+    assert "Unmatched closing brace" in err
+
+
+def test_validate_css_syntax_balance_unclosed_comment():
+    """Verify unterminated comment block is detected."""
+    from app.services.patch_validator import validate_css_syntax_balance
+    bad_css = "/* Unfinished comment \n .btn {{ color: red; }}"
+    ok, err = validate_css_syntax_balance(bad_css)
+    assert ok is False
+    assert "Unbalanced CSS comments" in err
+
+
+def test_dry_run_patch_success():
+    """Verify dry_run_patch modifies string buffer accurately without touching disk."""
+    from app.services.patch_validator import dry_run_patch
+    orig = ".btn {\n  color: blue;\n}\n"
+    diff = "--- a/test.css\n+++ b/test.css\n@@ -1,3 +1,3 @@\n-.btn {\n-  color: blue;\n+.btn {\n+  color: green;\n }\n"
+    ok, mod, err = dry_run_patch(orig, diff)
+    assert ok is True
+    assert err is None
+    assert "color: green;" in mod
+    assert "color: blue;" not in mod
+
+
+def test_patch_dry_run_endpoint_api():
+    """Verify POST /runs/patch/dry-run endpoint validates and simulates patch."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+
+    payload = {
+        "target_file": "app-under-test/src/styles/defects.css",
+        "original_content": ".btn { padding: 5px; }",
+        "diff": "--- a/app-under-test/src/styles/defects.css\n+++ b/app-under-test/src/styles/defects.css\n@@ -1,1 +1,2 @@\n+.btn { width: 100%; }"
+    }
+    res = client.post("/runs/patch/dry-run", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["dry_run_passed"] is True
+    assert data["syntax_valid"] is True
+    assert "width: 100%;" in data["modified_content"]
+
+    payload_bad_syntax = {
+        "target_file": "app-under-test/src/styles/defects.css",
+        "original_content": "",
+        "diff": "--- a/app-under-test/src/styles/defects.css\n+++ b/app-under-test/src/styles/defects.css\n@@ -1,1 +1,2 @@\n+.btn { width: 100%;"
+    }
+    res_bad = client.post("/runs/patch/dry-run", json=payload_bad_syntax)
+    assert res_bad.status_code == 200
+    data_bad = res_bad.json()
+    assert data_bad["dry_run_passed"] is False
+    assert data_bad["syntax_valid"] is False
+    assert "Unbalanced CSS curly braces" in data_bad["validation_errors"]
+
+
+def test_reject_css_document_directive():
+    """Verify validate_patch rejects CSS patches containing @document rules."""
+    diff = """
+--- a/app-under-test/src/styles/defects.css
++++ b/app-under-test/src/styles/defects.css
+@@ -1,1 +1,3 @@
++@document url("https://malicious.com") {
++  body { background: black; }
++}
+"""
+    result = validate_patch("app-under-test/src/styles/defects.css", diff)
+    assert result["validation_status"] is False
+    assert "@document" in result["validator_errors"]
+
+
+def test_reject_css_o_link_directive():
+    """Verify validate_patch rejects CSS patches containing -o-link navigation property."""
+    diff = """
+--- a/app-under-test/src/styles/defects.css
++++ b/app-under-test/src/styles/defects.css
+@@ -1,1 +1,2 @@
++a.banner { -o-link: "https://evil.com/trap"; }
+"""
+    result = validate_patch("app-under-test/src/styles/defects.css", diff)
+    assert result["validation_status"] is False
+    assert "-o-link" in result["validator_errors"]
+
+
+def test_reject_css_embedded_html_tags():
+    """Verify validate_patch rejects CSS patches containing embedded HTML tags."""
+    diff = """
+--- a/app-under-test/src/styles/defects.css
++++ b/app-under-test/src/styles/defects.css
+@@ -1,1 +1,2 @@
++.cta { color: red; } <style>body { background: black; }</style>
+"""
+    result = validate_patch("app-under-test/src/styles/defects.css", diff)
+    assert result["validation_status"] is False
+    assert "Embedded HTML markup tags" in result["validator_errors"]
 

@@ -4,7 +4,7 @@ Centralizes environment variables and application settings with zero hardcoded s
 """
 
 import os
-
+from typing import List
 from dotenv import load_dotenv
 
 # Load local environment variables from backend/.env or root .env
@@ -14,54 +14,60 @@ load_dotenv()
 class Settings:
     """Application settings loaded strictly from environment variables."""
 
-    def __init__(self) -> None:
-        # API Metadata
-        self.API_TITLE: str = "OmniSight Backend Gateway & Action Engine"
-        self.API_VERSION: str = "1.0.0"
-        self.DEBUG: bool = os.getenv("BACKEND_DEBUG", "false").lower() in ("true", "1", "yes")
+    # API Metadata
+    API_TITLE: str = "OmniSight Backend Gateway & Action Engine"
+    API_VERSION: str = "1.0.0"
+    DEBUG: bool = os.getenv("BACKEND_DEBUG", "false").lower() in ("true", "1", "yes")
 
-        # Server Configuration
-        self.HOST: str = os.getenv("BACKEND_HOST", "0.0.0.0")
-        self.PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
+    # Server Configuration
+    HOST: str = os.getenv("BACKEND_HOST", "0.0.0.0")
+    PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
 
-        # GitHub Service Configuration
-        self.GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
-        self.REPO_NAME: str = os.getenv("REPO_NAME", "Kailash-18/OmniSight")
-        self.MOCK_GITHUB: bool = os.getenv("MOCK_GITHUB", "false").lower() in ("true", "1", "yes")
+    # GitHub Service Configuration
+    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+    GITHUB_WEBHOOK_SECRET: str = os.getenv("GITHUB_WEBHOOK_SECRET", "")
+    REPO_NAME: str = os.getenv("REPO_NAME", "Kailash-18/OmniSight")
+    MOCK_GITHUB: bool = os.getenv("MOCK_GITHUB", "false").lower() in ("true", "1", "yes")
 
-        # Audit Journey Timeouts
-        self.RUN_TIMEOUT_SECONDS: int = int(os.getenv("RUN_TIMEOUT_SECONDS", "300"))
+    # Rate Limiting & Audit Observability
+    RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "120"))
+    ENABLE_AUDIT_LOGGING: bool = os.getenv("ENABLE_AUDIT_LOGGING", "true").lower() in ("true", "1", "yes")
 
-        # Allowed Target Hosts for Browser Audits (SSRF Prevention)
-        default_hosts = "localhost,127.0.0.1,0.0.0.0,::1,staging.internal"
-        self.ALLOWED_TARGET_HOSTS: list[str] = [
-            h.strip().lower()
-            for h in os.getenv("ALLOWED_TARGET_HOSTS", default_hosts).split(",")
-            if h.strip()
-        ]
+    # Audit Journey Timeouts
+    RUN_TIMEOUT_SECONDS: int = int(os.getenv("RUN_TIMEOUT_SECONDS", "300"))
 
-        # Patch Security Guardrails
-        default_patch_files = (
-            "app-under-test/src/styles/defects.css,"
-            "app-under-test/src/styles/base.css,"
-            "app-under-test/src/App.css,"
-            "app-under-test/src/index.css,"
-            "app-under-test/src/components/,"
-            "app-under-test/src/App.jsx"
-        )
-        self.ALLOWED_PATCH_FILES: list[str] = [
-            p.strip().replace("\\", "/")
-            for p in os.getenv("ALLOWED_PATCH_FILES", default_patch_files).split(",")
-            if p.strip()
-        ]
+    # Allowed Target Hosts for Browser Audits (SSRF Prevention)
+    _default_hosts = "localhost,127.0.0.1,0.0.0.0,::1,staging.internal"
+    ALLOWED_TARGET_HOSTS: List[str] = [
+        h.strip().lower()
+        for h in os.getenv("ALLOWED_TARGET_HOSTS", _default_hosts).split(",")
+        if h.strip()
+    ]
 
-        # Patch Diff Constraints
-        self.MAX_DIFF_LINES: int = int(os.getenv("MAX_DIFF_LINES", "300"))
-        self.MAX_DIFF_BYTES: int = int(os.getenv("MAX_DIFF_BYTES", "30000"))
+    # Patch Security Guardrails
+    _default_patch_files = (
+        "app-under-test/src/styles/defects.css,"
+        "app-under-test/src/styles/base.css,"
+        "app-under-test/src/App.css,"
+        "app-under-test/src/index.css,"
+        "app-under-test/src/components/,"
+        "app-under-test/src/App.jsx"
+    )
+    ALLOWED_PATCH_FILES: List[str] = [
+        p.strip().replace("\\", "/")
+        for p in os.getenv("ALLOWED_PATCH_FILES", _default_patch_files).split(",")
+        if p.strip()
+    ]
+
+    # Patch Diff Constraints
+    MAX_DIFF_LINES: int = int(os.getenv("MAX_DIFF_LINES", "300"))
+    MAX_DIFF_BYTES: int = int(os.getenv("MAX_DIFF_BYTES", "30000"))
 
     def is_host_allowed(self, hostname: str) -> bool:
         """Checks if a given host is in the allowed target hosts list, supporting exact and wildcards."""
         host = (hostname or "").lower().strip()
+        if host.startswith("[") and host.endswith("]"):
+            host = host[1:-1]
         for allowed in self.ALLOWED_TARGET_HOSTS:
             if allowed.startswith("*.") and host.endswith(allowed[1:]):
                 return True
@@ -72,6 +78,10 @@ class Settings:
     def is_path_allowed(self, clean_path: str) -> bool:
         """Checks if a sanitized target file path falls strictly within the allowlist boundaries."""
         normalized = clean_path.replace("\\", "/").strip()
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        if normalized.startswith(("a/", "b/")):
+            normalized = normalized[2:]
         for allowed in self.ALLOWED_PATCH_FILES:
             if allowed.endswith("/"):
                 if normalized.startswith(allowed):

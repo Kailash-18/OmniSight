@@ -72,3 +72,59 @@ class HealingEngine:
             rollback_recommended=False,
             can_auto_merge=False,
         )
+
+    def compute_pr_labels(
+        self,
+        finding_count: int,
+        max_severity: str = "medium",
+        viewport_name: str = "desktop",
+        is_verified: bool = True,
+        defect_categories: Optional[List[str]] = None
+    ) -> PRLabelCalculationResponse:
+        """
+        Dynamically computes contextual GitHub labels and color maps for automated PRs.
+        """
+        labels = ["omnisight", "automated-fix"]
+        color_map = {
+            "omnisight": "#0284c7",
+            "automated-fix": "#059669",
+        }
+
+        # Severity triage
+        sev_clean = max_severity.lower().strip()
+        if sev_clean in ("critical", "high"):
+            labels.append(f"severity:{sev_clean}")
+            color_map[f"severity:{sev_clean}"] = "#dc2626"
+            priority = "P0" if sev_clean == "critical" else "P1"
+        else:
+            labels.append(f"severity:{sev_clean}")
+            color_map[f"severity:{sev_clean}"] = "#f59e0b"
+            priority = "P2"
+
+        # Viewport labeling
+        vp_clean = viewport_name.lower().strip()
+        labels.append(f"viewport:{vp_clean}")
+        color_map[f"viewport:{vp_clean}"] = "#6366f1"
+
+        # Verification tag
+        if is_verified:
+            labels.append("status:retest-verified")
+            color_map["status:retest-verified"] = "#10b981"
+        else:
+            labels.append("status:unverified")
+            color_map["status:unverified"] = "#ef4444"
+
+        # Category tags
+        if defect_categories:
+            for cat in defect_categories[:2]:
+                cat_slug = cat.lower().replace("_", "-")
+                label_name = f"defect:{cat_slug}"
+                if label_name not in labels:
+                    labels.append(label_name)
+                    color_map[label_name] = "#8b5cf6"
+
+        return PRLabelCalculationResponse(
+            labels=labels,
+            color_map=color_map,
+            priority_level=priority
+        )

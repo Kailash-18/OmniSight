@@ -7,7 +7,7 @@ import { resolve, sep, extname } from 'node:path'
 // "artifacts/runs/<id>/screenshots/x.png"; the backend doesn't serve files yet, so dev serves them here.
 // ponytail: dev-only file server; move to a backend static route once Member 1 exposes evidence.
 const ARTIFACTS = resolve(__dirname, '..', 'artifacts')
-const TYPES = { '.png': 'image/png', '.json': 'application/json' }
+const TYPES = { '.png': 'image/png', '.json': 'application/json', '.zip': 'application/zip' }
 
 const serveArtifacts = {
   name: 'serve-artifacts',

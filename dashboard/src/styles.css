@@ -60,8 +60,13 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .btn:hover { background: var(--bg); }
 .btn-good { background: var(--good); border-color: var(--good); color: #fff; }
 .btn-good:hover { background: #18613a; }
+.btn-primary { background: #245bdb; border-color: #245bdb; color: #fff; }
+.btn-primary:hover { background: #1a44a6; }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-bad { background: var(--surface); border-color: var(--bad); color: var(--bad); }
 .btn-bad:hover { background: var(--bad-bg); }
+.pr-banner { margin-top: 14px; padding: 12px 16px; border-radius: 8px; background: #eef4ff; border: 1px solid #c7d9fc; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-weight: 600; font-size: 14px; color: #1a44a6; }
+.pr-banner-link { font-family: var(--mono); color: #245bdb; text-decoration: underline; }
 .btn[aria-pressed='true'] { outline: 3px solid rgba(36, 91, 219, 0.35); outline-offset: 1px; }
 :focus-visible { outline: 3px solid rgba(36, 91, 219, 0.5); outline-offset: 2px; }
 

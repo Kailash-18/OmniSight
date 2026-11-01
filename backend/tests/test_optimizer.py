@@ -29,3 +29,15 @@ def test_clamp_coordinates_at_edge_boundaries():
     assert clamped["x"] == 0
     assert clamped["y"] + clamped["height"] <= 900
     assert clamped["width"] >= 50
+
+def test_token_economics_computation():
+    """Verify that cropped regions demonstrate significant token savings over full-screen."""
+    opt = VLMRegionOptimizer()
+    cropped = [{"crop_width": 250, "crop_height": 200}]
+    report = opt.calculate_token_economics("run-opt-2", 1440, 900, cropped)
+
+    assert report.run_id == "run-opt-2"
+    assert report.full_image_tokens > report.cropped_regions_tokens
+    assert report.token_savings_percent > 40.0
+    assert report.latency_reduction_estimate_ms > 0
+    assert report.estimated_cost_reduction_cents > 0.0

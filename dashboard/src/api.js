@@ -67,8 +67,26 @@ export async function fetchMilestones() {
     return {
       member: 'Member 1 - Backend & PR Automation',
       week_3_pr_automation: 'in_progress',
-      week_3_progress: '50% - Human-in-the-Loop review controls and PR automation',
+      week_3_progress: '75% - Forensic audit bundling and cryptographic verification',
     }
   }
   return getJson('/milestones')
+}
+
+export async function getForensicBundle(runId) {
+  if (DATA_SOURCE === 'mock') {
+    return {
+      run_id: runId,
+      bundle_name: `forensic_bundle_${runId}.zip`,
+      sha256_checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      artifact_count: 8,
+      size_bytes: 42100,
+      download_url: `/api/runs/${encodeURIComponent(runId)}/forensics/download`,
+      manifest: {
+        total_artifacts: 8,
+        specification: 'OmniSight-Forensics-v1.0',
+      },
+    }
+  }
+  return getJson(`/runs/${encodeURIComponent(runId)}/forensics`)
 }

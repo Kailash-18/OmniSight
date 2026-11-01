@@ -60,3 +60,38 @@ def test_metrics_summary_efficiency_tier():
     summary = opt.get_metrics_summary("run-opt-4", savings_pct=75.0)
     assert summary.efficiency_score == 0.75
     assert summary.recommended_model_tier == "gpt-4o-mini-vision"
+
+from fastapi.testclient import TestClient
+from backend.app.main import app
+
+client = TestClient(app)
+
+
+def test_api_optimize_regions_and_token_metrics():
+    """Integration test for region optimization and token economics endpoints."""
+    # Step 1: Optimize regions
+    payload = {
+        "run_id": "test-opt-run-99",
+        "image_width": 1440,
+        "image_height": 900,
+        "bounding_boxes": [
+            {"x": 200, "y": 300, "width": 180, "height": 90, "padding_percent": 0.15}
+        ]
+    }
+    resp = client.post("/runs/test-opt-run-99/optimize-regions", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["run_id"] == "test-opt-run-99"
+    assert data["total_regions"] == 1
+    manifest_id = data["manifest_id"]
+
+    # Step 2: Get token metrics
+    met_resp = client.get("/runs/test-opt-run-99/token-metrics?width=1440&height=900")
+    assert met_resp.status_code == 200
+    met_data = met_resp.json()
+    assert met_data["token_savings_percent"] > 0
+
+    # Step 3: Get manifest by ID
+    man_resp = client.get(f"/runs/test-opt-run-99/crop-manifest/{manifest_id}")
+    assert man_resp.status_code == 200
+    assert man_resp.json()["manifest_id"] == manifest_id

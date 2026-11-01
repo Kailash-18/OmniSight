@@ -29,7 +29,7 @@ export const formatTime = (iso) => {
 // "artifacts/runs/r1/retest/desktop_1280x800_checkout_after.png" -> { key, viewport, page }
 // Accepts the runner's "_after"/"_diff"/"_annotated" suffix and the contract's "retest_" prefix.
 export function parseShot(path) {
-  const name = String(path).split('/').pop().replace(/\.png$/i, '')
+  const name = String(path).replace(/\\/g, '/').split('/').pop().replace(/\.png$/i, '')
     .replace(/^retest_/, '')
     .replace(/_(after|diff|annotated)$/, '')
   const m = name.match(/^((?:desktop|mobile)_\d+x\d+)_(.+)$/)

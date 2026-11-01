@@ -1,4 +1,14 @@
 
+from backend.app.schemas.optimizer_schema import (
+    CropBoundingBox,
+    CropRegionRequest,
+    CropRegionResponse,
+    CropManifestRegistration,
+    TokenEconomicsReport,
+    CropMetricsSummary,
+)
+from backend.app.services.optimizer_service import vlm_optimizer
+
 from backend.app.schemas.healing_schema import (
     HealingStrategyType,
     HealingStrategyRequest,

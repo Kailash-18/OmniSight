@@ -2693,3 +2693,15 @@ async def optimize_run_regions(run_id: str, payload: CropRegionRequest):
         image_height=payload.image_height,
         bounding_boxes=payload.bounding_boxes
     )
+
+@app.get(
+    "/runs/{run_id}/token-metrics",
+    response_model=TokenEconomicsReport,
+    tags=["VLM Spatial Optimization"],
+    summary="Get visual token consumption and latency savings report"
+)
+async def get_run_token_metrics(run_id: str, width: int = 1440, height: int = 900):
+    """Calculates token economics comparing full-page inference against optimized crops."""
+    # Default representative crop region
+    sample_crops = [{"crop_width": 320, "crop_height": 240}]
+    return vlm_optimizer.calculate_token_economics(run_id, width, height, sample_crops)

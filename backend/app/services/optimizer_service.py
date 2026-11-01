@@ -21,3 +21,65 @@ class VLMRegionOptimizer:
     def __init__(self):
         # In-memory storage for crop manifests: {manifest_id: manifest_dict}
         self.crop_manifests_db: Dict[str, Dict[str, Any]] = {}
+
+    def calculate_crop_regions(
+        self,
+        run_id: str,
+        image_width: int,
+        image_height: int,
+        bounding_boxes: List[CropBoundingBox]
+    ) -> CropRegionResponse:
+        """
+        Calculates optimized crop tiles around bounding boxes with context padding.
+        Clamps all coordinates safely to [0, width] and [0, height].
+        """
+        regions = []
+        aspect_ratios = []
+
+        for idx, box in enumerate(bounding_boxes):
+            pad_x = int(box.width * box.padding_percent)
+            pad_y = int(box.height * box.padding_percent)
+
+            # Apply padding and clamp
+            x1 = max(0, box.x - pad_x)
+            y1 = max(0, box.y - pad_y)
+            x2 = min(image_width, box.x + box.width + pad_x)
+            y2 = min(image_height, box.y + box.height + pad_y)
+
+            crop_w = max(100, x2 - x1)  # enforce minimum tile width
+            crop_h = max(100, y2 - y1)  # enforce minimum tile height
+
+            aspect = round(crop_w / crop_h, 3)
+            aspect_ratios.append(aspect)
+
+            regions.append({
+                "region_index": idx,
+                "crop_x": x1,
+                "crop_y": y1,
+                "crop_width": crop_w,
+                "crop_height": crop_h,
+                "aspect_ratio": aspect,
+                "area_pixels": crop_w * crop_h,
+            })
+
+        # Generate deterministic manifest ID
+        hash_seed = f"{run_id}-{image_width}x{image_height}-{len(bounding_boxes)}"
+        manifest_id = f"MANIFEST-OPT-{hashlib.sha256(hash_seed.encode()).hexdigest()[:8].upper()}"
+
+        manifest = {
+            "manifest_id": manifest_id,
+            "run_id": run_id,
+            "image_width": image_width,
+            "image_height": image_height,
+            "regions": regions,
+            "total_regions": len(regions),
+        }
+        self.crop_manifests_db[manifest_id] = manifest
+
+        return CropRegionResponse(
+            run_id=run_id,
+            manifest_id=manifest_id,
+            cropped_regions=regions,
+            total_regions=len(regions),
+            aspect_ratios=aspect_ratios,
+        )

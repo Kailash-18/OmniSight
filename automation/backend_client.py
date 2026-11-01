@@ -255,3 +255,15 @@ class BackendClient:
         """
         return self._request("POST", f"/runs/{run_id}/update-pr-verification")
 
+    def get_forensics(self, run_id: str) -> dict[str, Any] | None:
+        """
+        Retrieves forensic bundle metadata, manifest, and download URL for a run.
+        """
+        return self._request("GET", f"/runs/{run_id}/forensics")
+
+    def generate_forensics(self, run_id: str) -> dict[str, Any] | None:
+        """
+        Triggers compilation and cryptographic packaging of a forensic bundle for a run.
+        """
+        return self._request("POST", f"/runs/{run_id}/forensics")
+

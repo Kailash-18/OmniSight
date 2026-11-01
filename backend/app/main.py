@@ -2715,3 +2715,15 @@ async def get_run_token_metrics(run_id: str, width: int = 1440, height: int = 90
 async def register_crop_manifest(run_id: str, payload: CropManifestRegistration):
     """Enrolls a computed crop manifest into the active session cache."""
     return payload
+
+@app.get(
+    "/runs/{run_id}/crop-manifest/{manifest_id}",
+    tags=["VLM Spatial Optimization"],
+    summary="Retrieve cached crop manifest by ID"
+)
+async def get_cached_crop_manifest(run_id: str, manifest_id: str):
+    """Retrieves cached crop coordinates and bounding box metadata."""
+    manifest = vlm_optimizer.get_crop_manifest(manifest_id)
+    if not manifest:
+        raise HTTPException(status_code=404, detail=f"Crop manifest '{manifest_id}' not found")
+    return manifest

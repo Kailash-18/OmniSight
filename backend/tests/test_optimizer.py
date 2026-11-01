@@ -41,3 +41,22 @@ def test_token_economics_computation():
     assert report.token_savings_percent > 40.0
     assert report.latency_reduction_estimate_ms > 0
     assert report.estimated_cost_reduction_cents > 0.0
+
+def test_crop_manifest_cache_retrieval():
+    """Verify crop manifests are stored and retrieved accurately."""
+    opt = VLMRegionOptimizer()
+    boxes = [CropBoundingBox(x=50, y=50, width=150, height=120)]
+    resp = opt.calculate_crop_regions("run-opt-3", 1280, 800, boxes)
+
+    manifest = opt.get_crop_manifest(resp.manifest_id)
+    assert manifest is not None
+    assert manifest["run_id"] == "run-opt-3"
+    assert manifest["image_width"] == 1280
+
+
+def test_metrics_summary_efficiency_tier():
+    """Verify efficiency metrics recommend appropriate model tiers."""
+    opt = VLMRegionOptimizer()
+    summary = opt.get_metrics_summary("run-opt-4", savings_pct=75.0)
+    assert summary.efficiency_score == 0.75
+    assert summary.recommended_model_tier == "gpt-4o-mini-vision"

@@ -91,3 +91,46 @@ class VLMRegionOptimizer:
         cw = min(width, max_w - cx)
         ch = min(height, max_h - cy)
         return {"x": cx, "y": cy, "width": max(50, cw), "height": max(50, ch)}
+
+    def calculate_token_economics(
+        self,
+        run_id: str,
+        image_width: int,
+        image_height: int,
+        cropped_regions: List[Dict[str, Any]]
+    ) -> TokenEconomicsReport:
+        """
+        Estimates multimodal visual token usage comparing full-resolution vs cropped tiles.
+        Standard vision models: 85 base tokens + 170 tokens per 512x512 tile.
+        """
+        # Full viewport tiles (e.g. 1440x900 ~ 6 tiles)
+        full_tiles_x = math.ceil(image_width / 512)
+        full_tiles_y = math.ceil(image_height / 512)
+        full_tokens = 85 + (full_tiles_x * full_tiles_y * 170)
+
+        # Cropped regions tiles
+        cropped_tokens = 0
+        for reg in cropped_regions:
+            w = reg.get("crop_width", 300)
+            h = reg.get("crop_height", 250)
+            tx = math.ceil(w / 512)
+            ty = math.ceil(h / 512)
+            cropped_tokens += 85 + (tx * ty * 170)
+
+        if not cropped_regions:
+            cropped_tokens = full_tokens
+
+        saved_tokens = max(0, full_tokens - cropped_tokens)
+        savings_pct = round((saved_tokens / full_tokens) * 100.0, 2)
+        latency_saved_ms = int(saved_tokens * 1.8)  # ~1.8ms per token generation speedup
+        cost_saved_cents = round(saved_tokens * 0.00025 * 1000, 2)  # ~$0.0025 per 1k tokens
+
+        return TokenEconomicsReport(
+            run_id=run_id,
+            full_image_tokens=full_tokens,
+            cropped_regions_tokens=cropped_tokens,
+            token_savings_count=saved_tokens,
+            token_savings_percent=savings_pct,
+            latency_reduction_estimate_ms=latency_saved_ms,
+            estimated_cost_reduction_cents=cost_saved_cents,
+        )

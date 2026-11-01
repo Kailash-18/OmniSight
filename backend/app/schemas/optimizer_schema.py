@@ -39,3 +39,13 @@ class CropManifestRegistration(BaseModel):
     run_id: str = Field(..., description="Audit run identifier")
     regions_count: int = Field(..., description="Count of stored image regions", ge=1)
     is_cached: bool = Field(default=True, description="Whether regions are hot-cached in memory")
+
+class TokenEconomicsReport(BaseModel):
+    """Detailed token consumption and latency reduction analysis for visual inference."""
+    run_id: str = Field(..., description="Audit run identifier")
+    full_image_tokens: int = Field(..., description="Estimated tokens required for full viewport image", gt=0)
+    cropped_regions_tokens: int = Field(..., description="Actual tokens required for cropped focus tiles", gt=0)
+    token_savings_count: int = Field(..., description="Total tokens saved per visual audit inference")
+    token_savings_percent: float = Field(..., description="Percentage reduction in prompt token consumption", ge=0.0, le=100.0)
+    latency_reduction_estimate_ms: int = Field(..., description="Estimated inference latency savings in milliseconds", ge=0)
+    estimated_cost_reduction_cents: float = Field(..., description="Estimated API expense reduction per 1,000 runs", ge=0.0)

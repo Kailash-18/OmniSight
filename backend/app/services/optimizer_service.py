@@ -83,3 +83,11 @@ class VLMRegionOptimizer:
             total_regions=len(regions),
             aspect_ratios=aspect_ratios,
         )
+
+    def clamp_coordinates(self, x: int, y: int, width: int, height: int, max_w: int, max_h: int) -> Dict[str, int]:
+        """Safely clamps arbitrary bounding box dimensions within pixel viewport boundaries."""
+        cx = max(0, min(x, max_w - 50))
+        cy = max(0, min(y, max_h - 50))
+        cw = min(width, max_w - cx)
+        ch = min(height, max_h - cy)
+        return {"x": cx, "y": cy, "width": max(50, cw), "height": max(50, ch)}

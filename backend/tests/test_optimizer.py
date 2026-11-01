@@ -21,3 +21,11 @@ def test_calculate_crop_regions_basic_box():
     # 200 * 0.15 = 30px padding
     assert reg["crop_x"] <= 100
     assert reg["crop_width"] >= 200
+
+def test_clamp_coordinates_at_edge_boundaries():
+    """Verify that coordinates near canvas edges are safely clamped to [0, max]."""
+    opt = VLMRegionOptimizer()
+    clamped = opt.clamp_coordinates(x=-20, y=890, width=300, height=200, max_w=1440, max_h=900)
+    assert clamped["x"] == 0
+    assert clamped["y"] + clamped["height"] <= 900
+    assert clamped["width"] >= 50

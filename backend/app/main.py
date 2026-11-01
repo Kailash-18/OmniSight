@@ -2675,3 +2675,21 @@ async def preview_run_patch_rollback(run_id: str, payload: RollbackPreviewReques
     if run_id not in runs_db:
         runs_db[run_id] = {"id": run_id, "status": "needs_review", "timeline": []}
     return healing_engine.preview_rollback(run_id, payload.target_file, payload.reason)
+
+@app.post(
+    "/runs/{run_id}/optimize-regions",
+    response_model=CropRegionResponse,
+    tags=["VLM Spatial Optimization"],
+    summary="Calculate focused crop regions around anomalous UI elements"
+)
+async def optimize_run_regions(run_id: str, payload: CropRegionRequest):
+    """Calculates context-padded crop bounding boxes to minimize token consumption."""
+    if run_id not in runs_db:
+        runs_db[run_id] = {"id": run_id, "status": "auditing", "timeline": []}
+
+    return vlm_optimizer.calculate_crop_regions(
+        run_id=run_id,
+        image_width=payload.image_width,
+        image_height=payload.image_height,
+        bounding_boxes=payload.bounding_boxes
+    )

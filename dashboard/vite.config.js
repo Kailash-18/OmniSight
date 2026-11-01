@@ -4,8 +4,7 @@ import { createReadStream, statSync } from 'node:fs'
 import { resolve, sep, extname } from 'node:path'
 
 // Repo-level artifacts/ (run evidence written by automation/). Live runs reference paths like
-// "artifacts/runs/<id>/screenshots/x.png"; the backend doesn't serve files yet, so dev serves them here.
-// ponytail: dev-only file server; move to a backend static route once Member 1 exposes evidence.
+// Static evidence files served for local dashboard review
 const ARTIFACTS = resolve(__dirname, '..', 'artifacts')
 const TYPES = { '.png': 'image/png', '.json': 'application/json', '.zip': 'application/zip' }
 

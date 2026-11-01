@@ -5,8 +5,8 @@ Pillow>=10.0.0,<11.0.0
 # OmniSight Workspace Python Dependencies
 # ==============================================================================
 
-# Automation & Retest Engine (Team Lead - Kailash)
+# Automation & Retest Engine
 -r automation/requirements.txt
 
-# Backend Gateway & Action Engine (Member 1 - Sri Khyathi)
+# Backend Gateway & Action Engine
 -r backend/requirements.txt

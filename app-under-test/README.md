@@ -4,7 +4,7 @@ A small mock online store that OmniSight inspects. It has a full
 **Products → Cart → Checkout → Submit order → Success** journey and **three
 intentional, deterministic visual defects** for the VLM to detect and repair.
 
-Owner: Member 2. Plain React + Vite + CSS. No backend, auth, payments, or external requests.
+Plain React + Vite + CSS. Deterministic e-commerce testbed with zero external dependencies.
 
 ## Install and run
 

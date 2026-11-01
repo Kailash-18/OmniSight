@@ -8,14 +8,14 @@ import json
 import pytest
 from PIL import Image
 
-from automation.spatial_analyzer import (
+from automation.engine import (
     BoundingBox,
     SpatialAnalyzer,
     SpatialAnomaly,
     AnomalyType,
+    VisualComparator,
 )
-from automation.visual_diff import VisualComparator
-from automation.schemas import DefectCategory, Severity
+from automation.core import DefectCategory, Severity
 
 
 def test_bounding_box_geometry():
@@ -216,8 +216,7 @@ def test_visual_comparator_annotate_anomalies(tmp_path: Path):
 
 def test_orchestrator_enrich_with_spatial_analysis(tmp_path: Path):
     from automation.orchestrator import Orchestrator
-    from automation.evidence import EvidenceCollector
-    from automation.schemas import VisualAuditReport
+    from automation.core import EvidenceCollector, VisualAuditReport
 
     orchestrator = Orchestrator()
     evidence = EvidenceCollector(run_id="test-spatial-enrich")

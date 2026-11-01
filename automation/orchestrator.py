@@ -312,10 +312,31 @@ class Orchestrator:
                 self.state = AgentState.PR_READY
                 final_status = AgentState.PR_READY.value
 
+            # Synchronize complete evidence paths including retest visual proofs
+            after_shots = (
+                [audit_report.retest_verification.after_screenshot]
+                if audit_report.retest_verification and audit_report.retest_verification.after_screenshot
+                else []
+            )
+            diff_shots = (
+                [audit_report.retest_verification.diff_screenshot]
+                if audit_report.retest_verification and audit_report.retest_verification.diff_screenshot
+                else []
+            )
+            updated_evidence_paths = {
+                "screenshots": run_results.get("screenshots", []),
+                "before_screenshots": run_results.get("screenshots", []),
+                "after_screenshots": after_shots,
+                "diff_screenshots": diff_shots,
+                "dom_snapshots": run_results.get("dom_snapshots", []),
+                "annotated_screenshots": audit_report.annotated_screenshots or [],
+            }
+
             if self.sync_backend and self.backend_client:
                 self.backend_client.update_run_state(
                     run_id=evidence.run_id,
                     status=final_status,
+                    evidence_paths=updated_evidence_paths,
                     retry_count=self.retry_count,
                     retest_outcome=retest_outcome,
                     pr_url=pr_url,
@@ -332,6 +353,7 @@ class Orchestrator:
                     else None
                 ),
                 "pr_url": pr_url,
+                "evidence_paths": updated_evidence_paths,
                 "annotated_screenshots": audit_report.annotated_screenshots,
                 "screenshots_count": len(run_results["screenshots"]),
                 "viewports_evaluated": run_results["viewports_evaluated"],

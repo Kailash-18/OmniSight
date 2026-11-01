@@ -142,3 +142,8 @@ from backend.app.services.healing_service import (
     HealingEngine,
     healing_engine,
 )
+
+from backend.app.services.optimizer_service import (
+    VLMRegionOptimizer,
+    vlm_optimizer,
+)

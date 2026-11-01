@@ -134,3 +134,22 @@ class VLMRegionOptimizer:
             latency_reduction_estimate_ms=latency_saved_ms,
             estimated_cost_reduction_cents=cost_saved_cents,
         )
+
+    def get_crop_manifest(self, manifest_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieves a cached crop manifest by ID."""
+        return self.crop_manifests_db.get(manifest_id)
+
+    def get_metrics_summary(self, run_id: str, savings_pct: float) -> CropMetricsSummary:
+        """Returns compact efficiency score for dashboard telemetry."""
+        efficiency = min(1.0, max(0.0, savings_pct / 100.0))
+        tier = "gpt-4o-mini-vision" if efficiency > 0.50 else "claude-3-5-sonnet-vision"
+        return CropMetricsSummary(
+            run_id=run_id,
+            optimization_applied=True,
+            efficiency_score=round(efficiency, 3),
+            recommended_model_tier=tier,
+        )
+
+
+# Global singleton instance
+vlm_optimizer = VLMRegionOptimizer()

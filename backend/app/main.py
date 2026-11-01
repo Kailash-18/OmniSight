@@ -55,6 +55,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Static file serving for run evidence artifacts (screenshots, logs, dom)
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
+artifacts_path = Path("artifacts").resolve()
+if artifacts_path.exists():
+    app.mount("/artifacts", StaticFiles(directory=str(artifacts_path)), name="artifacts")
+
 # In-memory store for test runs (simulates persistence for development & demo)
 runs_db: dict[str, dict[str, Any]] = {}
 
@@ -466,6 +474,24 @@ def create_run_pull_request(run_id: str, payload: CreatePRPayload | None = None)
 
     file_content = (payload.file_content if payload and payload.file_content else None) or patch.get("file_content", "")
     diff = patch.get("diff", "")
+
+    if not file_content:
+        candidate = Path(target_file)
+        if not candidate.is_absolute():
+            for root_candidate in [Path.cwd(), Path.cwd().parent]:
+                p = root_candidate / candidate
+                if p.exists():
+                    candidate = p
+                    break
+        if candidate.exists():
+            original_text = candidate.read_text(encoding="utf-8")
+            try:
+                from automation.patch_sandbox import apply_unified_diff
+                file_content = apply_unified_diff(original_text, diff) if diff else original_text
+            except Exception:
+                file_content = original_text
+        elif diff:
+            file_content = diff
 
     evidence = run_entry.get("evidence_paths") or {}
     before_shots = evidence.get("before_screenshots") or evidence.get("screenshots") or []

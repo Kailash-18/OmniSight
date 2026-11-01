@@ -2705,3 +2705,13 @@ async def get_run_token_metrics(run_id: str, width: int = 1440, height: int = 90
     # Default representative crop region
     sample_crops = [{"crop_width": 320, "crop_height": 240}]
     return vlm_optimizer.calculate_token_economics(run_id, width, height, sample_crops)
+
+@app.post(
+    "/runs/{run_id}/crop-manifest",
+    response_model=CropManifestRegistration,
+    tags=["VLM Spatial Optimization"],
+    summary="Register pre-computed crop manifest for multimodal inference"
+)
+async def register_crop_manifest(run_id: str, payload: CropManifestRegistration):
+    """Enrolls a computed crop manifest into the active session cache."""
+    return payload

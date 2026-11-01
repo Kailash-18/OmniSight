@@ -49,3 +49,10 @@ class TokenEconomicsReport(BaseModel):
     token_savings_percent: float = Field(..., description="Percentage reduction in prompt token consumption", ge=0.0, le=100.0)
     latency_reduction_estimate_ms: int = Field(..., description="Estimated inference latency savings in milliseconds", ge=0)
     estimated_cost_reduction_cents: float = Field(..., description="Estimated API expense reduction per 1,000 runs", ge=0.0)
+
+class CropMetricsSummary(BaseModel):
+    """Compact summary of crop optimization performance for dashboard widgets."""
+    run_id: str = Field(..., description="Audit run identifier")
+    optimization_applied: bool = Field(default=True, description="Whether spatial optimization was used")
+    efficiency_score: float = Field(..., description="Spatial efficiency score between 0.0 and 1.0", ge=0.0, le=1.0)
+    recommended_model_tier: str = Field(default="gpt-4o-mini-vision", description="Cost-effective model tier recommendation")

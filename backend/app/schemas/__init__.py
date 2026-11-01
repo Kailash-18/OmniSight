@@ -164,3 +164,12 @@ from backend.app.schemas.healing_schema import (
     RollbackPreviewRequest,
     RollbackPreviewResponse,
 )
+
+from backend.app.schemas.optimizer_schema import (
+    CropBoundingBox,
+    CropRegionRequest,
+    CropRegionResponse,
+    CropManifestRegistration,
+    TokenEconomicsReport,
+    CropMetricsSummary,
+)

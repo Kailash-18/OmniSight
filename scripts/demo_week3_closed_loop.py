@@ -25,8 +25,7 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 from automation.orchestrator import Orchestrator
-from automation.vlm_adapter import MockVLMAdapter
-from automation.forensics import ForensicBundler
+from automation.engine import MockVLMAdapter, ForensicBundler
 
 
 def run_demo():

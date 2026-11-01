@@ -10,7 +10,7 @@ import tempfile
 import zipfile
 import pytest
 
-from automation.forensics import ForensicBundler, compute_sha256, create_forensic_bundle
+from automation.engine import ForensicBundler, compute_sha256, create_forensic_bundle
 
 
 def test_compute_sha256(tmp_path: Path):

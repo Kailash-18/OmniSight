@@ -136,19 +136,37 @@ __all__ = [
     "clear_reviews_db",
     "generate_remediation_certificate",
     "export_certificate_markdown",
+    "HealingEngine",
+    "healing_engine",
+    "VLMRegionOptimizer",
+    "vlm_optimizer",
+    "QAManagerApprovalEngine",
+    "qa_approval_engine",
 ]
 
-from backend.app.services.healing_service import (
-    HealingEngine,
-    healing_engine,
-)
-
-from backend.app.services.optimizer_service import (
-    VLMRegionOptimizer,
-    vlm_optimizer,
-)
-
-from backend.app.services.approval_service import (
-    QAManagerApprovalEngine,
-    qa_approval_engine,
-)
+try:
+    from app.services.healing_service import (
+        HealingEngine,
+        healing_engine,
+    )
+    from app.services.optimizer_service import (
+        VLMRegionOptimizer,
+        vlm_optimizer,
+    )
+    from app.services.approval_service import (
+        QAManagerApprovalEngine,
+        qa_approval_engine,
+    )
+except ModuleNotFoundError:
+    from backend.app.services.healing_service import (
+        HealingEngine,
+        healing_engine,
+    )
+    from backend.app.services.optimizer_service import (
+        VLMRegionOptimizer,
+        vlm_optimizer,
+    )
+    from backend.app.services.approval_service import (
+        QAManagerApprovalEngine,
+        qa_approval_engine,
+    )

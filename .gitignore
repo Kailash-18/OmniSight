@@ -44,3 +44,5 @@ artifacts/runs/
 Thumbs.db
 .vscode/
 .idea/
+
+scratch/

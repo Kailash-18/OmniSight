@@ -1,5 +1,5 @@
 # ==============================================================================
-# OmniSight Backend Dependencies (Member 1: FastAPI Gateway & Action Engine)
+# OmniSight Backend Dependencies (FastAPI Gateway & Action Engine)
 # ==============================================================================
 
 # Core Web Framework & ASGI Server

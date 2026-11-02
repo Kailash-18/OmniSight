@@ -171,7 +171,7 @@ app = FastAPI(
     license_info={"name": "MIT", "url": "https://opensource.org/licenses/MIT"}
 )
 
-# Enable CORS for QA Dashboard (Member 2)
+# Enable CORS for QA Dashboard
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -374,9 +374,9 @@ def prometheus_metrics():
     summary="Engineering Deliverables and Security Boundaries"
 )
 def get_milestone_status():
-    """Returns tracking status for Member 1 milestones and allowed security domains."""
+    """Returns tracking status for backend milestones and allowed security domains."""
     return {
-        "member": "Member 1 - Backend & PR Automation (Sri Khyathi)",
+        "member": "Backend & PR Automation (Sri Khyathi)",
         "foundation_scaffolding": "completed",
         "action_engine_and_security": "completed",
         "system_integration": "completed",

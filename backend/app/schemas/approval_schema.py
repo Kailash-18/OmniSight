@@ -40,3 +40,21 @@ class BulkApprovalRequest(BaseModel):
     manager_id: str = Field(..., description="Signing QA manager identity")
     decision: ApprovalDecision = Field(..., description="Uniform decision applied across the batch")
     batch_notes: str = Field(default="Bulk approved via QA manager dashboard", description="Shared review notes")
+
+class BulkApprovalResponse(BaseModel):
+    """Execution summary for a bulk approval batch."""
+    total_requested: int = Field(..., description="Total runs submitted for approval", ge=1)
+    successful_runs: List[str] = Field(..., description="List of successfully updated run IDs")
+    failed_runs: List[str] = Field(default_factory=list, description="List of runs that encountered errors")
+    applied_decision: ApprovalDecision = Field(..., description="Decision applied across batch")
+    batch_status: str = Field(default="completed", description="Overall batch execution outcome")
+
+
+class TelemetryReportResponse(BaseModel):
+    """Comprehensive operational telemetry and self-healing success metrics."""
+    total_runs_audited: int = Field(..., description="Cumulative count of completed audit executions", ge=0)
+    fixed_runs_count: int = Field(..., description="Count of successfully healed and verified runs", ge=0)
+    healing_success_rate_percent: float = Field(..., description="Percentage of visual defects healed without human intervention", ge=0.0, le=100.0)
+    average_latency_ms: float = Field(..., description="Average end-to-end self-healing latency in milliseconds", ge=0.0)
+    total_tokens_saved: int = Field(..., description="Cumulative prompt tokens conserved via spatial optimization", ge=0)
+    total_prs_opened: int = Field(..., description="Count of evidence-backed Pull Requests submitted to GitHub", ge=0)

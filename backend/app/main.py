@@ -1,4 +1,14 @@
 
+from backend.app.schemas.approval_schema import (
+    ApprovalDecision,
+    QAManagerApprovalRequest,
+    QAManagerApprovalResponse,
+    BulkApprovalRequest,
+    BulkApprovalResponse,
+    TelemetryReportResponse,
+)
+from backend.app.services.approval_service import qa_approval_engine
+
 from backend.app.schemas.optimizer_schema import (
     CropBoundingBox,
     CropRegionRequest,

@@ -74,3 +74,7 @@ class QAManagerApprovalEngine:
             auto_merge_unlocked=unlocked,
             resulting_run_status=resulting_status,
         )
+
+    def get_approvals_for_run(self, run_id: str) -> List[Dict[str, Any]]:
+        """Retrieves all historical QA manager approval events for a run."""
+        return self.qa_approvals_db.get(run_id, [])

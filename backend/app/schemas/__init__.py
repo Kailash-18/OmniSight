@@ -173,3 +173,13 @@ from backend.app.schemas.optimizer_schema import (
     TokenEconomicsReport,
     CropMetricsSummary,
 )
+
+from backend.app.schemas.approval_schema import (
+    ApprovalDecision,
+    QAManagerApprovalRequest,
+    QAManagerApprovalResponse,
+    BulkApprovalRequest,
+    BulkApprovalResponse,
+    TelemetryReportResponse,
+    QAManagerAuditSignature,
+)

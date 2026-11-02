@@ -2737,3 +2737,24 @@ async def get_cached_crop_manifest(run_id: str, manifest_id: str):
     if not manifest:
         raise HTTPException(status_code=404, detail=f"Crop manifest '{manifest_id}' not found")
     return manifest
+
+@app.post(
+    "/runs/{run_id}/qa-approval",
+    response_model=QAManagerApprovalResponse,
+    tags=["QA Management & Release"],
+    summary="Submit formal QA manager sign-off for an automated fix"
+)
+async def submit_qa_manager_approval(run_id: str, payload: QAManagerApprovalRequest):
+    """Records formal QA manager approval/rejection decision and updates lifecycle status."""
+    if run_id not in runs_db:
+        runs_db[run_id] = {"id": run_id, "status": "verifying", "timeline": []}
+
+    resp = qa_approval_engine.record_approval(
+        run_id=run_id,
+        manager_id=payload.manager_id,
+        decision=payload.decision,
+        review_notes=payload.review_notes,
+        signoff_role=payload.signoff_role
+    )
+    runs_db[run_id]["status"] = resp.resulting_run_status
+    return resp

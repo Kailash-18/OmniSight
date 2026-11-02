@@ -1,5 +1,5 @@
 """
-Unit Tests for Patch Security Validator (Member 1).
+Unit Tests for Patch Security Validator.
 Verifies path traversal protection, file allowlist, extension boundaries, and code injection defenses.
 """
 

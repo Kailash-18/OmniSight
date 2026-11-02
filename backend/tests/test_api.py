@@ -1,5 +1,5 @@
 """
-Integration & API Endpoint Tests for OmniSight Backend Gateway (Member 1).
+Integration & API Endpoint Tests for OmniSight Backend Gateway.
 Verifies build webhook, manual trigger, run queries, patch submission, and SSRF guardrails.
 """
 

@@ -1,6 +1,6 @@
 # OmniSight Backend Gateway & Action Engine
 
-> **Member 1 Ownership**: FastAPI CI/CD Gateway, Action Engine, Zero-Trust Patch Validator, and GitHub Pull Request Automation.
+> FastAPI CI/CD Gateway, Multimodal Action Engine, Zero-Trust Patch Validator, and GitHub Pull Request Automation.
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
@@ -21,15 +21,15 @@ The OmniSight Backend service acts as the central intelligence and security clea
 
 ---
 
-## 🗓️ Weekly Milestones (Member 1)
+## ⚡ Core Capabilities & Milestones
 
-| Period | Milestone | Status | Details |
+| Capability | Scope | Status | Architecture Highlights |
 | :--- | :--- | :---: | :--- |
-| **Week 1** | Foundation & API Scaffolding | ✅ Completed | FastAPI service, `/health`, `/webhook/build`, `/runs`, `/runs/{run_id}`, shared Pydantic data schemas. |
-| **Week 2 (Day 1-2)** | Action Engine & Security Validator | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), path traversal defense, allowlist checks, script injection filters, 40 unit/integration tests. |
-| **Week 2 (Day 3-5)** | Mid-Project Review & Integration | ✅ Completed | Extraction check verified, sandbox retest coordination with Team Lead & Member 2, end-to-end integration verified. |
-| **Week 3** | PR Automation, Webhooks & Forensic Bundling | ✅ Completed (100%) | PyGithub PR automation service, deterministic mock fallback, PR evidence markdown, GitHub webhook ingestion, and cryptographic forensic archive streaming. |
-| **Week 4** | Production Hardening & Cloud Deploy | ⏳ Planned | Containerized deployment and cloud infrastructure. |
+| **Gateway & Data Store** | FastAPI Scaffolding | ✅ Production | FastAPI service, `/health`, `/webhook/build`, `/runs`, `/runs/{run_id}`, shared Pydantic data schemas. |
+| **Action Engine & Security** | Multimodal Diff Parser | ✅ Production | Action Engine parser (`action_engine.py`), path traversal defense, allowlist checks, script injection filters, 40 unit/integration tests. |
+| **Sandbox Retest Integration**| Verification Protocol | ✅ Production | In-place patch verification coordination with automation engine, visual retest proof scoring. |
+| **Release Automation** | GitHub PRs & Webhooks | ✅ Production | PyGithub automated PR workflows, deterministic mock fallback, PR markdown formatting, and GitHub webhook event ingestion. |
+| **Forensic Streaming** | Cryptographic Archives | ✅ Production | Compliance packet compilation, SHA-256 manifest calculation, and ZIP streaming endpoints (`/forensics/download`). |
 
 ---
 

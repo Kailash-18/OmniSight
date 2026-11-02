@@ -1,5 +1,5 @@
 # ==============================================================================
-# OmniSight Backend Dependencies (Member 1)
+# OmniSight Backend Dependencies
 # ==============================================================================
 
 # Core Web Framework & ASGI Server

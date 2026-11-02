@@ -1,6 +1,6 @@
 # OmniSight Browser Automation, RPA & Visual Self-Healing Engine
 
-> **Team Lead Ownership (Kailash)**: Headless Playwright Multi-Viewport Navigation, Spatial Geometry Analysis, Visual Pixel Delta Diffing, Isolated Sandbox Retesting, Multimodal VLM Remediation Orchestration, and Cryptographic Forensic Bundling.
+> Headless Playwright Multi-Viewport Navigation, Pure-Python Spatial Geometry Analysis, Isolated Sandbox Retesting with Atomic Rollback, and Cryptographic Forensic Bundling.
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-Chromium%20Headless-45ba4b.svg)](https://playwright.dev/)
@@ -26,15 +26,15 @@ OmniSight bridges this gap through an autonomous, closed-loop visual QA agent th
 
 ---
 
-## 🗓️ Weekly Milestones (Team Lead)
+## ⚡ Core Capabilities & Milestones
 
-| Period | Milestone | Status | Details |
+| Capability | Scope | Status | Architecture Highlights |
 | :--- | :--- | :---: | :--- |
-| **Week 1** | Foundation & Browser RPA | ✅ Completed | Playwright Chromium runner, responsive viewport matrix (`desktop_1440x900`, `desktop_1280x800`, `mobile_390x844`, `mobile_375x667`), store health probe, screenshot/DOM capture journey, evidence storage. |
-| **Week 2 (Day 1-2)** | Spatial Geometry & Sandbox Retest | ✅ Completed | Pure-Python spatial geometry engine (`BoundingBox`, IoU, clipping, collisions, occlusion), `VisualComparator` with per-channel color tolerance, isolated `RetestRunner` sandbox with unified diff applicator and guaranteed rollback. |
-| **Week 2 (Day 3-5)** | Mid-Project Integration & Mock VLM | ✅ Completed | Integration with backend Action Engine, deterministic `MockVLMAdapter` baseline, multi-defect visual repair verification, unit and integration test coverage. |
-| **Week 3** | Closed-Loop Orchestrator, PR Trigger & Forensics | ✅ Completed (100%) | Multi-stage `AgentState` orchestrator, FastAPI backend client synchronization, automated PR trigger, cryptographic forensic audit bundler (SHA-256 manifests + zip packaging), CLI flags (`--bundle-forensics`, `--auto-pr`, `--sync-backend`), closed-loop E2E test. |
-| **Week 4** | Cloud Hardening & Parallel Workers | ⏳ Planned | Containerized headless browser workers, parallel multi-viewport execution, Cloud Run / ECS deployment. |
+| **Browser RPA** | Multi-Viewport Automation | ✅ Production | Playwright Chromium runner, responsive matrix (`1440×900`, `1280×800`, `390×844`, `375×667`), store health probe, screenshot/DOM capture journey. |
+| **Spatial Geometry** | Pure-Python Layout Analysis | ✅ Production | Axis-aligned bounding box engine (`BoundingBox`, IoU, clipping, collision, occlusion), eliminates VLM hallucinations with DOM coordinates. |
+| **Isolated Sandbox** | Safe Retest & Rollback | ✅ Production | Zero-trust allowlist validator, unified git diff parser, and hot-reload retesting with guaranteed atomic rollback in `finally` block. |
+| **Visual Diffing** | Pixel Delta Comparator | ✅ Production | `VisualComparator` with per-channel color tolerance, sub-pixel mismatch calculation, and diagnostic magenta bounding-box diff overlays. |
+| **Release & Forensics** | PR Engine & Forensics | ✅ Production | End-to-end closed-loop orchestrator, FastAPI gateway sync, automated PR dispatch, and SHA-256 cryptographic compliance bundling. |
 
 ---
 

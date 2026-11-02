@@ -65,7 +65,7 @@ export async function createPullRequest(runId, payload = {}) {
 export async function fetchMilestones() {
   if (DATA_SOURCE === 'mock') {
     return {
-      member: 'Member 1 - Backend & PR Automation',
+      scope: 'Backend & PR Automation',
       week_3_pr_automation: 'in_progress',
       week_3_progress: '75% - Forensic audit bundling and cryptographic verification',
     }

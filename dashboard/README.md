@@ -3,7 +3,7 @@
 React page where a reviewer looks at OmniSight runs: status, findings, before/after screenshots,
 the proposed patch, and an approve/reject decision.
 
-Owner: Member 2. React 18 + Vite 6, plain CSS. No backend code of its own.
+React 18 + Vite 6, plain CSS. Dedicated reviewer interface for visual diff inspection, retest verification, and release governance.
 
 ## Run
 

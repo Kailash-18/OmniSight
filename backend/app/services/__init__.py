@@ -147,3 +147,8 @@ from backend.app.services.optimizer_service import (
     VLMRegionOptimizer,
     vlm_optimizer,
 )
+
+from backend.app.services.approval_service import (
+    QAManagerApprovalEngine,
+    qa_approval_engine,
+)

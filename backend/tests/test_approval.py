@@ -25,3 +25,27 @@ def test_qa_manager_approved_decision():
     assert resp.auto_merge_unlocked is True
     assert resp.resulting_run_status == "fixed"
     assert "APPR-QA-" in resp.approval_id
+
+def test_qa_manager_rejected_and_changes_requested():
+    """Verify rejected and changes_requested decisions lock auto-merge appropriately."""
+    engine = QAManagerApprovalEngine()
+
+    # Rejection
+    rej = engine.record_approval(
+        run_id="run-qa-2",
+        manager_id="lead_qa@infotact.in",
+        decision=ApprovalDecision.REJECTED,
+        review_notes="Button color deviates from design system tokens."
+    )
+    assert rej.auto_merge_unlocked is False
+    assert rej.resulting_run_status == "failed"
+
+    # Changes Requested
+    cr = engine.record_approval(
+        run_id="run-qa-3",
+        manager_id="lead_qa@infotact.in",
+        decision=ApprovalDecision.CHANGES_REQUESTED,
+        review_notes="Reduce margin padding by 4px on tablet screens."
+    )
+    assert cr.auto_merge_unlocked is False
+    assert cr.resulting_run_status == "needs_review"

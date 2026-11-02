@@ -78,3 +78,37 @@ class QAManagerApprovalEngine:
     def get_approvals_for_run(self, run_id: str) -> List[Dict[str, Any]]:
         """Retrieves all historical QA manager approval events for a run."""
         return self.qa_approvals_db.get(run_id, [])
+
+    def bulk_approve_runs(
+        self,
+        run_ids: List[str],
+        manager_id: str,
+        decision: ApprovalDecision,
+        batch_notes: str
+    ) -> BulkApprovalResponse:
+        """
+        Processes batch sign-offs across multiple runs concurrently.
+        """
+        successful = []
+        failed = []
+
+        for rid in run_ids:
+            try:
+                self.record_approval(
+                    run_id=rid,
+                    manager_id=manager_id,
+                    decision=decision,
+                    review_notes=f"[Batch] {batch_notes}",
+                    signoff_role="qa_lead"
+                )
+                successful.append(rid)
+            except Exception:
+                failed.append(rid)
+
+        return BulkApprovalResponse(
+            total_requested=len(run_ids),
+            successful_runs=successful,
+            failed_runs=failed,
+            applied_decision=decision,
+            batch_status="completed" if not failed else "partial_success",
+        )

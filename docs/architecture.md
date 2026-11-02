@@ -20,13 +20,13 @@ graph TD
 
 ---
 
-## 2. Core Modular Subsystems
+## 2. Team Workload Division & Ownership
 
-| Subsystem | Responsibilities | Primary Technologies |
-|---|---|---|
-| **Automation & RPA Engine** | Playwright browser runner, multi-viewport capture, DOM spatial geometry, VLM adapter, sandboxed retest runner, and cryptographic forensic bundler. | Python, Playwright, Pillow, Pydantic |
-| **Backend Gateway & Action Engine** | FastAPI build gateway, run state management, multimodal Action Engine, zero-trust security validation, and PyGithub PR automation. | FastAPI, Pydantic, PyGithub |
-| **Target App & QA Dashboard** | Mock e-commerce storefront (`app-under-test`) with deterministic visual bugs, and React QA management dashboard. | React, Vite, Plain CSS |
+| Component | Owner | Responsibilities | Primary Technologies |
+|---|---|---|---|
+| **Automation & Agent Loop** | **Team Lead (Kailash)** | Playwright browser runner, multi-viewport capture, DOM context extraction, VLM adapter, agent orchestration, and system integration. | Python, Playwright, VLM APIs |
+| **Backend & PR Service** | **Member 1 (Sri Khyathi)** | FastAPI build gateway, run state management, patch security validation, and PyGithub automated PR workflows. | FastAPI, Pydantic, PyGithub |
+| **Target App & QA Dashboard** | **Member 2 (Jahnavi Alluri)** | Mock e-commerce storefront (`app-under-test`) with deterministic visual bugs, and React QA management dashboard. | React, Vite, CSS |
 
 ---
 

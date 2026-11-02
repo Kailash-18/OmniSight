@@ -83,3 +83,51 @@ def test_telemetry_report_generation():
     assert report.healing_success_rate_percent == 50.0
     assert report.total_prs_opened == 2
     assert report.total_tokens_saved > 0
+
+from fastapi.testclient import TestClient
+from backend.app.main import app
+
+client = TestClient(app)
+
+
+def test_api_qa_approval_and_bulk_flow():
+    """Integration test verifying QA manager approval and bulk release endpoints."""
+    # Step 1: Submit single approval
+    appr_payload = {
+        "run_id": "test-api-appr-1",
+        "manager_id": "lead_qa@infotact.in",
+        "decision": "approved",
+        "review_notes": "Tested in responsive mobile viewport.",
+        "signoff_role": "qa_lead"
+    }
+    resp = client.post("/runs/test-api-appr-1/qa-approval", json=appr_payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["decision"] == "approved"
+    assert data["auto_merge_unlocked"] is True
+
+    # Step 2: Get approval trail
+    trail_resp = client.get("/runs/test-api-appr-1/qa-approval")
+    assert trail_resp.status_code == 200
+    assert trail_resp.json()["total"] >= 1
+
+    # Step 3: Bulk approval
+    bulk_payload = {
+        "run_ids": ["test-bulk-1", "test-bulk-2"],
+        "manager_id": "lead_qa@infotact.in",
+        "decision": "approved",
+        "batch_notes": "Bulk staging validation"
+    }
+    bulk_resp = client.post("/runs/qa-approval/bulk", json=bulk_payload)
+    assert bulk_resp.status_code == 200
+    assert bulk_resp.json()["total_requested"] == 2
+
+    # Step 4: Telemetry report
+    telem_resp = client.get("/runs/telemetry/report")
+    assert telem_resp.status_code == 200
+    assert "healing_success_rate_percent" in telem_resp.json()
+
+    # Step 5: CSV export
+    csv_resp = client.get("/runs/export/csv")
+    assert csv_resp.status_code == 200
+    assert "run_id,scenario,status" in csv_resp.text

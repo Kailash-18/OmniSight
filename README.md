@@ -134,9 +134,15 @@ npm run dev --prefix app-under-test
 uvicorn app.main:app --app-dir backend --reload --port 8000
 
 # Terminal 3: Run Automation Visual QA Runner (Standalone or Synced with Backend Gateway)
-python -m automation.cli --target http://localhost:5173 --sync-backend
+python -m automation.cli --target http://localhost:5173 --sync-backend --auto-pr --bundle-forensics
 
-# Run Full Test Suite (93 unit, security, and integration tests)
+# Terminal 4: QA Review React Dashboard (Port 5180)
+npm run dev --prefix dashboard
+
+# Run Closed-Loop Autonomous PR & Forensics Demo Script
+python scripts/demo_week3_closed_loop.py
+
+# Run Full Test Suite (107 Python tests + 8 Dashboard tests + 1 Store test = 116 tests)
 python -m pytest
 ```
 
@@ -145,9 +151,10 @@ python -m pytest
 ## Technical Documentation
 
 * [System Architecture](docs/architecture.md): Component topology, closed remediation loop, and security model.
-* [API & Data Contract](docs/api-contract.md): Endpoint specifications, finding schemas, and run status enums.
+* [API & Data Contract](docs/api-contract.md): Endpoint specifications, finding schemas, run status enums, and forensic bundle contracts.
+* [Week 3 Final Review & 100% Completion Report](docs/week-3-final-review.md): Final Week 3 milestone review, closed-loop PR engine, dashboard controls, and cryptographic forensics.
+* [Week 3 Milestone Progress Report](docs/week-3-progress.md): Progression from 10% kickoff to 100% full delivery.
 * [Week 2 Day 3 Review & Integration Report](docs/week-2-day-3-review.md): Mid-project milestone review, component status, test matrix, and verification proofs.
-* [Week 3 Kickoff & 10% Milestone Report](docs/week-3-kickoff.md): Bounded self-healing, PyGithub PR automation service, and mock fallbacks.
 * [Demonstration Script](docs/demo-script.md): Step-by-step walkthrough for milestone reviews.
 * [Decisions & Scope](docs/decisions-and-limitations.md): Technical tradeoffs, MVP boundaries, and known limitations.
 

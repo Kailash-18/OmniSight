@@ -3,9 +3,8 @@ Integration Tests for VLM Adapter and Evidence Artifact Pipeline.
 """
 
 from pathlib import Path
-from automation.schemas import DefectCategory, Severity, Finding
-from automation.vlm_adapter import MockVLMAdapter
-from automation.evidence import EvidenceCollector
+from automation.core import DefectCategory, Severity, Finding, EvidenceCollector
+from automation.engine import MockVLMAdapter
 
 
 def test_evidence_collector_directory_structure(tmp_path):

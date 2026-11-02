@@ -49,3 +49,21 @@ def test_qa_manager_rejected_and_changes_requested():
     )
     assert cr.auto_merge_unlocked is False
     assert cr.resulting_run_status == "needs_review"
+
+def test_bulk_approval_batch_processing():
+    """Verify batch approval processes multiple runs concurrently."""
+    engine = QAManagerApprovalEngine()
+    run_list = ["run-batch-1", "run-batch-2", "run-batch-3"]
+    res = engine.bulk_approve_runs(
+        run_ids=run_list,
+        manager_id="director_qa@infotact.in",
+        decision=ApprovalDecision.APPROVED,
+        batch_notes="Weekly release candidate regression approval."
+    )
+    assert res.total_requested == 3
+    assert len(res.successful_runs) == 3
+    assert len(res.failed_runs) == 0
+    assert res.batch_status == "completed"
+
+    # Verify audit history
+    assert len(engine.get_approvals_for_run("run-batch-1")) == 1

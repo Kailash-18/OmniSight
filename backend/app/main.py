@@ -54,6 +54,7 @@ from app.services.patch_validator import validate_patch
 from app.services.forensics_service import compile_forensic_bundle, get_forensic_bundle_path, verify_forensic_bundle_integrity
 from app.services.spatial_service import spatial_service
 from app.services.run_comparator import RunComparator
+from app.services.sarif_service import SarifExporter
 from app.services.github_service import (
     create_pull_request_for_fix,
     generate_pr_markdown_description,
@@ -1276,4 +1277,25 @@ def compare_runs_endpoint(run_id: str, other_run_id: str):
     base_run = runs_db[run_id]
     cand_run = runs_db[other_run_id]
     return RunComparator.compare_runs(base_run, cand_run)
+
+
+@app.get(
+    "/runs/{run_id}/export/sarif",
+    summary="Export Audit Findings in Standard SARIF v2.1.0 Format"
+)
+def export_run_sarif_report(run_id: str):
+    """Exports findings formatted as SARIF v2.1.0 for GitHub Code Scanning."""
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    sarif_data = SarifExporter.export(runs_db[run_id])
+    return JSONResponse(
+        content=sarif_data,
+        headers={
+            "Content-Disposition": f'attachment; filename="omnisight-{run_id}.sarif"'
+        }
+    )
+
 

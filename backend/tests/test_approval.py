@@ -67,3 +67,19 @@ def test_bulk_approval_batch_processing():
 
     # Verify audit history
     assert len(engine.get_approvals_for_run("run-batch-1")) == 1
+
+def test_telemetry_report_generation():
+    """Verify operational telemetry calculation across mock runs store."""
+    engine = QAManagerApprovalEngine()
+    mock_store = {
+        "r1": {"status": "fixed", "pr_opened": True},
+        "r2": {"status": "fixed", "pr_opened": True},
+        "r3": {"status": "needs_review", "pr_opened": False},
+        "r4": {"status": "failed", "pr_opened": False},
+    }
+    report = engine.generate_telemetry_report(mock_store)
+    assert report.total_runs_audited == 4
+    assert report.fixed_runs_count == 2
+    assert report.healing_success_rate_percent == 50.0
+    assert report.total_prs_opened == 2
+    assert report.total_tokens_saved > 0

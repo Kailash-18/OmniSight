@@ -29,6 +29,9 @@ class DefectCategory(str, Enum):
     ELEMENT_OBSTRUCTION = "element_obstruction"
     CONTRAST_ISSUE = "contrast_issue"
     LAYOUT_OVERFLOW = "layout_overflow"
+    BROKEN_LINK = "broken_link"
+    CLICK_ERROR = "click_error"
+    NO_EFFECT = "no_effect"
 
 
 class Severity(str, Enum):
@@ -44,6 +47,34 @@ class HealthCheckResponse(BaseModel):
     status: str = Field(default="healthy", description="Readiness status of API gateway")
     timestamp: str = Field(..., description="Current UTC timestamp in ISO 8601 format")
     version: str = Field(..., description="API software version")
+    uptime_seconds: float = Field(default=0.0, description="Server process uptime")
+    active_runs_count: int = Field(default=0, description="Count of currently active or queued audit runs")
+    database_records: int = Field(default=0, description="Total run records persisted")
+
+class HealthLivenessResponse(BaseModel):
+    """Liveness probe response for container orchestrators."""
+    status: str = Field(default="alive", description="Process liveness state")
+    timestamp: str = Field(..., description="Current UTC timestamp in ISO 8601 format")
+    version: str = Field(..., description="API software version")
+
+
+class HealthReadinessResponse(BaseModel):
+    """Comprehensive readiness probe response for load balancers."""
+    status: str = Field(default="ready", description="Overall readiness: ready | degraded | unavailable")
+    timestamp: str = Field(..., description="Current UTC timestamp in ISO 8601 format")
+    version: str = Field(..., description="API software version")
+    checks: dict[str, str] = Field(default_factory=dict, description="Status of individual dependencies and subsystems")
+    active_runs_count: int = Field(default=0, description="Active or queued audit runs")
+    capacity_available: bool = Field(default=True, description="Whether server has available slots for new runs")
+
+
+class ConcurrencyMetricsResponse(BaseModel):
+    """Runtime worker concurrency and rate limit telemetry."""
+    max_concurrent_runs: int = Field(default=5, description="Maximum concurrent runs allowed")
+    active_runs_count: int = Field(default=0, description="Currently running or queued runs")
+    available_slots: int = Field(default=5, description="Available concurrency capacity")
+    is_shutting_down: bool = Field(default=False, description="Whether server is draining for graceful shutdown")
+
 
 
 
@@ -60,6 +91,12 @@ class BuildWebhookPayload(BaseModel):
     event_id: str | None = Field(default=None, description="External CI event identifier")
 
 
+class LoginPayload(BaseModel):
+    """Dashboard reviewer credentials."""
+    username: str = Field(..., min_length=1, max_length=128)
+    password: str = Field(..., min_length=1, max_length=256)
+
+
 class RunTriggerPayload(BaseModel):
     """Manual trigger payload for on-demand browser audit."""
     target_url: str = Field(..., description="Local or staging app URL to audit")
@@ -68,6 +105,8 @@ class RunTriggerPayload(BaseModel):
         default_factory=lambda: ["desktop_1440x900", "mobile_375x667"],
         description="List of target viewports"
     )
+    launch: bool = Field(default=False, description="Start the automation CLI for this run (dashboard Run button)")
+    retest: bool = Field(default=True, description="Verify the proposed fix in the sandbox")
 
 class FindingSchema(BaseModel):
     """Structured defect report item from VLM visual inspection."""
@@ -198,6 +237,14 @@ class RunRecordUpdatePayload(BaseModel):
     retest_outcome: dict[str, Any] | None = None
     pr_url: str | None = None
     error: str | None = None
+    risk_score: float | None = None
+    risk_verdict: str | None = None
+    tags: list[str] | None = None
+
+
+class RunTagPayload(BaseModel):
+    tag: str = Field(..., min_length=1, max_length=64, description="Label or category tag for audit run")
+
 
 
 # ---------------------------------------------------------------------------
@@ -213,6 +260,14 @@ class VLMParseResponse(BaseModel):
     validation_status: bool = Field(default=False, description="True if patch passed security guardrails")
     validator_errors: str | None = Field(default=None, description="Validation failure details if any")
     parse_errors: list[str] = Field(default_factory=list, description="Parsing or validation warnings")
+    risk_score: float = Field(default=0.0, description="Evaluated remediation risk score between 0 and 100")
+    risk_verdict: str = Field(default="auto_pr_allowed", description="Gate verdict: auto_pr_allowed or requires_human_review")
+
+
+class LoginResponse(BaseModel):
+    token: str
+    username: str
+    expires_at: str
 
 
 class RunSummaryResponse(BaseModel):
@@ -239,6 +294,14 @@ class RunDetailResponse(BaseModel):
     retest_outcome: dict[str, Any] | None = None
     pr_url: str | None = None
     error: str | None = None
+    risk_score: float | None = None
+    risk_verdict: str | None = None
+    tags: list[str] | None = None
+
+
+class RunTagPayload(BaseModel):
+    tag: str = Field(..., min_length=1, max_length=64, description="Label or category tag for audit run")
+
 
 
 class CreatePRPayload(BaseModel):
@@ -276,4 +339,14 @@ class ForensicBundleResponse(BaseModel):
     artifact_count: int = Field(..., description="Total count of bundled forensic artifacts")
     size_bytes: int = Field(..., description="Archive file size in bytes")
     download_url: str = Field(..., description="Download URL for the forensic bundle ZIP")
-    manifest: dict[str, Any] = Field(default_factory=dict, description="Tamper-evident manifest details")
+    manifest: dict[str, Any] = Field(default_factory=dict, description="Tamper-evident manifest details")
+
+class RunMetricsSummaryResponse(BaseModel):
+    """Aggregated QA quality, remediation success, and telemetry metrics."""
+    total_runs: int = Field(..., description="Total runs recorded")
+    fixed_runs: int = Field(..., description="Total runs resolved and verified fixed")
+    needs_review_runs: int = Field(..., description="Total runs requiring manual review")
+    failed_runs: int = Field(..., description="Total failed runs")
+    success_rate_percentage: float = Field(..., description="Fix success rate percentage")
+    defect_categories: dict[str, int] = Field(default_factory=dict, description="Count of findings per defect category")
+    average_diff_reduction: float = Field(default=0.0, description="Average visual mismatch percentage reduction")

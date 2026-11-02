@@ -40,6 +40,7 @@ from app.schemas import (
     PatchSubmitPayload,
     RunDetailResponse,
     RunRecordUpdatePayload,
+    RunTagPayload,
     RunStatus,
     RunSummaryResponse,
     RunMetricsSummaryResponse,
@@ -1297,5 +1298,46 @@ def export_run_sarif_report(run_id: str):
             "Content-Disposition": f'attachment; filename="omnisight-{run_id}.sarif"'
         }
     )
+
+
+@app.post(
+    "/runs/{run_id}/tags",
+    summary="Add Categorical Tag to Audit Run"
+)
+def add_run_tag(run_id: str, payload: RunTagPayload):
+    """Adds a label or tag to an audit run."""
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_record = runs_db[run_id]
+    current_tags = run_record.get("tags") or []
+    tag_clean = payload.tag.strip().lower()
+    if tag_clean not in current_tags:
+        current_tags.append(tag_clean)
+        run_record["tags"] = current_tags
+    return {"run_id": run_id, "tags": run_record["tags"]}
+
+
+@app.delete(
+    "/runs/{run_id}/tags/{tag}",
+    summary="Remove Categorical Tag from Audit Run"
+)
+def remove_run_tag(run_id: str, tag: str):
+    """Removes a label or tag from an audit run."""
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run_record = runs_db[run_id]
+    current_tags = run_record.get("tags") or []
+    tag_clean = tag.strip().lower()
+    if tag_clean in current_tags:
+        current_tags.remove(tag_clean)
+        run_record["tags"] = current_tags
+    return {"run_id": run_id, "tags": run_record.get("tags", [])}
+
 
 

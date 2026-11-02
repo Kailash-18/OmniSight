@@ -58,3 +58,9 @@ class TelemetryReportResponse(BaseModel):
     average_latency_ms: float = Field(..., description="Average end-to-end self-healing latency in milliseconds", ge=0.0)
     total_tokens_saved: int = Field(..., description="Cumulative prompt tokens conserved via spatial optimization", ge=0)
     total_prs_opened: int = Field(..., description="Count of evidence-backed Pull Requests submitted to GitHub", ge=0)
+
+class QAManagerAuditSignature(BaseModel):
+    """Cryptographic audit signature attached to QA approval decisions."""
+    signature_hash: str = Field(..., description="Deterministic SHA-256 digest of approval metadata")
+    approval_id: str = Field(..., description="Associated approval ID")
+    verified: bool = Field(default=True, description="Signature verification validity status")

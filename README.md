@@ -78,18 +78,24 @@ flowchart LR
 
 ```
 OmniSight/
-├── automation/                         # Playwright runner & VLM orchestration
+├── automation/                         # Playwright runner, RPA & VLM orchestration
 │   ├── browser_runner.py               # Responsive checkout journey automation
-│   ├── evidence.py                     # Screenshot & DOM extractors
+│   ├── spatial_analyzer.py             # Pure-Python AABB layout geometry engine
+│   ├── patch_sandbox.py                # Zero-trust sandbox retest with atomic rollback
+│   ├── visual_diff.py                  # Pixel delta comparator & annotation overlays
+│   ├── forensics.py                    # SHA-256 cryptographic compliance bundler
+│   ├── orchestrator.py                 # Self-healing loop state machine
 │   ├── vlm_adapter.py                  # Vision-Language Model interface
-│   └── orchestrator.py                 # Self-healing loop state machine
+│   ├── backend_client.py               # FastAPI CI/CD gateway HTTP client
+│   └── cli.py                          # Unified CLI entrypoint
 ├── backend/                            # FastAPI gateway & patch validator
-│   ├── app/main.py                     # API endpoints (/webhook/build, /runs)
+│   ├── app/main.py                     # API endpoints (/webhook/build, /runs, /forensics)
 │   ├── app/services/patch_engine.py    # Strict allowlist & diff parser
-│   └── app/services/github_service.py  # Branch, commit, and PR engine
+│   ├── app/services/github_service.py  # Branch, commit, and PR engine
+│   └── app/services/forensics_service.py # Backend forensic archive compiler
 ├── dashboard/                          # React QA Reviewer Dashboard
 ├── app-under-test/                     # Mock React shop with intentional bugs
-└── artifacts/                          # Local run evidence (before/after screenshots)
+└── artifacts/                          # Local run evidence (screenshots, DOM, diffs, forensics)
 ```
 
 ---
@@ -150,7 +156,10 @@ python -m pytest
 
 ## Technical Documentation
 
-* [System Architecture](docs/architecture.md): Component topology, closed remediation loop, and security model.
+* [Automation & RPA Engine Architecture](automation/README.md): Headless Playwright runner, spatial geometry engine, isolated sandbox retesting, and cryptographic forensics.
+* [Backend Gateway Architecture](backend/README.md): FastAPI CI/CD gateway, Action Engine, zero-trust security validator, and GitHub PR service.
+* [QA Dashboard Architecture](dashboard/README.md): React reviewer dashboard, evidence viewers, retest proof, and manual review controls.
+* [System Architecture Overview](docs/architecture.md): High-level component topology, team ownership division, and closed-loop state machine.
 * [API & Data Contract](docs/api-contract.md): Endpoint specifications, finding schemas, run status enums, and forensic bundle contracts.
 * [Week 3 Final Review & 100% Completion Report](docs/week-3-final-review.md): Final Week 3 milestone review, closed-loop PR engine, dashboard controls, and cryptographic forensics.
 * [Week 3 Milestone Progress Report](docs/week-3-progress.md): Progression from 10% kickoff to 100% full delivery.

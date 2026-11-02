@@ -2758,3 +2758,13 @@ async def submit_qa_manager_approval(run_id: str, payload: QAManagerApprovalRequ
     )
     runs_db[run_id]["status"] = resp.resulting_run_status
     return resp
+
+@app.get(
+    "/runs/{run_id}/qa-approval",
+    tags=["QA Management & Release"],
+    summary="Retrieve QA manager sign-off audit trail"
+)
+async def get_run_qa_approvals(run_id: str):
+    """Retrieves all formal QA sign-offs recorded for a run."""
+    approvals = qa_approval_engine.get_approvals_for_run(run_id)
+    return {"run_id": run_id, "approvals": approvals, "total": len(approvals)}

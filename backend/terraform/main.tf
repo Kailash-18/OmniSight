@@ -19,7 +19,7 @@ provider "aws" {
   default_tags {
     tags = {
       Project     = "OmniSight"
-      Role        = "Member-1-Backend"
+      Role        = "Backend-Engineering"
       Environment = var.environment
       ManagedBy   = "Terraform"
     }

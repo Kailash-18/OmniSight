@@ -1,5 +1,5 @@
 """
-Unit & Integration Tests for GitHub Pull Request Automation Service (Member 1).
+Unit & Integration Tests for GitHub Pull Request Automation Service.
 Verifies mock fallback, markdown formatting, evidence injection, and PR parameter handling.
 """
 

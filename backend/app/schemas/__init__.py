@@ -152,34 +152,82 @@ __all__ = [
     "ReviewTrailResponse",
     "ReviewOverridePayload",
     "RemediationCertificateResponse",
+    "HealingStrategyType",
+    "HealingStrategyRequest",
+    "HealingStrategyResponse",
+    "HealingSummaryResponse",
+    "PRLabelCalculationRequest",
+    "PRLabelCalculationResponse",
+    "RollbackPreviewRequest",
+    "RollbackPreviewResponse",
+    "CropBoundingBox",
+    "CropRegionRequest",
+    "CropRegionResponse",
+    "CropManifestRegistration",
+    "TokenEconomicsReport",
+    "CropMetricsSummary",
+    "ApprovalDecision",
+    "QAManagerApprovalRequest",
+    "QAManagerApprovalResponse",
+    "BulkApprovalRequest",
+    "BulkApprovalResponse",
+    "TelemetryReportResponse",
+    "QAManagerAuditSignature",
 ]
 
-from backend.app.schemas.healing_schema import (
-    HealingStrategyType,
-    HealingStrategyRequest,
-    HealingStrategyResponse,
-    HealingSummaryResponse,
-    PRLabelCalculationRequest,
-    PRLabelCalculationResponse,
-    RollbackPreviewRequest,
-    RollbackPreviewResponse,
-)
-
-from backend.app.schemas.optimizer_schema import (
-    CropBoundingBox,
-    CropRegionRequest,
-    CropRegionResponse,
-    CropManifestRegistration,
-    TokenEconomicsReport,
-    CropMetricsSummary,
-)
-
-from backend.app.schemas.approval_schema import (
-    ApprovalDecision,
-    QAManagerApprovalRequest,
-    QAManagerApprovalResponse,
-    BulkApprovalRequest,
-    BulkApprovalResponse,
-    TelemetryReportResponse,
-    QAManagerAuditSignature,
-)
+try:
+    from app.schemas.healing_schema import (
+        HealingStrategyType,
+        HealingStrategyRequest,
+        HealingStrategyResponse,
+        HealingSummaryResponse,
+        PRLabelCalculationRequest,
+        PRLabelCalculationResponse,
+        RollbackPreviewRequest,
+        RollbackPreviewResponse,
+    )
+    from app.schemas.optimizer_schema import (
+        CropBoundingBox,
+        CropRegionRequest,
+        CropRegionResponse,
+        CropManifestRegistration,
+        TokenEconomicsReport,
+        CropMetricsSummary,
+    )
+    from app.schemas.approval_schema import (
+        ApprovalDecision,
+        QAManagerApprovalRequest,
+        QAManagerApprovalResponse,
+        BulkApprovalRequest,
+        BulkApprovalResponse,
+        TelemetryReportResponse,
+        QAManagerAuditSignature,
+    )
+except ModuleNotFoundError:
+    from backend.app.schemas.healing_schema import (
+        HealingStrategyType,
+        HealingStrategyRequest,
+        HealingStrategyResponse,
+        HealingSummaryResponse,
+        PRLabelCalculationRequest,
+        PRLabelCalculationResponse,
+        RollbackPreviewRequest,
+        RollbackPreviewResponse,
+    )
+    from backend.app.schemas.optimizer_schema import (
+        CropBoundingBox,
+        CropRegionRequest,
+        CropRegionResponse,
+        CropManifestRegistration,
+        TokenEconomicsReport,
+        CropMetricsSummary,
+    )
+    from backend.app.schemas.approval_schema import (
+        ApprovalDecision,
+        QAManagerApprovalRequest,
+        QAManagerApprovalResponse,
+        BulkApprovalRequest,
+        BulkApprovalResponse,
+        TelemetryReportResponse,
+        QAManagerAuditSignature,
+    )

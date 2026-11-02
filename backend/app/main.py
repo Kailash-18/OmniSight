@@ -2768,3 +2768,22 @@ async def get_run_qa_approvals(run_id: str):
     """Retrieves all formal QA sign-offs recorded for a run."""
     approvals = qa_approval_engine.get_approvals_for_run(run_id)
     return {"run_id": run_id, "approvals": approvals, "total": len(approvals)}
+
+@app.post(
+    "/runs/qa-approval/bulk",
+    response_model=BulkApprovalResponse,
+    tags=["QA Management & Release"],
+    summary="Batch approve or reject multiple audit runs"
+)
+async def submit_bulk_qa_approval(payload: BulkApprovalRequest):
+    """Applies a batch decision across multiple test runs simultaneously."""
+    resp = qa_approval_engine.bulk_approve_runs(
+        run_ids=payload.run_ids,
+        manager_id=payload.manager_id,
+        decision=payload.decision,
+        batch_notes=payload.batch_notes
+    )
+    for rid in resp.successful_runs:
+        if rid in runs_db:
+            runs_db[rid]["status"] = "fixed" if payload.decision == ApprovalDecision.APPROVED else "needs_review"
+    return resp

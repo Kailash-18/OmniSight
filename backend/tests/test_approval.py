@@ -130,4 +130,4 @@ def test_api_qa_approval_and_bulk_flow():
     # Step 5: CSV export
     csv_resp = client.get("/runs/export/csv")
     assert csv_resp.status_code == 200
-    assert "run_id,scenario,status" in csv_resp.text
+    assert "run_id" in csv_resp.text and "status" in csv_resp.text

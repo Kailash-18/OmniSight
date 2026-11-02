@@ -2798,21 +2798,3 @@ async def get_operational_telemetry_report():
     """Computes system-wide self-healing success rate, token savings, and latency metrics."""
     return qa_approval_engine.generate_telemetry_report(runs_db)
 
-
-@app.get(
-    "/runs/export/csv",
-    tags=["Observability & Telemetry"],
-    summary="Export audit runs in CSV format for executive reporting"
-)
-async def export_runs_csv():
-    """Generates a streaming CSV report of all recorded audit runs."""
-    csv_rows = ["run_id,scenario,status,created_at,has_pr"]
-    for rid, run in runs_db.items():
-        scen = run.get("scenario", "checkout_flow")
-        stat = run.get("status", "pending")
-        created = run.get("created_at", "2026-11-02T10:00:00Z")
-        pr = "true" if run.get("pr_url") or run.get("pr_opened") else "false"
-        csv_rows.append(f"{rid},{scen},{stat},{created},{pr}")
-    
-    from fastapi.responses import PlainTextResponse
-    return PlainTextResponse("\n".join(csv_rows), media_type="text/csv")

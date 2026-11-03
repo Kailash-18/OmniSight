@@ -137,3 +137,5 @@ class QAManagerApprovalEngine:
 
 # Global singleton instance
 qa_approval_engine = QAManagerApprovalEngine()
+
+# Reviewer decision validator: validates formal sign-off signatures and review comments.

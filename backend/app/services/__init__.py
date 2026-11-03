@@ -170,3 +170,5 @@ except ModuleNotFoundError:
         QAManagerApprovalEngine,
         qa_approval_engine,
     )
+
+# Verified export of VLMRegionOptimizer and QAApprovalService for Week 4 operational gateway.

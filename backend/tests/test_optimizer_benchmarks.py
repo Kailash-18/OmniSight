@@ -14,3 +14,11 @@ def test_spatial_crop_boundary_expansion():
     assert region["crop_width"] >= 200
     assert region["crop_height"] >= 150
     assert region["crop_x"] <= 100
+
+def test_token_economics_reduction():
+    optimizer = VLMRegionOptimizer()
+    boxes = [CropBoundingBox(x=50, y=50, width=150, height=100, padding_percent=0.10)]
+    res = optimizer.calculate_crop_regions("run-b2", 1920, 1080, boxes)
+    report = optimizer.calculate_token_economics("run-b2", 1920, 1080, res.cropped_regions)
+    assert report.token_savings_percent > 50.0
+    assert report.cropped_regions_tokens < report.full_image_tokens

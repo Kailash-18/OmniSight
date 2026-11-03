@@ -9,3 +9,19 @@ In Week 4, OmniSight transitions from basic self-healing to deep cost-latency op
 Traditional multimodal VLM evaluation sends raw 1920x1080 full-page viewports to vision models, consuming 1,200+ tokens per image call.
 Our spatial optimization engine crops localized anomaly regions with dynamic contextual margins, reducing vision token consumption by over 75%.
 
+## 2. Spatial Optimization Architecture
+
+```mermaid
+flowchart LR
+    DOM[DOM & Viewport] --> BBox[Anomaly Bounding Box]
+    BBox --> Pad[15% Margin Expansion]
+    Pad --> Clamp[Coordinate Clamping]
+    Clamp --> Crop[Crop Buffer]
+    Crop --> VLM[VLM Mini-Tile: -75% Tokens]
+```
+
+### Key Architectural Guarantees:
+- **Aspect Ratio Clamp**: Enforces minimum 100x100 tile clamp to eliminate model aspect distortion.
+- **Token Economics**: Computes mathematical cost reduction against uncropped 1920x1080 baselines.
+- **LRU Manifest Cache**: Caches localized crops across iterative repair rounds.
+

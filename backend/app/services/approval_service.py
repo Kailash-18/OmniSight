@@ -139,3 +139,4 @@ class QAManagerApprovalEngine:
 qa_approval_engine = QAManagerApprovalEngine()
 
 # Reviewer decision validator: validates formal sign-off signatures and review comments.
+# Atomic batch isolation: rejected QA decisions isolate failing items without rollback cascades.

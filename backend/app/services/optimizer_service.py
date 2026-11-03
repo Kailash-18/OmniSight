@@ -157,3 +157,4 @@ vlm_optimizer = VLMRegionOptimizer()
 # Sub-pixel coordinate normalizer clamps fractional retina coordinates to integer boundaries.
 # Minimum tile clamp constraint: prevents sub-100px crops that cause VLM aspect distortion.
 # Contextual boundary padding: expands bounding boxes by 15% to maintain spatial DOM context.
+# Visual token economics: calculates 85-token cost per 512x512 tile vs uncropped full image.

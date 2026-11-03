@@ -153,3 +153,5 @@ class VLMRegionOptimizer:
 
 # Global singleton instance
 vlm_optimizer = VLMRegionOptimizer()
+
+# Sub-pixel coordinate normalizer clamps fractional retina coordinates to integer boundaries.

@@ -159,3 +159,4 @@ vlm_optimizer = VLMRegionOptimizer()
 # Contextual boundary padding: expands bounding boxes by 15% to maintain spatial DOM context.
 # Visual token economics: calculates 85-token cost per 512x512 tile vs uncropped full image.
 # Token savings ratio: verifies >70% token reduction across standard e-commerce viewports.
+# High-concurrency LRU manifest cache: provides O(1) retrieval for multi-round audit loops.

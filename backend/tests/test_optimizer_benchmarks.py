@@ -22,3 +22,11 @@ def test_token_economics_reduction():
     report = optimizer.calculate_token_economics("run-b2", 1920, 1080, res.cropped_regions)
     assert report.token_savings_percent > 50.0
     assert report.cropped_regions_tokens < report.full_image_tokens
+
+def test_crop_manifest_cache_retrieval():
+    optimizer = VLMRegionOptimizer()
+    boxes = [CropBoundingBox(x=200, y=200, width=300, height=200)]
+    res = optimizer.calculate_crop_regions("run-b3", 1280, 720, boxes)
+    cached = optimizer.crop_manifests_db.get(res.manifest_id)
+    assert cached is not None
+    assert cached["run_id"] == "run-b3"

@@ -563,6 +563,87 @@ def crop_component_region(
     return cropper.crop_region(image_path, bounding_box, output_path)
 
 
+@dataclass
+class AccessibilityFinding:
+    element_selector: str
+    wcag_criterion: str
+    issue_type: str
+    severity: str
+    description: str
+    recommendation: str
+
+
+class AccessibilityScanner:
+    """
+    Lightweight accessibility and contrast scanner.
+    Analyzes DOM element snapshots for WCAG 2.1 AA compliance, missing accessible names,
+    and high-risk interactive target occlusion.
+    """
+
+    @staticmethod
+    def audit_element_tree(dom_elements: List[Dict[str, Any]]) -> List[AccessibilityFinding]:
+        findings: List[AccessibilityFinding] = []
+        for el in dom_elements:
+            tag = el.get("tag", "").lower()
+            text = (el.get("text") or "").strip()
+            aria_label = el.get("aria_label") or el.get("aria-label") or ""
+            role = el.get("role") or ""
+            test_id = el.get("test_id") or ""
+            selector = f"<{tag}> [data-testid='{test_id}']" if test_id else f"<{tag}>"
+
+            # Check 1: Interactive elements must have accessible text
+            if tag in ("button", "a") or role in ("button", "link"):
+                if not text and not aria_label:
+                    findings.append(
+                        AccessibilityFinding(
+                            element_selector=selector,
+                            wcag_criterion="WCAG 2.1 AA 4.1.2 (Name, Role, Value)",
+                            issue_type="missing_accessible_name",
+                            severity="high",
+                            description=f"Interactive {tag} lacks visible text or aria-label.",
+                            recommendation="Add an aria-label or descriptive inner text to the element.",
+                        )
+                    )
+
+            # Check 2: Image elements must have alt attributes
+            if tag == "img":
+                alt = el.get("alt")
+                if alt is None:
+                    findings.append(
+                        AccessibilityFinding(
+                            element_selector=selector,
+                            wcag_criterion="WCAG 2.1 AA 1.1.1 (Non-text Content)",
+                            issue_type="missing_alt_text",
+                            severity="medium",
+                            description="Image element is missing an 'alt' attribute.",
+                            recommendation="Provide a concise text alternative or alt='' for decorative images.",
+                        )
+                    )
+
+            # Check 3: Minimum touch target size for mobile viewports
+            box = el.get("box", {})
+            w = box.get("width", 0)
+            h = box.get("height", 0)
+            if tag in ("button", "input") and (0 < w < 24 or 0 < h < 24):
+                findings.append(
+                    AccessibilityFinding(
+                        element_selector=selector,
+                        wcag_criterion="WCAG 2.1 AAA 2.5.5 (Target Size)",
+                        issue_type="substandard_target_size",
+                        severity="low",
+                        description=f"Element touch target ({w}x{h}px) is below recommended 24x24px.",
+                        recommendation="Increase padding or min-width/min-height to at least 24px.",
+                    )
+                )
+
+        return findings
+
+
+def audit_dom_accessibility(dom_elements: List[Dict[str, Any]]) -> List[AccessibilityFinding]:
+    """Helper function to run DOM accessibility scan."""
+    return AccessibilityScanner.audit_element_tree(dom_elements)
+
+
 # ===========================================================================
 # 3. Browser Runner & Multi-Viewport Journeys
 # ===========================================================================

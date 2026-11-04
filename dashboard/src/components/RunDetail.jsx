@@ -73,7 +73,12 @@ export default function RunDetail({ runId, link }) {
           <h1 className="mono run-title">{run.run_id} <MockTag /></h1>
           <p className="muted">{formatTime(run.start_time)} · <span className="mono"><TargetLink target={run.target} /></span></p>
         </div>
-        <StatusBadge status={run.status} />
+        <div className="head-actions">
+          <button type="button" className="btn btn-small" data-testid="sync-run-status" onClick={load} title="Check latest run & webhook status">
+            ↻ Sync status
+          </button>
+          <StatusBadge status={run.status} />
+        </div>
       </div>
 
       <section className="panel" aria-labelledby="h-summary">
@@ -167,8 +172,13 @@ export default function RunDetail({ runId, link }) {
       </section>
 
       <section className="panel" aria-labelledby="h-review">
-        <h2 id="h-review">Review</h2>
-        <ReviewPanel key={run.run_id} runId={run.run_id} patch={patch} />
+        <ReviewPanel
+          key={run.run_id}
+          runId={run.run_id}
+          patch={patch}
+          prUrl={run.pr_url}
+          onPrCreated={(url) => setState((s) => ({ ...s, run: { ...s.run, pr_url: url, status: 'pr_opened' } }))}
+        />
       </section>
     </article>
   )

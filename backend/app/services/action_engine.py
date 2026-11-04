@@ -28,7 +28,9 @@ class ActionEngine:
         Extracts all markdown-fenced code blocks from prose text.
         Returns a list of dicts with 'lang' and 'code'.
         """
-        pattern = r"```([a-zA-Z0-9_\-\+]*)\s*\n(.*?)```"
+        # Supports standard triple backticks, multi-backtick fences (4+), and tildes (~~~),
+        # with robust whitespace and language identifier handling.
+        pattern = r"(?:`{3,}|~{3,})([a-zA-Z0-9_\-\+]*)[ \t]*\r?\n?(.*?)(?:`{3,}|~{3,})"
         matches = re.findall(pattern, text, re.DOTALL)
         blocks = []
         for lang, code in matches:

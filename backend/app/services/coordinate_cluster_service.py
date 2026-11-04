@@ -121,3 +121,30 @@ class CoordinateClusterEngine:
             "width": min(aligned_w, max_w - max(0, aligned_x)),
             "height": min(aligned_h, max_h - max(0, aligned_y))
         }
+
+    def cluster_and_optimize(self, req: ClusterBoundingBoxRequest) -> ClusterBoundingBoxResponse:
+        """Executes full clustering pipeline."""
+        regions = self.merge_overlapping_boxes(
+            boxes=req.boxes,
+            iou_threshold=req.iou_threshold,
+            max_w=req.viewport_width,
+            max_h=req.viewport_height,
+            padding=req.padding_percent
+        )
+        for r in regions:
+            r.hardware_aligned_box = self.align_to_hardware_grid(
+                r.bounding_box["x"], r.bounding_box["y"],
+                r.bounding_box["width"], r.bounding_box["height"],
+                req.viewport_width, req.viewport_height
+            )
+        orig_count = len(req.boxes)
+        clustered_count = len(regions)
+        ratio = float(orig_count / max(1, clustered_count))
+
+        return ClusterBoundingBoxResponse(
+            run_id=req.run_id,
+            clusters_count=clustered_count,
+            clusters=regions,
+            original_boxes_count=orig_count,
+            compression_ratio=round(ratio, 2)
+        )

@@ -8,15 +8,14 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from automation.patch_sandbox import (
+from automation.engine import (
     validate_patch_target,
     apply_unified_diff,
     PatchSandbox,
     RetestRunner,
     ALLOWED_PATCH_TARGETS,
 )
-from automation.schemas import ProposedPatch, RetestStatus
-from automation.evidence import EvidenceCollector
+from automation.core import ProposedPatch, RetestStatus, EvidenceCollector
 
 
 def test_allowlist_validation_success():
@@ -191,7 +190,7 @@ def test_retest_runner_verify_patch(tmp_path: Path):
 
 def test_orchestrator_closed_loop_retest_flow(monkeypatch, tmp_path: Path):
     from automation.orchestrator import Orchestrator
-    from automation.vlm_adapter import MockVLMAdapter
+    from automation.engine import MockVLMAdapter
 
     orchestrator = Orchestrator(vlm_adapter=MockVLMAdapter())
 

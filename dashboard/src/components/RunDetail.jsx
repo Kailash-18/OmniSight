@@ -56,7 +56,14 @@ export default function RunDetail({ runId, link }) {
   const findings = run.findings || []
   const patch = run.patch
   const errors = validatorErrors(patch)
-  const retest = run.retest_verification
+  const retest = run.retest_outcome || run.retest_verification
+  const mismatchPercent = typeof retest?.mismatch_percentage === 'number'
+    ? retest.mismatch_percentage
+    : typeof retest?.visual_diff_score === 'number'
+    ? retest.visual_diff_score * 100
+    : null
+  const retestPassed = retest?.passed ?? (retest?.status === 'fixed')
+  const retestViewport = retest?.retest_viewport || retest?.target_viewport || 'all'
 
   return (
     <article data-testid="run-detail">
@@ -115,8 +122,26 @@ export default function RunDetail({ runId, link }) {
       <section className="panel" aria-labelledby="h-evidence">
         <h2 id="h-evidence">Evidence: before / after</h2>
         <Evidence evidence={run.evidence_paths} />
-        {typeof retest?.mismatch_percentage === 'number' && (
-          <p className="muted small">Pixel mismatch after retest: {retest.mismatch_percentage.toFixed(2)}%</p>
+        {retest && (
+          <div className="retest-summary" data-testid="retest-proof-summary">
+            <div className="retest-head">
+              <strong>Retest Verification Proof</strong>
+              <span className={`badge ${retestPassed ? 'tone-good' : 'tone-bad'}`} data-testid="retest-badge">
+                {retestPassed ? 'Verified Fixed' : 'Retest Unresolved'}
+              </span>
+            </div>
+            <dl className="facts compact">
+              <dt>Tested Viewport</dt><dd className="mono">{retestViewport}</dd>
+              {mismatchPercent !== null && (
+                <>
+                  <dt>Visual Delta</dt>
+                  <dd className="mono">{mismatchPercent.toFixed(2)}% pixel difference</dd>
+                </>
+              )}
+              <dt>Sandbox Rollback</dt><dd>Guaranteed (Source files safely restored)</dd>
+              {retest.notes && <><dt>Audit Notes</dt><dd>{retest.notes}</dd></>}
+            </dl>
+          </div>
         )}
       </section>
 

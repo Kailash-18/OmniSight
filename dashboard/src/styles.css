@@ -134,6 +134,9 @@ ul.alert { padding-left: 32px; }
 .review-result.approved { background: var(--good-bg); color: var(--good); }
 .review-result.rejected { background: var(--bad-bg); color: var(--bad); }
 
+.retest-summary { margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; background: #fafbfc; }
+.retest-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+
 @media (max-width: 720px) {
   .wrap { padding: 0 16px; }
   .pair-grid { grid-template-columns: 1fr; }

@@ -294,3 +294,25 @@ def test_action_engine_smart_curly_quotes_normalization():
     assert result.findings[0].confidence == 0.95
 
 
+
+
+def test_action_engine_multi_backtick_and_tilde_fences():
+    raw_vlm = """Here is a multi-backtick diff block:
+````diff
+--- a/app-under-test/src/styles/defects.css
++++ b/app-under-test/src/styles/defects.css
+@@ -10,3 +10,3 @@
+-.btn-order { width: 500px; }
++.btn-order { width: 100%; }
+````
+And a tilde fenced code block:
+~~~~css
+.btn-order { width: 100%; }
+~~~~
+"""
+    blocks = action_engine.extract_code_blocks(raw_vlm)
+    assert len(blocks) == 2
+    assert blocks[0]["lang"] == "diff"
+    assert ".btn-order" in blocks[0]["code"]
+    assert blocks[1]["lang"] == "css"
+    assert "width: 100%" in blocks[1]["code"]

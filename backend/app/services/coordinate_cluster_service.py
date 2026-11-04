@@ -103,3 +103,21 @@ class CoordinateClusterEngine:
                 redaction_masks=redactions
             ))
         return result_regions
+
+    def align_to_hardware_grid(self, x: int, y: int, width: int, height: int, max_w: int, max_h: int) -> Dict[str, int]:
+        """Aligns crop coordinates to 64px boundaries for tensor accelerator caching."""
+        grid = self.hardware_tile_alignment
+        aligned_x = (x // grid) * grid
+        aligned_y = (y // grid) * grid
+        aligned_x2 = min(max_w, ((x + width + grid - 1) // grid) * grid)
+        aligned_y2 = min(max_h, ((y + height + grid - 1) // grid) * grid)
+
+        aligned_w = max(grid, aligned_x2 - aligned_x)
+        aligned_h = max(grid, aligned_y2 - aligned_y)
+
+        return {
+            "x": max(0, aligned_x),
+            "y": max(0, aligned_y),
+            "width": min(aligned_w, max_w - max(0, aligned_x)),
+            "height": min(aligned_h, max_h - max(0, aligned_y))
+        }

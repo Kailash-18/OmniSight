@@ -59,3 +59,13 @@ class AuditTelemetryEngine:
             sha256_audit_seal=seal,
             records=records
         )
+
+    def classify_anomaly_severity(self, visual_diff_score: float, area_impact_pct: float) -> AnomalySeverity:
+        """Classifies anomaly severity based on perceptual visual diff score and impacted viewport percentage."""
+        if visual_diff_score >= 0.15 or area_impact_pct >= 0.30:
+            return AnomalySeverity.CRITICAL
+        elif visual_diff_score >= 0.05 or area_impact_pct >= 0.10:
+            return AnomalySeverity.HIGH
+        elif visual_diff_score >= 0.01:
+            return AnomalySeverity.MEDIUM
+        return AnomalySeverity.LOW

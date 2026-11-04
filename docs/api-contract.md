@@ -196,31 +196,6 @@ Ingests GitHub webhook events for pull requests (`opened`, `closed`, `labeled`) 
   }
   ```
 
-### `POST /runs/{run_id}/forensics`
-Compiles an immutable, tamper-evident forensic bundle for the run with cryptographic SHA-256 manifests.
-* **Response (200 OK)**:
-  ```json
-  {
-    "run_id": "run-1729418400",
-    "bundle_name": "forensic_bundle_run-1729418400.zip",
-    "sha256_checksum": "98178a112b518ace91bbbf0c814ccd111270a3ad9350c2f8eb91e94575bd7363",
-    "artifact_count": 9,
-    "size_bytes": 42150,
-    "download_url": "/runs/run-1729418400/forensics/download",
-    "manifest": {
-      "run_id": "run-1729418400",
-      "total_artifacts": 7,
-      "specification": "OmniSight-Forensics-v1.0"
-    }
-  }
-  ```
-
-### `GET /runs/{run_id}/forensics`
-Retrieves forensic bundle metadata, manifest index, and checksums for a run.
-
-### `GET /runs/{run_id}/forensics/download`
-Streams the compiled immutable forensic ZIP archive as `application/zip` for compliance and audit review.
-
 ### `GET /api/milestones`
 Returns current milestone completion status across team roles and active security allowlists.
 * **Response (200 OK)**:
@@ -230,8 +205,8 @@ Returns current milestone completion status across team roles and active securit
     "week_1_foundation": "completed",
     "week_2_action_engine": "completed",
     "week_2_day_3_integration": "completed",
-    "week_3_pr_automation": "completed",
-    "week_3_progress": "100% - Closed-loop PR automation, bidirectional webhooks, dashboard review controls, and forensic audit bundling",
+    "week_3_pr_automation": "in_progress",
+    "week_3_progress": "20% - Closed-loop PR automation engine, verification proof comments, and webhook ingestion",
     "allowed_targets": ["localhost", "127.0.0.1", "0.0.0.0", "::1", "staging.internal"],
     "allowed_patch_files": ["app-under-test/src/styles/defects.css", "..."]
   }

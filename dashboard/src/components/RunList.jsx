@@ -38,18 +38,13 @@ export default function RunList({ link }) {
           <h1>Runs</h1>
           <p className="muted">{state.runs.length} run{state.runs.length === 1 ? '' : 's'}</p>
         </div>
-        <div className="filter-group">
-          <label className="filter">
-            <span>Status</span>
-            <select value={filter} onChange={(e) => setFilter(e.target.value)} data-testid="status-filter">
-              <option value="all">All statuses</option>
-              {Object.entries(STATUSES).map(([value, { label }]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </label>
-          <button type="button" className="btn btn-small" data-testid="runs-refresh" onClick={load} title="Refresh runs from backend">
-            ↻ Refresh
-          </button>
-        </div>
+        <label className="filter">
+          <span>Status</span>
+          <select value={filter} onChange={(e) => setFilter(e.target.value)} data-testid="status-filter">
+            <option value="all">All statuses</option>
+            {Object.entries(STATUSES).map(([value, { label }]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
       </div>
 
       {shown.length === 0 ? (

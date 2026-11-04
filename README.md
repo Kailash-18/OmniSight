@@ -78,24 +78,18 @@ flowchart LR
 
 ```
 OmniSight/
-├── automation/                         # Playwright runner, RPA & VLM orchestration
+├── automation/                         # Playwright runner & VLM orchestration
 │   ├── browser_runner.py               # Responsive checkout journey automation
-│   ├── spatial_analyzer.py             # Pure-Python AABB layout geometry engine
-│   ├── patch_sandbox.py                # Zero-trust sandbox retest with atomic rollback
-│   ├── visual_diff.py                  # Pixel delta comparator & annotation overlays
-│   ├── forensics.py                    # SHA-256 cryptographic compliance bundler
-│   ├── orchestrator.py                 # Self-healing loop state machine
+│   ├── evidence.py                     # Screenshot & DOM extractors
 │   ├── vlm_adapter.py                  # Vision-Language Model interface
-│   ├── backend_client.py               # FastAPI CI/CD gateway HTTP client
-│   └── cli.py                          # Unified CLI entrypoint
+│   └── orchestrator.py                 # Self-healing loop state machine
 ├── backend/                            # FastAPI gateway & patch validator
-│   ├── app/main.py                     # API endpoints (/webhook/build, /runs, /forensics)
+│   ├── app/main.py                     # API endpoints (/webhook/build, /runs)
 │   ├── app/services/patch_engine.py    # Strict allowlist & diff parser
-│   ├── app/services/github_service.py  # Branch, commit, and PR engine
-│   └── app/services/forensics_service.py # Backend forensic archive compiler
+│   └── app/services/github_service.py  # Branch, commit, and PR engine
 ├── dashboard/                          # React QA Reviewer Dashboard
 ├── app-under-test/                     # Mock React shop with intentional bugs
-└── artifacts/                          # Local run evidence (screenshots, DOM, diffs, forensics)
+└── artifacts/                          # Local run evidence (before/after screenshots)
 ```
 
 ---
@@ -140,15 +134,9 @@ npm run dev --prefix app-under-test
 uvicorn app.main:app --app-dir backend --reload --port 8000
 
 # Terminal 3: Run Automation Visual QA Runner (Standalone or Synced with Backend Gateway)
-python -m automation.cli --target http://localhost:5173 --sync-backend --auto-pr --bundle-forensics
+python -m automation.cli --target http://localhost:5173 --sync-backend
 
-# Terminal 4: QA Review React Dashboard (Port 5180)
-npm run dev --prefix dashboard
-
-# Run Closed-Loop Autonomous PR & Forensics Demo Script
-python scripts/demo_week3_closed_loop.py
-
-# Run Full Test Suite (107 Python tests + 8 Dashboard tests + 1 Store test = 116 tests)
+# Run Full Test Suite (93 unit, security, and integration tests)
 python -m pytest
 ```
 
@@ -156,14 +144,10 @@ python -m pytest
 
 ## Technical Documentation
 
-* [Automation & RPA Engine Architecture](automation/README.md): Headless Playwright runner, spatial geometry engine, isolated sandbox retesting, and cryptographic forensics.
-* [Backend Gateway Architecture](backend/README.md): FastAPI CI/CD gateway, Action Engine, zero-trust security validator, and GitHub PR service.
-* [QA Dashboard Architecture](dashboard/README.md): React reviewer dashboard, evidence viewers, retest proof, and manual review controls.
-* [System Architecture Overview](docs/architecture.md): High-level component topology, team ownership division, and closed-loop state machine.
-* [API & Data Contract](docs/api-contract.md): Endpoint specifications, finding schemas, run status enums, and forensic bundle contracts.
-* [Week 3 Final Review & 100% Completion Report](docs/week-3-final-review.md): Final Week 3 milestone review, closed-loop PR engine, dashboard controls, and cryptographic forensics.
-* [Week 3 Milestone Progress Report](docs/week-3-progress.md): Progression from 10% kickoff to 100% full delivery.
+* [System Architecture](docs/architecture.md): Component topology, closed remediation loop, and security model.
+* [API & Data Contract](docs/api-contract.md): Endpoint specifications, finding schemas, and run status enums.
 * [Week 2 Day 3 Review & Integration Report](docs/week-2-day-3-review.md): Mid-project milestone review, component status, test matrix, and verification proofs.
+* [Week 3 Kickoff & 10% Milestone Report](docs/week-3-kickoff.md): Bounded self-healing, PyGithub PR automation service, and mock fallbacks.
 * [Demonstration Script](docs/demo-script.md): Step-by-step walkthrough for milestone reviews.
 * [Decisions & Scope](docs/decisions-and-limitations.md): Technical tradeoffs, MVP boundaries, and known limitations.
 

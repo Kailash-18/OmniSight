@@ -10,10 +10,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app, runs_db
-from automation.backend_client import BackendClient
-from automation.orchestrator import Orchestrator
-from automation.schemas import RetestStatus
-from automation.vlm_adapter import MockVLMAdapter
+from automation.orchestrator import BackendClient, Orchestrator
+from automation.core import RetestStatus
+from automation.engine import MockVLMAdapter
 
 
 @pytest.fixture

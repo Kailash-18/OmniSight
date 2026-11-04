@@ -172,3 +172,12 @@ except ModuleNotFoundError:
     )
 
 # Verified export of VLMRegionOptimizer and QAApprovalService for Week 4 operational gateway.
+
+try:
+    from app.services.coordinate_cluster_service import CoordinateClusterEngine
+    from app.services.audit_telemetry_service import AuditTelemetryEngine
+except ModuleNotFoundError:
+    from backend.app.services.coordinate_cluster_service import CoordinateClusterEngine
+    from backend.app.services.audit_telemetry_service import AuditTelemetryEngine
+
+__all__.extend(['CoordinateClusterEngine', 'AuditTelemetryEngine'])

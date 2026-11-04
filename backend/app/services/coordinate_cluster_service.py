@@ -148,3 +148,10 @@ class CoordinateClusterEngine:
             original_boxes_count=orig_count,
             compression_ratio=round(ratio, 2)
         )
+
+    def generate_pii_redaction_masks(self, boxes: List[ClusterBoundingBox]) -> List[Dict[str, int]]:
+        """Extracts PII masks for input credentials, tokens, and payment elements."""
+        return [
+            {"x": b.x, "y": b.y, "width": b.width, "height": b.height}
+            for b in boxes if b.is_sensitive_pii
+        ]

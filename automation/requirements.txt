@@ -1,5 +1,5 @@
 # ==============================================================================
-# OmniSight Automation & Retest Engine Dependencies
+# OmniSight Automation & Retest Engine Dependencies (Team Lead - Kailash)
 # ==============================================================================
 
 # Headless Browser RPA Automation

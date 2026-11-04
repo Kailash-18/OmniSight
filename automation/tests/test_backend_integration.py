@@ -14,8 +14,10 @@ if str(backend_root) not in sys.path:
     sys.path.insert(0, str(backend_root))
 
 from app.main import app
-from automation.orchestrator import AgentState, BackendClient, Orchestrator
-from automation.engine import MockVLMAdapter
+
+from automation.backend_client import BackendClient
+from automation.orchestrator import AgentState, Orchestrator
+from automation.vlm_adapter import MockVLMAdapter
 
 
 @pytest.fixture

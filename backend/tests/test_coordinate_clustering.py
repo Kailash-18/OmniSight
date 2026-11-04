@@ -37,3 +37,13 @@ def test_hardware_grid_alignment():
     assert res["y"] % 64 == 0
     assert res["width"] >= 195
     assert res["height"] >= 210
+
+def test_pii_redaction_mask_generation():
+    engine = CoordinateClusterEngine()
+    boxes = [
+        ClusterBoundingBox(id="field-user", x=50, y=100, width=200, height=40, is_sensitive_pii=False),
+        ClusterBoundingBox(id="field-pass", x=50, y=160, width=200, height=40, is_sensitive_pii=True)
+    ]
+    masks = engine.generate_pii_redaction_masks(boxes)
+    assert len(masks) == 1
+    assert masks[0]["y"] == 160

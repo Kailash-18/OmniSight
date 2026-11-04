@@ -29,3 +29,11 @@ def test_multi_element_box_merging():
     assert "b1" in regions[0].included_box_ids
     assert "b2" in regions[0].included_box_ids
     assert "b3" in regions[1].included_box_ids
+
+def test_hardware_grid_alignment():
+    engine = CoordinateClusterEngine(hardware_tile_alignment=64)
+    res = engine.align_to_hardware_grid(x=73, y=129, width=195, height=210, max_w=1920, max_h=1080)
+    assert res["x"] % 64 == 0
+    assert res["y"] % 64 == 0
+    assert res["width"] >= 195
+    assert res["height"] >= 210

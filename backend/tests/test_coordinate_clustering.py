@@ -16,3 +16,16 @@ def test_iou_calculation_exact_and_disjoint():
 
     disjoint_box = {"x": 500, "y": 500, "width": 100, "height": 100}
     assert engine.calculate_iou(box_a, disjoint_box) == 0.0
+
+def test_multi_element_box_merging():
+    engine = CoordinateClusterEngine()
+    boxes = [
+        ClusterBoundingBox(id="b1", x=100, y=100, width=150, height=150),
+        ClusterBoundingBox(id="b2", x=120, y=120, width=140, height=140),
+        ClusterBoundingBox(id="b3", x=800, y=600, width=100, height=100)
+    ]
+    regions = engine.merge_overlapping_boxes(boxes, iou_threshold=0.20, max_w=1920, max_h=1080, padding=0.10)
+    assert len(regions) == 2
+    assert "b1" in regions[0].included_box_ids
+    assert "b2" in regions[0].included_box_ids
+    assert "b3" in regions[1].included_box_ids

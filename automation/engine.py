@@ -468,6 +468,101 @@ class VisualComparator:
             )
 
 
+@dataclass
+class CropResult:
+    cropped_image_path: str
+    original_dimensions: Tuple[int, int]
+    cropped_dimensions: Tuple[int, int]
+    area_reduction_percentage: float
+    estimated_token_savings_percentage: float
+    bounding_box: Tuple[int, int, int, int]
+
+
+class ComponentCropper:
+    """
+    Focused screenshot analysis and component cropping engine.
+    Extracts relevant sub-regions around UI defects with configurable padding,
+    measurably reducing image area and VLM token payload overhead.
+    """
+
+    def __init__(self, padding: int = 24):
+        self.padding = padding
+
+    def crop_region(
+        self,
+        image_path: Union[str, Path],
+        bounding_box: Union[BoundingBox, Dict[str, Any], Tuple[int, int, int, int]],
+        output_path: Union[str, Path],
+        min_dim: int = 64,
+    ) -> CropResult:
+        src = Path(image_path)
+        if not src.exists():
+            raise FileNotFoundError(f"Source screenshot for cropping not found: {src}")
+
+        dest = Path(output_path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        if isinstance(bounding_box, BoundingBox):
+            bx, by, bw, bh = bounding_box.x, bounding_box.y, bounding_box.width, bounding_box.height
+        elif isinstance(bounding_box, dict):
+            bx = int(bounding_box.get("x", 0))
+            by = int(bounding_box.get("y", 0))
+            bw = int(bounding_box.get("width", 0))
+            bh = int(bounding_box.get("height", 0))
+        elif isinstance(bounding_box, (tuple, list)) and len(bounding_box) == 4:
+            bx, by, bw, bh = [int(v) for v in bounding_box]
+        else:
+            raise ValueError(f"Unsupported bounding box format: {bounding_box}")
+
+        with Image.open(src) as img:
+            orig_w, orig_h = img.size
+            total_orig_area = orig_w * orig_h
+
+            x1 = max(0, bx - self.padding)
+            y1 = max(0, by - self.padding)
+            x2 = min(orig_w, bx + bw + self.padding)
+            y2 = min(orig_h, by + bh + self.padding)
+
+            if (x2 - x1) < min_dim:
+                deficit = min_dim - (x2 - x1)
+                x1 = max(0, x1 - deficit // 2)
+                x2 = min(orig_w, x2 + (deficit - deficit // 2))
+            if (y2 - y1) < min_dim:
+                deficit = min_dim - (y2 - y1)
+                y1 = max(0, y1 - deficit // 2)
+                y2 = min(orig_h, y2 + (deficit - deficit // 2))
+
+            crop_w = max(1, x2 - x1)
+            crop_h = max(1, y2 - y1)
+            cropped_area = crop_w * crop_h
+
+            cropped_img = img.crop((x1, y1, x2, y2))
+            cropped_img.save(dest, "PNG")
+
+            area_reduction = round((1.0 - (cropped_area / total_orig_area)) * 100, 2)
+            token_savings = round(max(0.0, area_reduction * 0.95), 2)
+
+            return CropResult(
+                cropped_image_path=str(dest),
+                original_dimensions=(orig_w, orig_h),
+                cropped_dimensions=(crop_w, crop_h),
+                area_reduction_percentage=area_reduction,
+                estimated_token_savings_percentage=token_savings,
+                bounding_box=(x1, y1, x2, y2),
+            )
+
+
+def crop_component_region(
+    image_path: Union[str, Path],
+    bounding_box: Union[BoundingBox, Dict[str, Any], Tuple[int, int, int, int]],
+    output_path: Union[str, Path],
+    padding: int = 24,
+) -> CropResult:
+    """Convenience helper for cropping component screenshot regions."""
+    cropper = ComponentCropper(padding=padding)
+    return cropper.crop_region(image_path, bounding_box, output_path)
+
+
 # ===========================================================================
 # 3. Browser Runner & Multi-Viewport Journeys
 # ===========================================================================

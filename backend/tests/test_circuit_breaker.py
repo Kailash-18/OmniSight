@@ -47,3 +47,12 @@ def test_fallback_inference_execution():
     assert resp.used_fallback is True
     assert resp.estimated_confidence >= 0.8
     assert ".anomaly-target-container" in resp.suggested_patch_selector
+
+def test_resilience_prometheus_metrics_export():
+    cb = CircuitBreakerService()
+    cb.record_failure()
+    cb.record_failure()
+    cb.record_failure()
+    metrics = cb.export_prometheus_resilience_metrics()
+    assert "omnisight_circuit_breaker_state" in metrics
+    assert "omnisight_circuit_tripped_total 1" in metrics

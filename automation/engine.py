@@ -864,6 +864,88 @@ class StoreJourney:
         self.completed_steps.append("fill_checkout_form")
 
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+def run_parallel_viewports(
+    app_url: Optional[str] = None,
+    viewports: Optional[List[str]] = None,
+    evidence: Optional[EvidenceCollector] = None,
+    scenario: str = "checkout_flow",
+    max_workers: int = 2,
+) -> Dict[str, Any]:
+    """
+    Optimized concurrent viewport execution engine.
+    Executes multiple responsive viewport journeys in parallel worker contexts,
+    reducing total multi-viewport test duration by up to 50%.
+    """
+    target_url = app_url or config.app_url
+    healthy, msg, verified_url = check_store_health(target_url)
+    if not healthy:
+        raise RuntimeError(msg)
+
+    active_url = verified_url or target_url
+    collector = evidence or EvidenceCollector()
+
+    selected_viewports: List[ViewportSpec] = []
+    if viewports:
+        for vp_name in viewports:
+            if vp_name in STANDARD_VIEWPORTS:
+                selected_viewports.append(STANDARD_VIEWPORTS[vp_name])
+    if not selected_viewports:
+        selected_viewports = list(STANDARD_VIEWPORTS.values())
+
+    combined_results: Dict[str, Any] = {
+        "run_id": collector.run_id,
+        "target_url": active_url,
+        "scenario": scenario,
+        "viewports_evaluated": [v.name for v in selected_viewports],
+        "screenshots": [],
+        "dom_snapshots": [],
+        "steps_completed": [],
+        "parallel_execution": True,
+    }
+
+    def _execute_single_viewport(vp: ViewportSpec) -> Tuple[str, List[str]]:
+        shots: List[str] = []
+        with launch_browser() as browser:
+            with create_isolated_page(browser, vp) as page:
+                attach_browser_listeners(page, collector)
+                journey = StoreJourney(page, active_url)
+
+                journey.navigate_home()
+                home_shot = collector.get_screenshot_path(vp.name, "home")
+                page.screenshot(path=str(home_shot), full_page=False)
+                collector.save_dom_snapshot(vp.name, "home", extract_dom_context(page))
+                shots.append(str(home_shot))
+
+                journey.add_product_to_cart("mug")
+                journey.navigate_to_cart()
+                cart_shot = collector.get_screenshot_path(vp.name, "cart")
+                page.screenshot(path=str(cart_shot), full_page=False)
+                collector.save_dom_snapshot(vp.name, "cart", extract_dom_context(page))
+                shots.append(str(cart_shot))
+
+                journey.continue_to_checkout()
+                journey.fill_checkout_form()
+                checkout_shot = collector.get_screenshot_path(vp.name, "checkout")
+                page.screenshot(path=str(checkout_shot), full_page=False)
+                collector.save_dom_snapshot(vp.name, "checkout", extract_dom_context(page))
+                shots.append(str(checkout_shot))
+        return vp.name, shots
+
+    num_workers = min(max_workers, len(selected_viewports))
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = [executor.submit(_execute_single_viewport, vp) for vp in selected_viewports]
+        for fut in as_completed(futures):
+            vp_name, vp_shots = fut.result()
+            combined_results["screenshots"].extend(vp_shots)
+
+    collector.save_console_logs()
+    collector.save_manifest(combined_results)
+    return combined_results
+
+
 def run_visual_audit_journey(
     app_url: Optional[str] = None,
     viewports: Optional[List[str]] = None,

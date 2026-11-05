@@ -29,6 +29,9 @@ class DefectCategory(str, Enum):
     ELEMENT_OBSTRUCTION = "element_obstruction"
     CONTRAST_ISSUE = "contrast_issue"
     LAYOUT_OVERFLOW = "layout_overflow"
+    BROKEN_LINK = "broken_link"
+    CLICK_ERROR = "click_error"
+    NO_EFFECT = "no_effect"
 
 
 class Severity(str, Enum):
@@ -60,6 +63,12 @@ class BuildWebhookPayload(BaseModel):
     event_id: str | None = Field(default=None, description="External CI event identifier")
 
 
+class LoginPayload(BaseModel):
+    """Dashboard reviewer credentials."""
+    username: str = Field(..., min_length=1, max_length=128)
+    password: str = Field(..., min_length=1, max_length=256)
+
+
 class RunTriggerPayload(BaseModel):
     """Manual trigger payload for on-demand browser audit."""
     target_url: str = Field(..., description="Local or staging app URL to audit")
@@ -68,6 +77,8 @@ class RunTriggerPayload(BaseModel):
         default_factory=lambda: ["desktop_1440x900", "mobile_375x667"],
         description="List of target viewports"
     )
+    launch: bool = Field(default=False, description="Start the automation CLI for this run (dashboard Run button)")
+    retest: bool = Field(default=True, description="Verify the proposed fix in the sandbox")
 
 class FindingSchema(BaseModel):
     """Structured defect report item from VLM visual inspection."""
@@ -215,6 +226,12 @@ class VLMParseResponse(BaseModel):
     parse_errors: list[str] = Field(default_factory=list, description="Parsing or validation warnings")
     risk_score: float = Field(default=0.0, description="Evaluated remediation risk score between 0 and 100")
     risk_verdict: str = Field(default="auto_pr_allowed", description="Gate verdict: auto_pr_allowed or requires_human_review")
+
+
+class LoginResponse(BaseModel):
+    token: str
+    username: str
+    expires_at: str
 
 
 class RunSummaryResponse(BaseModel):

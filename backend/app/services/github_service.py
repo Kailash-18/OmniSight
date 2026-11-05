@@ -255,3 +255,47 @@ def update_pull_request_verification_proof(
 > {notes}
 """
     return add_pr_comment_with_retest_evidence(pr_number, comment)
+
+
+# ---------------------------------------------------------------------------
+# CI status for the dashboard: GitHub check runs on a PR's head commit
+# ---------------------------------------------------------------------------
+
+_PASSING = {"success", "neutral", "skipped"}
+
+
+def pr_number_from_url(pr_url: str) -> Optional[int]:
+    """'https://github.com/owner/repo/pull/42[/...]' -> 42."""
+    import re
+    m = re.search(r"/pull/(\d+)", pr_url or "")
+    return int(m.group(1)) if m else None
+
+
+def summarize_check_runs(check_runs) -> dict:
+    """Collapse GitHub check runs into one state: failed > running > pending (none yet) > passed."""
+    total = passed = failed = running = 0
+    for cr in check_runs:
+        total += 1
+        if cr.status != "completed":
+            running += 1
+        elif cr.conclusion in _PASSING:
+            passed += 1
+        else:
+            failed += 1
+    state = "failed" if failed else "running" if running else "pending" if total == 0 else "passed"
+    return {"state": state, "total": total, "passed": passed, "failed": failed, "running": running}
+
+
+def get_pull_request_checks(pr_url: str) -> dict:
+    """Reads CI results for a PR with the backend's GitHub token (never sent to the browser)."""
+    token = settings.GITHUB_TOKEN
+    number = pr_number_from_url(pr_url)
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token") or number is None:
+        return {"state": "unavailable", "total": 0, "passed": 0, "failed": 0, "running": 0}
+    try:
+        repo = Github(token).get_repo(settings.REPO_NAME)
+        sha = repo.get_pull(number).head.sha
+        return summarize_check_runs(repo.get_commit(sha).get_check_runs())
+    except GithubException as e:
+        logger.warning("Could not read checks for PR #%s: %s", number, e)
+        return {"state": "unavailable", "total": 0, "passed": 0, "failed": 0, "running": 0}

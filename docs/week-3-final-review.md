@@ -211,3 +211,10 @@ Output:
 * [x] **50% Milestone**: Human-in-the-loop review dashboard controls, interactive PR button, status auto-refresh.
 * [x] **75% Milestone**: Forensic audit bundling engine, SHA-256 manifests, tamper-evident packaging.
 * [x] **100% Milestone**: Multi-viewport live demo, end-to-end integration test suite, API contract synchronization.
+
+* [x] **Advanced Engineering Features**:
+  * **Component Cropper**: Focused bounding box screenshot cropping with padding, yielding >85% area reduction and VLM token savings.
+  * **Accessibility Scanner**: Automated DOM audit detecting missing accessible names (WCAG 4.1.2), image alt attributes (WCAG 1.1.1), and touch target sizes.
+  * **Visual Diff Heatmaps**: Pixel delta amplification and diagnostic bounding box overlays.
+  * **Atomic Sandbox Rollback Guard**: SHA-256 pre-patch file snapshots with guaranteed rollback.
+  * **Quality Metrics & Forensic Verification APIs**: `/runs/metrics/summary` and `/runs/{id}/forensics/verify`.

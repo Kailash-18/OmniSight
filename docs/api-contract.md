@@ -257,3 +257,34 @@ Values must remain identical across backend, automation, and frontend:
 * `screenshots` (primary) / `before_screenshots` (alias): Baseline screenshots captured before remediation. Both keys are supported and normalized across the backend and QA dashboard.
 * `after_screenshots`: Verification screenshots captured after sandbox patch application during retesting.
 * `dom_snapshot`: Path to the captured DOM structure snapshot.
+
+### `GET /runs/metrics/summary`
+Returns aggregated quality assurance metrics, fix success rates, and telemetry across all runs.
+* **Response (200 OK)**:
+  ```json
+  {
+    "total_runs": 12,
+    "fixed_runs": 10,
+    "needs_review_runs": 1,
+    "failed_runs": 1,
+    "success_rate_percentage": 83.33,
+    "defect_categories": {
+      "element_clipping": 8,
+      "element_overlap": 4
+    },
+    "average_diff_reduction": 0.042
+  }
+  ```
+
+### `GET /runs/{run_id}/forensics/verify`
+Validates cryptographic SHA-256 hashes of all artifacts inside a forensic bundle against its cryptographic manifest to detect file tampering.
+* **Response (200 OK)**:
+  ```json
+  {
+    "run_id": "run-1729418400",
+    "is_valid": true,
+    "verified_files_count": 8,
+    "discrepancies": [],
+    "bundle_sha256": "98178a112b518ace91bbbf0c814ccd111270a3ad9350c2f8eb91e94575bd7363"
+  }
+  ```

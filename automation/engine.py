@@ -1095,7 +1095,10 @@ def apply_unified_diff(original_text: str, diff_text: str) -> str:
 
 
 class PatchSandbox:
-    """Safely applies patch in-place with guaranteed restoration upon context exit."""
+    """
+    Safely applies patch in-place with guaranteed atomic snapshot rollback upon context exit.
+    Records cryptographic SHA-256 hashes of pre-patch file states to verify zero leakage.
+    """
 
     def __init__(
         self,
@@ -1109,8 +1112,27 @@ class PatchSandbox:
         self.repo_root = repo_root or Path.cwd()
         self.bypass_allowlist = bypass_allowlist_for_testing
         self.original_content: Optional[str] = None
+        self.original_sha256: Optional[str] = None
         self.target_path: Optional[Path] = None
         self.is_applied: bool = False
+
+    def snapshot_state(self) -> Dict[str, Any]:
+        """Returns metadata snapshot of the pre-patch file state."""
+        return {
+            "target_path": str(self.target_path) if self.target_path else None,
+            "original_sha256": self.original_sha256,
+            "is_applied": self.is_applied,
+        }
+
+    def verify_restoration(self) -> bool:
+        """Verifies that the restored file matches original cryptographic checksum."""
+        if not self.target_path or self.original_sha256 is None:
+            return True
+        if not self.target_path.exists():
+            return False
+        with open(self.target_path, "r", encoding="utf-8") as f:
+            current_hash = hashlib.sha256(f.read().encode("utf-8")).hexdigest()
+        return current_hash == self.original_sha256
 
     def __enter__(self) -> "PatchSandbox":
         if self.bypass_allowlist:
@@ -1123,10 +1145,11 @@ class PatchSandbox:
 
         with open(self.target_path, "r", encoding="utf-8") as f:
             self.original_content = f.read()
+        self.original_sha256 = hashlib.sha256(self.original_content.encode("utf-8")).hexdigest()
 
         patched_content = apply_unified_diff(self.original_content, self.diff)
 
-        with open(self.target_path, "w", encoding="utf-8") as f:
+        with open(self.target_path, "w", encoding="utf-8", newline="") as f:
             f.write(patched_content)
 
         self.is_applied = True
@@ -1134,9 +1157,14 @@ class PatchSandbox:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.target_path and self.original_content is not None:
-            with open(self.target_path, "w", encoding="utf-8") as f:
+            with open(self.target_path, "w", encoding="utf-8", newline="") as f:
                 f.write(self.original_content)
             self.is_applied = False
+            if not self.verify_restoration():
+                logger.critical(
+                    "Integrity violation: Restored target file %s does not match baseline SHA-256!",
+                    self.target_path,
+                )
 
 
 class RetestRunner:

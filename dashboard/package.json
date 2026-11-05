@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/format.test.js"
+    "test": "node --test src/format.test.js src/logic.test.js"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "lucide-react": "^1.69.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

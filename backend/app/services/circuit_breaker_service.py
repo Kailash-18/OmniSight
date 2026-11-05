@@ -85,3 +85,17 @@ class CircuitBreakerService:
             suggested_css=css,
             generated_at=datetime.now(timezone.utc).isoformat()
         )
+
+    def export_prometheus_resilience_metrics(self) -> str:
+        state_val = 0 if self.state == CircuitState.CLOSED else (1 if self.state == CircuitState.HALF_OPEN else 2)
+        return (
+            f"# HELP omnisight_circuit_breaker_state Current circuit state (0=closed, 1=half_open, 2=open)\n"
+            f"# TYPE omnisight_circuit_breaker_state gauge\n"
+            f"omnisight_circuit_breaker_state{{service=\"{self.get_status().service_name}\"}} {state_val}\n"
+            f"# HELP omnisight_circuit_tripped_total Total times circuit has tripped open\n"
+            f"# TYPE omnisight_circuit_tripped_total counter\n"
+            f"omnisight_circuit_tripped_total {self.circuit_tripped_total}\n"
+            f"# HELP omnisight_circuit_fallback_total Total fallback inferences executed\n"
+            f"# TYPE omnisight_circuit_fallback_total counter\n"
+            f"omnisight_circuit_fallback_total {self.fallback_executions_total}\n"
+        )

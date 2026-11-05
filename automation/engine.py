@@ -339,6 +339,76 @@ class VisualComparator:
     def __init__(self, tolerance: int = 15):
         self.tolerance = tolerance
 
+    def generate_diff_heatmap(
+        self,
+        image_a_path: Path,
+        image_b_path: Path,
+        output_heatmap_path: Path,
+        amplification_factor: int = 5,
+    ) -> Path:
+        """
+        Generates a high-contrast visual difference heatmap between two screenshots,
+        amplifying subtle UI layout and font shifts for reviewer inspection.
+        """
+        if not image_a_path.exists() or not image_b_path.exists():
+            raise FileNotFoundError("Both images must exist to compute diff heatmap.")
+
+        output_heatmap_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with Image.open(image_a_path).convert("RGB") as img_a, Image.open(image_b_path).convert("RGB") as img_b:
+            max_w = max(img_a.width, img_b.width)
+            max_h = max(img_a.height, img_b.height)
+
+            if img_a.size != (max_w, max_h):
+                canvas_a = Image.new("RGB", (max_w, max_h), (255, 255, 255))
+                canvas_a.paste(img_a, (0, 0))
+                img_a = canvas_a
+            if img_b.size != (max_w, max_h):
+                canvas_b = Image.new("RGB", (max_w, max_h), (255, 255, 255))
+                canvas_b.paste(img_b, (0, 0))
+                img_b = canvas_b
+
+            diff = ImageChops.difference(img_a, img_b)
+            # Amplify diff for visual human inspection
+            amplified = diff.point(lambda p: min(255, p * amplification_factor))
+            amplified.save(output_heatmap_path, "PNG")
+
+        return output_heatmap_path
+
+    def annotate_remediation_bounding_box(
+        self,
+        image_path: Path,
+        bounding_box: Tuple[int, int, int, int],
+        output_path: Path,
+        label: str = "Remediated Region",
+        box_color: str = "#00E5FF",
+    ) -> Path:
+        """Draws an annotated bounding box with optional text badge around remediated elements."""
+        if not image_path.exists():
+            raise FileNotFoundError(f"Source screenshot not found: {image_path}")
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        x1, y1, x2, y2 = bounding_box
+
+        with Image.open(image_path).convert("RGBA") as base:
+            overlay = Image.new("RGBA", base.size, (255, 255, 255, 0))
+            draw = ImageDraw.Draw(overlay)
+
+            # Draw outer border and translucent fill
+            draw.rectangle([x1, y1, x2, y2], outline=box_color, width=3)
+            draw.rectangle([x1, y1, x2, y2], fill=(0, 229, 255, 40))
+
+            # Header badge
+            badge_h = 20
+            badge_w = min(160, max(60, x2 - x1))
+            draw.rectangle([x1, max(0, y1 - badge_h), x1 + badge_w, y1], fill=(0, 229, 255, 220))
+            draw.text((x1 + 4, max(0, y1 - badge_h) + 3), label[:22], fill=(0, 0, 0, 255))
+
+            composite = Image.alpha_composite(base, overlay)
+            composite.convert("RGB").save(output_path, "PNG")
+
+        return output_path
+
     def annotate_defects(
         self,
         image_path: Path,

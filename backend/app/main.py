@@ -2798,3 +2798,49 @@ async def get_operational_telemetry_report():
     """Computes system-wide self-healing success rate, token savings, and latency metrics."""
     return qa_approval_engine.generate_telemetry_report(runs_db)
 
+
+
+# --- Week 4 Day 3: Resilience, Regression Guard & Rollback Manifest Endpoints ---
+from backend.app.services.circuit_breaker_service import CircuitBreakerService
+from backend.app.services.regression_guard_service import RegressionGuardEngine
+from backend.app.services.rollback_manifest_service import RollbackManifestEngine
+from backend.app.schemas.resilience_schema import (
+    CircuitBreakerStatus, FallbackInferenceRequest, FallbackInferenceResponse
+)
+from backend.app.schemas.regression_guard_schema import (
+    VisualInvariantCheckRequest, VisualInvariantCheckResponse
+)
+from backend.app.schemas.rollback_schema import (
+    AtomicRollbackManifest, RollbackExecutionRequest, RollbackExecutionResponse
+)
+
+circuit_breaker_svc = CircuitBreakerService()
+regression_guard_engine = RegressionGuardEngine()
+rollback_manifest_engine = RollbackManifestEngine()
+
+@app.get("/api/v1/resilience/circuit-breaker/status", response_model=CircuitBreakerStatus, tags=["Resilience"])
+def get_circuit_breaker_status():
+    return circuit_breaker_svc.get_status()
+
+@app.post("/api/v1/resilience/circuit-breaker/record-failure", response_model=CircuitBreakerStatus, tags=["Resilience"])
+def record_circuit_failure():
+    circuit_breaker_svc.record_failure()
+    return circuit_breaker_svc.get_status()
+
+@app.post("/api/v1/resilience/circuit-breaker/reset", response_model=CircuitBreakerStatus, tags=["Resilience"])
+def reset_circuit_breaker():
+    circuit_breaker_svc.reset()
+    return circuit_breaker_svc.get_status()
+
+@app.post("/api/v1/regression-guard/verify-invariants", response_model=VisualInvariantCheckResponse, tags=["Regression Guard"])
+def verify_visual_invariants(req: VisualInvariantCheckRequest):
+    return regression_guard_engine.verify_spatial_invariants(req)
+
+@app.post("/api/v1/rollback/execute", response_model=RollbackExecutionResponse, tags=["Rollback"])
+def execute_rollback_manifest(req: RollbackExecutionRequest):
+    try:
+        return rollback_manifest_engine.execute_rollback(req)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))

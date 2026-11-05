@@ -324,6 +324,8 @@ class ActionEngine:
         else:
             validator_errors = "No proposed patch provided in VLM response."
 
+        risk_score, risk_verdict = cls.calculate_remediation_risk(parsed_findings, proposed_patch)
+
         return VLMParseResponse(
             is_valid=True,
             findings=parsed_findings,
@@ -331,8 +333,54 @@ class ActionEngine:
             proposed_patch=proposed_patch,
             validation_status=validation_status,
             validator_errors=validator_errors,
-            parse_errors=parse_errors
+            parse_errors=parse_errors,
+            risk_score=risk_score,
+            risk_verdict=risk_verdict
         )
 
+
+    @staticmethod
+    def calculate_remediation_risk(
+        findings: list[FindingSchema],
+        proposed_patch: PatchObject | None,
+    ) -> tuple[float, str]:
+        """
+        Calculates composite remediation risk score (0-100) and gate verdict.
+        Factors:
+        - Lowest finding confidence: < 0.85 increases risk.
+        - Patch complexity: diff lines > 20 increases risk.
+        - File sensitivity: changes to App.jsx or base.css have higher risk than defects.css.
+        - Defect severity: critical/high defects require stricter confidence.
+        """
+        if not proposed_patch:
+            return 0.0, "auto_pr_allowed"
+
+        risk = 10.0
+
+        if findings:
+            min_conf = min(f.confidence for f in findings)
+            if min_conf < 0.70:
+                risk += 40.0
+            elif min_conf < 0.85:
+                risk += 20.0
+
+            if any(f.severity == Severity.CRITICAL for f in findings):
+                risk += 15.0
+
+        target = proposed_patch.target_file.lower()
+        if "app.jsx" in target or "main.jsx" in target:
+            risk += 25.0
+        elif "base.css" in target or "index.css" in target:
+            risk += 15.0
+
+        diff_lines = len(proposed_patch.diff.strip().splitlines())
+        if diff_lines > 30:
+            risk += 20.0
+        elif diff_lines > 15:
+            risk += 10.0
+
+        final_score = min(100.0, round(risk, 1))
+        verdict = "requires_human_review" if final_score >= 50.0 else "auto_pr_allowed"
+        return final_score, verdict
 
 action_engine = ActionEngine()

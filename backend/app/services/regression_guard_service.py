@@ -70,3 +70,11 @@ class RegressionGuardEngine:
             drift_details=drift_list,
             evaluated_at=datetime.now(timezone.utc).isoformat()
         )
+
+    def compute_cls_penalty(self, drift_details: List[SpatialDriftMetric]) -> float:
+        total_penalty = 0.0
+        for d in drift_details:
+            if not d.is_invariant_preserved:
+                # Scale penalty by shift magnitude and area delta
+                total_penalty += (d.euclidean_shift * 0.05) + (d.area_delta_pct * 0.01)
+        return round(min(1.0, total_penalty), 4)

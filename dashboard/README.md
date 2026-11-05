@@ -1,104 +1,81 @@
-# OmniSight QA Dashboard
+# OmniSight Dashboard
 
-React page where a reviewer looks at OmniSight runs: status, findings, before/after screenshots,
-the proposed patch, and an approve/reject decision.
+The console where a reviewer starts an OmniSight test, watches it run, and reviews what it found: the defects, before/after screenshots, the proposed fix, and the pull request.
 
-Owner: Member 2. React 18 + Vite 6, plain CSS. No backend code of its own.
+## Run it (live mode, the default)
 
-## Run
+You need 3 things running, each in its own terminal, from the repo root:
+
+1. **Backend.** Copy `backend/.env.example` to `backend/.env` and set `OMNISIGHT_USERNAME`, `OMNISIGHT_PASSWORD` and `OMNISIGHT_SECRET_KEY`. Then:
+   ```bash
+   python3 -m venv .venv && source .venv/bin/activate
+   pip install -r requirements.txt && playwright install chromium
+   uvicorn app.main:app --app-dir backend --port 8000
+   ```
+2. **Store** (the site being tested):
+   ```bash
+   cd app-under-test && npm install && npm run dev
+   ```
+3. **Dashboard:**
+   ```bash
+   cd dashboard && npm install && npm run dev
+   ```
+
+Open **http://localhost:5180**, sign in with the account from `backend/.env`, keep the address `http://localhost:5173`, and click **Run test**. No terminal commands are needed after that.
+
+On Windows, activate the venv with `.venv\Scripts\activate`.
+
+## Mock mode (no backend, no login)
 
 ```bash
-cd dashboard
-npm install
-npm run dev                          # http://localhost:5180  (mock data, default)
-VITE_DATA_SOURCE=live npm run dev    # reads the FastAPI backend instead
+VITE_DATA_SOURCE=mock npm run dev          # macOS / Linux
+$env:VITE_DATA_SOURCE="mock"; npm run dev  # Windows PowerShell
 ```
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Dev server at **http://localhost:5180** (port is fixed) |
-| `npm run build` | Production build into `dist/` |
-| `npm test` | Helper + fixture tests (`node:test`, no extra deps) |
+You get 6 sample runs, labelled **Mock Data**. Starting tests is disabled in this mode.
 
-**Why port 5180:** `automation/health_check.py` probes 5174 and 5175 as fallback store ports and accepts any
-page containing `root`, so the dashboard stays off those ports to avoid being mistaken for the store.
+## What a test does
 
-## Data sources
-
-| Mode | Where data comes from | How it's labelled |
-| --- | --- | --- |
-| `mock` (default) | `src/fixtures/runs.json` | Purple **Mock Data** banner, a "Mock data" pill in the header, a **MOCK** tag on every run id, and every id starts with `mock-` |
-| `live` | `GET /runs` and `GET /runs/{run_id}` on the backend (`127.0.0.1:8000`) | "Live API" pill, no mock labels |
-
-- **Proxy:** in live mode the dev server forwards `/api/*` to the backend (`/api/runs` → `:8000/runs`).
-  Calls stay same-origin, so the dashboard never hardcodes the backend URL (the backend also allows CORS now).
-- **Evidence files:** live runs reference files like `artifacts/runs/<id>/screenshots/x.png`. The dev server serves
-  the repo's `artifacts/` folder at `/artifacts/...` (PNG and JSON only, no path traversal). This is dev-only; long term
-  the backend should serve evidence.
-
-Fields follow `docs/api-contract.md`. The live backend sends the baseline screenshots as `evidence_paths.screenshots`
-(absolute paths) instead of the contract's `before_screenshots`; both are accepted. When the evidence covers several
-pages at a finding's viewport, the defect link says "Open store" rather than guessing the page. Fields that only some producers send (`target_element`, `error`,
-`retest_verification.mismatch_percentage`, `patch.validation_status`/`validator_errors`) are optional and only shown
-when present. Unknown status values still render as a neutral badge. Only `http(s)` targets become links; anything
-else (e.g. `javascript:`) is shown as plain text.
-
-Fixture targets use `http://localhost:5173`, not `127.0.0.1`: on macOS Vite binds the store to `[::1]` (IPv6 localhost),
-so `127.0.0.1:5173` doesn't load in a browser there.
-
-## Mock fixtures
-
-`src/fixtures/runs.json` has 6 runs, one per state the UI must handle:
-
-| Run | Status | Shows |
-| --- | --- | --- |
-| `mock-run-1001` | `fixed` | Defect 3 (Submit obstructed), desktop 1280×800, before/after, valid patch |
-| `mock-run-1002` | `needs_review` | Defect 2 (button clipped), mobile 390×844, before/after, 71% confidence |
-| `mock-run-1003` | `fixed` | Defect 1 (heading overlap), desktop 1440×900, before/after |
-| `mock-run-1004` | `patch_rejected` | Same defect, before only, patch rejected by the allowlist validator |
-| `mock-run-1005` | `failed` | Run error message, no evidence |
-| `mock-run-1006` | `running` | In-progress run, nothing captured yet |
-
-### Fixture screenshots (`public/fixtures/`)
-
-| File | Source |
-| --- | --- |
-| `desktop_1440x900_home.png`, `mobile_390x844_cart.png`, `desktop_1280x800_checkout.png` | **Before:** real output of `automation/browser_runner.py` against the buggy store |
-| `*_after.png` (same three) | **After:** captured with the runner's own browser settings and journey, with `defects.css` removed live in the page (the repaired layout). Made for mock data; the store source wasn't changed. |
-
-"After" files use the runner's real naming (`{viewport}_{page}_after.png`). The pairing logic also accepts the
-contract example's `retest_` prefix. These PNGs are committed through one narrow root `.gitignore` exception:
-`!dashboard/public/fixtures/*.png`.
+1. Opens the store at 4 screen sizes (1440×900, 1280×800, 390×844, 375×667) and walks products → cart → checkout, taking 12 screenshots.
+2. Finds visual defects (AI review plus a geometry check) and proposes a CSS fix.
+3. Clicks every button and link at desktop size and reports ones that are covered, lead to an error page, throw an error, or possibly do nothing.
+4. If **Check the fix** is ticked, applies the fix temporarily, re-captures the page, compares, and restores the file.
+5. You review it under **Review & PR** and can open a pull request. CI then runs on GitHub.
 
 ## Pages
 
-- **`/`, run list:** run id, status, start time (UTC), target (clickable link to the store), issue count, PR link. Filter by status. Turns into cards on phones.
-- **`/runs/:run_id`, run detail:**
-  - Summary (retries, PR, steps, error).
-  - Findings (category, severity, viewport, element, confidence bar, suggested fix, rationale).
-  - **Defect page link** per finding: "Open Cart page ↗" opens the store in a new tab, with the steps to see the
-    defect live (viewport size, plus "Add any product → Open Cart" for cart/checkout). It links to the store home,
-    not `/cart` or `/checkout`, because the store's cart is in memory and a direct link would open an empty page.
-    The page comes from the finding's screenshot name.
-  - Before/after screenshots paired by viewport and page.
-  - Retest verification proof summary (mismatch delta, tested viewport, sandbox rollback confirmation).
-  - Patch diff with its validation result.
-  - Forensic audit bundle card with "Download Forensic Packet (.zip)" action.
-  - Review panel with local approval/rejection and direct "🚀 Open Pull Request" button.
-- **States:** loading, empty, filter-empty, backend error with retry, run not found, unknown page, missing screenshot,
-  and image failed to load.
+| Page | What's on it |
+|---|---|
+| Sign in | The reviewer login |
+| Overview | Test a site, live progress, totals, recent runs, and the kinds of bugs found |
+| Runs | Every run, with search and a status filter |
+| Run detail | Progress tracker, then tabs: Findings, Evidence (drag the before/after slider), Fix, Review & PR, Forensics |
 
-## Review & PR Automation Controls
+Use the sun/moon button to switch between dark and light. Your choice is remembered.
 
-* **Local Review**: Approve/Reject with reviewer notes saved locally in `localStorage`.
-* **Automated GitHub PR Creation**: Reviewers can click **"🚀 Open Pull Request"** to directly trigger `/runs/{run_id}/create-pr` via the backend gateway and receive the opened PR link.
-* **Forensic Audit Download**: Compliance packet with SHA-256 manifests downloadable directly via the dashboard.
+## Troubleshooting
 
-## Test IDs
+| You see | Do this |
+|---|---|
+| "Couldn't load runs" | Start the backend on port 8000. |
+| "Login not configured…" | Add the `OMNISIGHT_*` lines to `backend/.env` and restart the backend. |
+| "A run is already in progress" | Wait for the current test to finish. Only one runs at a time. |
+| "Host … is not in allowed target hosts" | Only the local store can be tested (`ALLOWED_TARGET_HOSTS`). |
+| Sent back to sign in | Your session expired (8 hours) or the backend restarted without `OMNISIGHT_SECRET_KEY`. |
 
-`mock-banner`, `data-source`, `mock-tag`, `status-filter`, `runs-refresh`, `sync-run-status`, `runs-table`, `run-row-{run_id}`, `status-badge`
-(`data-status`), `runs-loading`, `runs-error`, `runs-retry`, `runs-empty`, `run-detail`, `back-to-runs`,
-`retry-count`, `pr-link`, `run-error-message`, `finding-{id}`, `confidence`, `evidence-pair-{viewport}_{page}`,
-`retest-proof-summary`, `retest-badge`, `forensic-bundle-card`, `download-forensic-bundle`,
-`shot-missing`, `shot-failed`, `patch-valid`, `patch-invalid`, `validator-errors`, `patch-diff`, `review-panel`,
-`review-note`, `review-approve`, `review-reject`, `review-create-pr`, `review-pr-link`, `pr-active-banner`, `review-result`, `review-unavailable`, `run-not-found`, `page-not-found`.
+## Development
+
+```bash
+npm test        # node:test: formatting, auth, theme, lifecycle helpers
+npm run build
+```
+
+| File | Role |
+|---|---|
+| `src/api.js` | Backend calls (with the login token) and mock data |
+| `src/auth.js` | Session token and 401 handling |
+| `src/theme.js` | Dark/light preference |
+| `src/lifecycle.js` | Run progress steps, totals, relative times |
+| `src/format.js` | Status labels, screenshot pairing, safe links |
+| `src/components/` | Shell, Login, Overview, RunList, RunDetail, Evidence, CompareSlider, ReviewPanel, … |
+| `vite.config.js` | Port 5180, the `/api` proxy to :8000, and `/artifacts` screenshot serving |

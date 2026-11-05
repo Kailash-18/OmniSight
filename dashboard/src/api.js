@@ -1,51 +1,48 @@
-// Data source switch: fixtures (default) or the live backend via the Vite /api proxy.
-// Run with VITE_DATA_SOURCE=live npm run dev to read from FastAPI on :8000.
+// Live backend (default) through the Vite /api proxy, or fixtures with VITE_DATA_SOURCE=mock.
 import fixtureRuns from './fixtures/runs.json'
 import { toSummary } from './format.js'
+import { authHeaders, checkResponse, getToken, setSession } from './auth.js'
 
-export const DATA_SOURCE = import.meta.env.VITE_DATA_SOURCE === 'live' ? 'live' : 'mock'
+export const DATA_SOURCE = import.meta.env.VITE_DATA_SOURCE === 'mock' ? 'mock' : 'live'
 
-async function getJson(path) {
-  const res = await fetch('/api' + path)
-  if (!res.ok) {
-    const err = new Error(res.status === 404 ? 'Run not found' : `Backend returned HTTP ${res.status}`)
-    err.status = res.status
-    throw err
-  }
-  return res.json()
-}
-
-async function postJson(path, payload = {}) {
+async function call(path, { method = 'GET', body } = {}) {
   const res = await fetch('/api' + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify(payload),
+    method,
+    headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}), ...authHeaders(getToken()) },
+    body: body ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) {
-    let msg = `Backend returned HTTP ${res.status}`
-    try {
-      const body = await res.json()
-      if (body.detail) msg = body.detail
-    } catch {
-      // ignore
-    }
-    const err = new Error(msg)
-    err.status = res.status
-    throw err
-  }
-  return res.json()
+  await checkResponse(res)
+  return res.status === 204 ? null : res.json()
 }
+
+export async function login(username, password) {
+  const session = await call('/auth/login', { method: 'POST', body: { username, password } })
+  setSession(session)
+  return session
+}
+
+export const me = () => call('/auth/me')
 
 export async function listRuns() {
-  const runs = DATA_SOURCE === 'mock' ? fixtureRuns : await getJson('/runs')
+  const runs = DATA_SOURCE === 'mock' ? fixtureRuns : await call('/runs')
   return runs.map(toSummary)
 }
 
 export async function getRun(runId) {
-  if (DATA_SOURCE === 'live') return getJson(`/runs/${encodeURIComponent(runId)}`)
+  if (DATA_SOURCE === 'live') return call(`/runs/${encodeURIComponent(runId)}`)
   const run = fixtureRuns.find((r) => r.run_id === runId)
   if (!run) throw Object.assign(new Error('Run not found'), { status: 404 })
   return run
+}
+
+export function startRun(targetUrl, { retest = true } = {}) {
+  if (DATA_SOURCE === 'mock') return Promise.reject(Object.assign(new Error('Runs can only be started in live mode'), { status: 400 }))
+  return call('/runs', { method: 'POST', body: { target_url: targetUrl.trim(), launch: true, retest } })
+}
+
+export async function getActiveRun() {
+  if (DATA_SOURCE === 'mock') return { run_id: null }
+  return call('/runs/active')
 }
 
 export async function createPullRequest(runId, payload = {}) {
@@ -53,56 +50,58 @@ export async function createPullRequest(runId, payload = {}) {
     const prNumber = Math.abs(runId.split('').reduce((a, b) => (a << 5) - a + b.charCodeAt(0), 0)) % 1000 + 10
     const prUrl = `https://github.com/Kailash-18/OmniSight/pull/${prNumber}`
     const run = fixtureRuns.find((r) => r.run_id === runId)
-    if (run) {
-      run.pr_url = prUrl
-      run.status = 'pr_opened'
-    }
+    if (run) { run.pr_url = prUrl; run.status = 'pr_opened' }
     return { status: 'success', run_id: runId, pr_url: prUrl, message: 'Pull Request created successfully.' }
   }
-  return postJson(`/runs/${encodeURIComponent(runId)}/create-pr`, payload)
-}
-
-export async function fetchMilestones() {
-  if (DATA_SOURCE === 'mock') {
-    return {
-      member: 'Member 1 - Backend & PR Automation',
-      week_3_pr_automation: 'in_progress',
-      week_3_progress: '75% - Forensic audit bundling and cryptographic verification',
-    }
-  }
-  return getJson('/milestones')
+  return call(`/runs/${encodeURIComponent(runId)}/create-pr`, { method: 'POST', body: payload })
 }
 
 export async function getForensicBundle(runId) {
   if (DATA_SOURCE === 'mock') {
     return {
-      run_id: runId,
-      bundle_name: `forensic_bundle_${runId}.zip`,
-      sha256_checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-      artifact_count: 8,
-      size_bytes: 42100,
-      download_url: `/api/runs/${encodeURIComponent(runId)}/forensics/download`,
-      manifest: {
-        total_artifacts: 8,
-        specification: 'OmniSight-Forensics-v1.0',
-      },
+      run_id: runId, bundle_name: `forensic_bundle_${runId}.zip`,
+      sha256_checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', artifact_count: 8, size_bytes: 42100,
     }
   }
-  return getJson(`/runs/${encodeURIComponent(runId)}/forensics`)
+  return call(`/runs/${encodeURIComponent(runId)}/forensics`)
 }
 
+// CI result of the run's pull request; the backend reads GitHub with its own token.
+export async function getPrChecks(runId) {
+  if (DATA_SOURCE === 'mock') {
+    const run = fixtureRuns.find((r) => r.run_id === runId)
+    return run?.pr_url ? { state: 'passed', total: 4, passed: 4, failed: 0, running: 0, checks_url: `${run.pr_url}/checks` } : { state: 'none' }
+  }
+  return call(`/runs/${encodeURIComponent(runId)}/checks`)
+}
 
+// A plain <a href> can't send the bearer token, so fetch the zip and hand the browser a blob URL.
+export async function downloadForensicBundle(runId) {
+  if (DATA_SOURCE === 'mock') throw Object.assign(new Error('Forensic bundles are only available in live mode'), { status: 400 })
+  const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/forensics/download`, { headers: authHeaders(getToken()) })
+  await checkResponse(res)
+  const url = URL.createObjectURL(await res.blob())
+  const a = Object.assign(document.createElement('a'), { href: url, download: `forensic_bundle_${runId}.zip` })
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// Aggregates from Kailash's GET /runs/metrics/summary (defect categories, average pixel-diff reduction).
 export async function fetchMetricsSummary() {
   if (DATA_SOURCE === 'mock') {
+    const cats = {}
+    for (const r of fixtureRuns) for (const f of r.findings || []) cats[f.category] = (cats[f.category] || 0) + 1
     return {
       total_runs: fixtureRuns.length,
       fixed_runs: fixtureRuns.filter((r) => r.status === 'fixed' || r.status === 'pr_opened').length,
       needs_review_runs: fixtureRuns.filter((r) => r.status === 'needs_review').length,
       failed_runs: fixtureRuns.filter((r) => r.status === 'failed').length,
-      success_rate_percentage: 85.0,
-      defect_categories: { element_clipping: 2, element_overlap: 1 },
-      average_diff_reduction: 0.042,
+      success_rate_percentage: 0,
+      defect_categories: cats,
+      average_diff_reduction: 0,
     }
   }
-  return getJson('/runs/metrics/summary')
+  return call('/runs/metrics/summary')
 }

@@ -62,6 +62,7 @@ from automation.engine import (
     launch_browser,
     normalize_target_path,
     run_visual_audit_journey,
+    run_parallel_viewports,
     validate_patch_target,
 )
 from automation.orchestrator import (
@@ -132,6 +133,7 @@ __all__ = [
     "launch_browser",
     "normalize_target_path",
     "run_visual_audit_journey",
+    "run_parallel_viewports",
     "validate_patch_target",
     # Orchestrator & CLI
     "AgentState",

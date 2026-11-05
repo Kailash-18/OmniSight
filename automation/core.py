@@ -145,6 +145,9 @@ class DefectCategory(str, Enum):
     ELEMENT_OBSTRUCTION = "element_obstruction"
     CONTRAST_ISSUE = "contrast_issue"
     LAYOUT_OVERFLOW = "layout_overflow"
+    BROKEN_LINK = "broken_link"
+    CLICK_ERROR = "click_error"
+    NO_EFFECT = "no_effect"
 
 
 class Severity(str, Enum):

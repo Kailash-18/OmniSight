@@ -163,3 +163,44 @@ ul.alert { padding-left: 32px; }
   .runs td::before { content: attr(data-label); color: var(--muted); font-size: 13px; text-align: left; }
   .runs .num { text-align: right; }
 }
+
+
+/* Metrics KPI Panel */
+.metrics-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  background: var(--bg-surface, #1e2029);
+  border: 1px solid var(--border-color, #2d3139);
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metric-label {
+  font-size: 0.82rem;
+  color: var(--text-muted, #8b949e);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.metric-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f0f6fc;
+}
+
+.text-success {
+  color: #3fb950 !important;
+}
+
+.text-warning {
+  color: #d29922 !important;
+}

@@ -90,3 +90,19 @@ export async function getForensicBundle(runId) {
   }
   return getJson(`/runs/${encodeURIComponent(runId)}/forensics`)
 }
+
+
+export async function fetchMetricsSummary() {
+  if (DATA_SOURCE === 'mock') {
+    return {
+      total_runs: fixtureRuns.length,
+      fixed_runs: fixtureRuns.filter((r) => r.status === 'fixed' || r.status === 'pr_opened').length,
+      needs_review_runs: fixtureRuns.filter((r) => r.status === 'needs_review').length,
+      failed_runs: fixtureRuns.filter((r) => r.status === 'failed').length,
+      success_rate_percentage: 85.0,
+      defect_categories: { element_clipping: 2, element_overlap: 1 },
+      average_diff_reduction: 0.042,
+    }
+  }
+  return getJson('/runs/metrics/summary')
+}

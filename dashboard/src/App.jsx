@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { DATA_SOURCE } from './api.js'
 import RunList from './components/RunList.jsx'
 import RunDetail from './components/RunDetail.jsx'
+import MetricsPanel from './components/MetricsPanel.jsx'
 
 // ponytail: two routes, so a pushState switch replaces a router library (same as app-under-test).
 const matchRun = (path) => path.match(/^\/runs\/([^/]+)\/?$/)
@@ -56,7 +57,10 @@ export default function App() {
           </div>
         </div>
       )}
-      <main className="wrap main">{page}</main>
+      <main className="wrap main">
+        {path === '/' && <MetricsPanel />}
+        {page}
+      </main>
     </>
   )
 }

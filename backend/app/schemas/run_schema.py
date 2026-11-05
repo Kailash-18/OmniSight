@@ -213,6 +213,8 @@ class VLMParseResponse(BaseModel):
     validation_status: bool = Field(default=False, description="True if patch passed security guardrails")
     validator_errors: str | None = Field(default=None, description="Validation failure details if any")
     parse_errors: list[str] = Field(default_factory=list, description="Parsing or validation warnings")
+    risk_score: float = Field(default=0.0, description="Evaluated remediation risk score between 0 and 100")
+    risk_verdict: str = Field(default="auto_pr_allowed", description="Gate verdict: auto_pr_allowed or requires_human_review")
 
 
 class RunSummaryResponse(BaseModel):
@@ -276,4 +278,4 @@ class ForensicBundleResponse(BaseModel):
     artifact_count: int = Field(..., description="Total count of bundled forensic artifacts")
     size_bytes: int = Field(..., description="Archive file size in bytes")
     download_url: str = Field(..., description="Download URL for the forensic bundle ZIP")
-    manifest: dict[str, Any] = Field(default_factory=dict, description="Tamper-evident manifest details")
+    manifest: dict[str, Any] = Field(default_factory=dict, description="Tamper-evident manifest details")

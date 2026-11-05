@@ -194,6 +194,37 @@ To ensure the AI cannot harm repository integrity or internal network services, 
 
 ---
 
+## 🔐 Login and Running Tests from the Dashboard
+
+**Login.** Set these in `backend/.env` (see `.env.example`):
+
+| Variable | Purpose |
+|---|---|
+| `OMNISIGHT_USERNAME` / `OMNISIGHT_PASSWORD` | The single reviewer account. If either is empty, `POST /auth/login` returns `503`. |
+| `OMNISIGHT_SECRET_KEY` | Signs login tokens (HMAC-SHA256, 8 hours). If unset, a random key is used and everyone signs in again after a restart. |
+
+- `POST /auth/login {username, password}` → `{token, username, expires_at}`; `GET /auth/me` → `{username}`.
+- Every other endpoint needs `Authorization: Bearer <token>`, except `/health`, `/auth/login`, `/webhook/build` and the API docs. Run evidence is served at `GET /artifacts/{path}` behind the same login.
+
+**Starting a test.** `POST /runs {"target_url": "http://localhost:5173", "launch": true, "retest": true}` creates the run and starts
+`python -m automation.cli --run-id <id> --target <url> --sync-backend` in the background (`app/services/run_launcher.py`):
+
+- one run at a time (`409` while one is active), because the retest edits `defects.css` in place;
+- killed after `RUN_TIMEOUT_SECONDS` (default 300) and marked `failed` with the end of `artifacts/runs/<id>/runner.log`;
+- `GET /runs/active` → `{run_id | null}`;
+- the child process reports progress with a service token the backend generates at startup.
+- Without `launch` (or `launch: false`), `POST /runs` only registers the run, as before.
+
+**Running the CLI by hand** with `--sync-backend` now needs that token. Either run the CLI without `--sync-backend`, or start the test from the dashboard.
+
+**CI status.** `GET /runs/{id}/checks` → `{state, total, passed, failed, running, checks_url}`, where `state` is `none` (no PR) | `unavailable` (no `GITHUB_TOKEN` or mock mode) | `pending` | `running` | `passed` | `failed`. It reads the PR's GitHub check runs with the backend's token. The dashboard shows it under Review & PR.
+
+**Test-runner token scope.** The token handed to launched tests only works on `/runs/{id}` and its sub-routes, `/action-engine/parse` and `/api/milestones`. It can't list runs, start runs or use account routes. On timeout the whole process group is killed (Chromium included), and any start-up error marks the run `failed`.
+
+**Still to do (backend owner):**
+1. Protect `/webhook/build` with a shared secret header (`WEBHOOK_SECRET`), so only CI can create runs.
+2. Exempt `/webhook/github/pull-request` from login and verify GitHub's signature (`X-Hub-Signature-256`) instead. It now needs a login token, so real GitHub deliveries get 401.
+
 ## 🛠️ Environment Configuration & Zero Hardcoding
 
 Credentials and settings are managed through environment variables. **No API keys or tokens are hardcoded into the source code.**

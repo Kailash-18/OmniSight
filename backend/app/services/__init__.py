@@ -181,3 +181,7 @@ except ModuleNotFoundError:
     from backend.app.services.audit_telemetry_service import AuditTelemetryEngine
 
 __all__.extend(['CoordinateClusterEngine', 'AuditTelemetryEngine'])
+
+from backend.app.services.circuit_breaker_service import CircuitBreakerService
+from backend.app.services.regression_guard_service import RegressionGuardEngine
+from backend.app.services.rollback_manifest_service import RollbackManifestEngine

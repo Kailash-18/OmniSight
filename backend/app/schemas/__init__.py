@@ -231,3 +231,7 @@ except ModuleNotFoundError:
         TelemetryReportResponse,
         QAManagerAuditSignature,
     )
+
+from backend.app.schemas.resilience_schema import CircuitState, CircuitBreakerStatus, FallbackInferenceRequest, FallbackInferenceResponse
+from backend.app.schemas.regression_guard_schema import DriftSeverity, NodeSpatialSnapshot, SpatialDriftMetric, VisualInvariantCheckRequest, VisualInvariantCheckResponse
+from backend.app.schemas.rollback_schema import RollbackStatus, RollbackPatchItem, AtomicRollbackManifest, RollbackExecutionRequest, RollbackExecutionResponse

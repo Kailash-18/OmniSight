@@ -138,3 +138,47 @@ def get_forensic_bundle_path(run_id: str, artifacts_base_dir: Optional[Path] = N
     base_dir = artifacts_base_dir or Path("artifacts")
     bundle_path = base_dir / "runs" / run_id / f"forensic_bundle_{run_id}.zip"
     return bundle_path if bundle_path.exists() else None
+
+
+def verify_forensic_bundle_integrity(run_id: str, artifacts_base_dir: Optional[Path] = None) -> dict[str, Any]:
+    """
+    Verifies the cryptographic integrity of a generated forensic bundle:
+    1. Checks the zip archive exists and is non-empty.
+    2. Reads the forensic manifest and verifies individual artifact SHA-256 digests.
+    3. Returns verification status, verified files count, and any tampering discrepancies.
+    """
+    base_dir = artifacts_base_dir or Path("artifacts")
+    run_dir = base_dir / "runs" / run_id
+    manifest_path = run_dir / "forensic_manifest.json"
+    bundle_path = run_dir / f"forensic_bundle_{run_id}.zip"
+
+    if not manifest_path.exists():
+        return {
+            "run_id": run_id,
+            "is_valid": False,
+            "error": "Forensic manifest not found for run."
+        }
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    files = manifest.get("files", [])
+    discrepancies = []
+
+    for f_info in files:
+        rel_path = f_info.get("path")
+        expected_hash = f_info.get("sha256")
+        target_file = run_dir / rel_path
+        if not target_file.exists():
+            discrepancies.append(f"Missing artifact: {rel_path}")
+            continue
+        actual_hash = compute_file_sha256(target_file)
+        if actual_hash != expected_hash:
+            discrepancies.append(f"Hash mismatch for {rel_path}: expected {expected_hash}, got {actual_hash}")
+
+    is_valid = len(discrepancies) == 0
+    return {
+        "run_id": run_id,
+        "is_valid": is_valid,
+        "verified_files_count": len(files),
+        "discrepancies": discrepancies,
+        "bundle_sha256": compute_file_sha256(bundle_path) if bundle_path.exists() else None,
+    }

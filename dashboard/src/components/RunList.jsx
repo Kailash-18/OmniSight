@@ -32,19 +32,20 @@ export default function RunList({ link }) {
           <h1>Runs</h1>
           <p className="muted">{state.loading ? 'Loading…' : `${state.runs.length} ${state.runs.length === 1 ? 'run' : 'runs'}`}</p>
         </div>
-        <div className="toolbar">
-          <span className="input-wrap">
-            <Search size={16} className="input-icon" aria-hidden="true" />
-            <input className="input with-icon" placeholder="Search by run or address" value={query} onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search runs" data-testid="runs-search" />
-          </span>
-          <select className="input" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter by status" data-testid="status-filter">
-            <option value="all">All statuses</option>
-            {Object.entries(STATUSES).map(([value, { label }]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-          <button type="button" className="btn" data-testid="runs-refresh" onClick={load}><RefreshCw size={15} aria-hidden="true" />Refresh</button>
-        </div>
       </header>
+
+      <div className="toolbar" role="search">
+        <span className="input-wrap">
+          <Search size={16} className="input-icon" aria-hidden="true" />
+          <input className="input with-icon" placeholder="Search by run or address" value={query} onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search runs" data-testid="runs-search" />
+        </span>
+        <select className="input" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter by status" data-testid="status-filter">
+          <option value="all">All statuses</option>
+          {Object.entries(STATUSES).map(([value, { label }]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <button type="button" className="btn" data-testid="runs-refresh" onClick={load}><RefreshCw size={15} aria-hidden="true" />Refresh</button>
+      </div>
 
       {state.loading ? (
         <div className="panel table-panel" data-testid="runs-loading" aria-busy="true">

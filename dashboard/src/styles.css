@@ -69,20 +69,30 @@
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 html, body { margin: 0; }
+html { background: var(--bg); }
 body {
   min-height: 100vh;
-  background: var(--bg);
-  background-image:
-    radial-gradient(1100px 520px at 88% -12%, var(--accent-soft), transparent 62%),
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: auto, 32px 32px, 32px 32px;
-  background-attachment: fixed;
   color: var(--text);
   font: 15px/1.55 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.25s ease, color 0.25s ease;
+}
+/* The grid lives on its own fixed layer so it always fills the whole window, at any width,
+   zoom or resize (a fixed body background can leave newly exposed areas unpainted). */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(1100px 520px at 88% -12%, var(--accent-soft), transparent 62%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 100% 100%, 32px 32px, 32px 32px;
+  transition: background-color 0.25s ease;
 }
 h1, h2, h3 { margin: 0; letter-spacing: -0.02em; line-height: 1.2; }
 h1 { font-size: 28px; font-weight: 680; }

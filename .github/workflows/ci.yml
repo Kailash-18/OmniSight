@@ -1,0 +1,82 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  store:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: app-under-test } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: app-under-test/package-lock.json }
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: dashboard } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: dashboard/package-lock.json }
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - run: pip install -r requirements.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: pytest -q automation/tests backend/tests
+
+  visual-check:
+    runs-on: ubuntu-latest
+    needs: [store]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: app-under-test/package-lock.json }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - run: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+      - name: Start the store
+        working-directory: app-under-test
+        run: |
+          npm ci
+          nohup npm run dev > ../store.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:5173 >/dev/null && exit 0; sleep 1; done
+          cat ../store.log; exit 1
+      - name: Run the OmniSight audit
+        run: python -m automation.cli --target http://localhost:5173 --no-retest --json-output > audit.json
+      - name: Summary
+        if: always()
+        run: |
+          python - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          try:
+              d = json.load(open("audit.json"))
+          except Exception as e:
+              print(f"### OmniSight audit\nCould not read the audit output: {e}")
+              raise SystemExit
+          f = d.get("findings", [])
+          print(f"### OmniSight audit: {len(f)} finding(s), status `{d.get('status')}`\n")
+          print("| Severity | Category | Viewport | Description |\n|---|---|---|---|")
+          for x in f:
+              print(f"| {x['severity']} | {x['category']} | {x['viewport']} | {x['description']} |")
+          print("\n_The store ships 3 intentional defects, so findings on `main` are expected._")
+          EOF
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: omnisight-audit
+          path: |
+            artifacts/
+            audit.json

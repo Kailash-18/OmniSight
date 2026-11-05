@@ -279,3 +279,13 @@ class ForensicBundleResponse(BaseModel):
     size_bytes: int = Field(..., description="Archive file size in bytes")
     download_url: str = Field(..., description="Download URL for the forensic bundle ZIP")
     manifest: dict[str, Any] = Field(default_factory=dict, description="Tamper-evident manifest details")
+
+class RunMetricsSummaryResponse(BaseModel):
+    """Aggregated QA quality, remediation success, and telemetry metrics."""
+    total_runs: int = Field(..., description="Total runs recorded")
+    fixed_runs: int = Field(..., description="Total runs resolved and verified fixed")
+    needs_review_runs: int = Field(..., description="Total runs requiring manual review")
+    failed_runs: int = Field(..., description="Total failed runs")
+    success_rate_percentage: float = Field(..., description="Fix success rate percentage")
+    defect_categories: dict[str, int] = Field(default_factory=dict, description="Count of findings per defect category")
+    average_diff_reduction: float = Field(default=0.0, description="Average visual mismatch percentage reduction")

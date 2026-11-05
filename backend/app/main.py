@@ -31,6 +31,7 @@ from app.schemas import (
     RunRecordUpdatePayload,
     RunStatus,
     RunSummaryResponse,
+    RunMetricsSummaryResponse,
     RunTriggerPayload,
     Severity,
     VLMParseRequest,
@@ -737,4 +738,61 @@ def download_run_forensic_bundle(run_id: str):
         path=str(bundle_path),
         media_type="application/zip",
         filename=f"forensic_bundle_{run_id}.zip"
+    )
+
+@app.get(
+    "/runs/metrics/summary",
+    response_model=RunMetricsSummaryResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get Aggregated QA & Telemetry Metrics"
+)
+def get_runs_metrics_summary():
+    """
+    Computes real-time quality assurance metrics across all runs:
+    - Fix success rates
+    - Categorical defect distributions
+    - Visual diff reductions
+    """
+    total = len(runs_db)
+    if total == 0:
+        return RunMetricsSummaryResponse(
+            total_runs=0,
+            fixed_runs=0,
+            needs_review_runs=0,
+            failed_runs=0,
+            success_rate_percentage=0.0,
+            defect_categories={},
+            average_diff_reduction=0.0
+        )
+
+    fixed = sum(1 for r in runs_db.values() if r.get("status") == RunStatus.FIXED.value)
+    needs_review = sum(1 for r in runs_db.values() if r.get("status") == RunStatus.NEEDS_REVIEW.value)
+    failed = sum(1 for r in runs_db.values() if r.get("status") == RunStatus.FAILED.value)
+
+    cats: dict[str, int] = {}
+    diff_scores: list[float] = []
+
+    for r in runs_db.values():
+        for f in r.get("findings", []):
+            c = f.get("category")
+            if isinstance(c, DefectCategory):
+                c = c.value
+            c = str(c or "other")
+            cats[c] = cats.get(c, 0) + 1
+
+        retest = r.get("retest_outcome") or {}
+        if "visual_diff_score" in retest and retest["visual_diff_score"] is not None:
+            diff_scores.append(float(retest["visual_diff_score"]))
+
+    success_rate = round((fixed / total) * 100, 2) if total > 0 else 0.0
+    avg_diff = round(sum(diff_scores) / len(diff_scores), 4) if diff_scores else 0.0
+
+    return RunMetricsSummaryResponse(
+        total_runs=total,
+        fixed_runs=fixed,
+        needs_review_runs=needs_review,
+        failed_runs=failed,
+        success_rate_percentage=success_rate,
+        defect_categories=cats,
+        average_diff_reduction=avg_diff
     )

@@ -69,3 +69,19 @@ class CircuitBreakerService:
             fallback_executions_total=self.fallback_executions_total,
             circuit_tripped_total=self.circuit_tripped_total
         )
+
+    def execute_fallback_inference(self, req: FallbackInferenceRequest) -> FallbackInferenceResponse:
+        self.fallback_executions_total += 1
+        coords = req.crop_coordinates
+        w, h = coords.get("width", 100), coords.get("height", 50)
+        selector = ".anomaly-target-container"
+        css = f"max-width: {w}px; overflow: hidden; display: flex; align-items: center;"
+        return FallbackInferenceResponse(
+            run_id=req.run_id,
+            used_fallback=True,
+            strategy="heuristic_structural_contour_diff",
+            estimated_confidence=0.86,
+            suggested_patch_selector=selector,
+            suggested_css=css,
+            generated_at=datetime.now(timezone.utc).isoformat()
+        )

@@ -30,3 +30,16 @@ def test_event_stream_sse_formatting(hub):
     assert f"id: {evt.event_id}" in sse_msg
     assert "event: RUN_COMPLETED" in sse_msg
     assert "data: {" in sse_msg
+
+def test_event_stream_history_limit(hub):
+    for i in range(15):
+        hub.publish_event(PublishEventRequest(run_id="run_loop", event_type=RunEventType.RUN_STARTED, payload={"idx": i}))
+    hist = hub.get_events("run_loop", limit=20)
+    assert hist.total_events == 10
+    assert hist.events[-1].payload["idx"] == 14
+
+def test_telemetry_metrics_export(hub):
+    hub.increment_subscriber()
+    metrics = hub.export_prometheus_stream_metrics()
+    assert "omnisight_live_stream_subscribers 1" in metrics
+    hub.decrement_subscriber()

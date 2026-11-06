@@ -288,3 +288,51 @@ Validates cryptographic SHA-256 hashes of all artifacts inside a forensic bundle
     "bundle_sha256": "98178a112b518ace91bbbf0c814ccd111270a3ad9350c2f8eb91e94575bd7363"
   }
   ```
+
+
+### `GET /config/target-hosts`
+Returns the list of allowed audit hosts and active wildcard policies configured in the backend environment.
+* **Response (200 OK)**:
+  ```json
+  {
+    "allowed_hosts": [
+      "localhost",
+      "127.0.0.1",
+      "0.0.0.0",
+      "::1",
+      "staging.internal",
+      "*.flipkart.com",
+      "flipkart.com"
+    ],
+    "wildcard_enabled": false
+  }
+  ```
+
+### `GET /runs/{run_id}/heatmap`
+Generates and streams a spatial pixel-delta heat map comparing baseline and remediation screenshots.
+* **Query Parameters**:
+  * `viewport`: Viewport identifier (e.g. `desktop_1440x900`). Default: `desktop_1440x900`.
+  * `page`: Page or flow milestone name (e.g. `home`, `cart`, `checkout`). Default: `home`.
+* **Response (200 OK)**:
+  * Content-Type: `image/png` (binary image stream)
+
+### `GET /runs/{run_id}/annotated`
+Generates and streams a baseline screenshot overlaid with high-contrast bounding boxes outlining detected visual anomalies.
+* **Query Parameters**:
+  * `viewport`: Viewport identifier (e.g. `desktop_1440x900`). Default: `desktop_1440x900`.
+  * `page`: Page or flow milestone name (e.g. `home`). Default: `home`.
+* **Response (200 OK)**:
+  * Content-Type: `image/png` (binary image stream)
+
+### `GET /runs/{run_id}/verify-bundle`
+Dashboard alias for `/runs/{run_id}/forensics/verify`. Validates cryptographic SHA-256 hashes of all artifacts inside a forensic bundle against its cryptographic manifest.
+* **Response (200 OK)**:
+  ```json
+  {
+    "run_id": "run-1729418400",
+    "is_valid": true,
+    "verified_files_count": 8,
+    "discrepancies": [],
+    "bundle_sha256": "98178a112b518ace91bbbf0c814ccd111270a3ad9350c2f8eb91e94575bd7363"
+  }
+  ```

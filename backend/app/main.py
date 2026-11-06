@@ -2844,3 +2844,64 @@ def execute_rollback_manifest(req: RollbackExecutionRequest):
         raise HTTPException(status_code=404, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+
+
+# --- Week 4 Day 4: Concurrency Leases, Canary Verification & Event Streaming ---
+from backend.app.schemas.concurrency_schema import (
+    AcquireLeaseRequest, AcquireLeaseResponse, ReleaseLeaseResponse, RenewLeaseRequest, RenewLeaseResponse, ActiveLeasesResponse
+)
+from backend.app.services.concurrency_service import concurrency_manager
+from backend.app.schemas.canary_schema import CanaryVerificationRequest, CanaryVerificationReport
+from backend.app.services.canary_service import canary_engine
+from backend.app.schemas.stream_schema import PublishEventRequest, StreamEvent, EventStreamHistoryResponse
+from backend.app.services.event_stream_service import event_stream_hub
+from fastapi.responses import StreamingResponse
+import asyncio
+
+@app.post("/api/v1/concurrency/leases/acquire", response_model=AcquireLeaseResponse)
+def acquire_mutation_lease(req: AcquireLeaseRequest):
+    return concurrency_manager.acquire_lease(req)
+
+@app.post("/api/v1/concurrency/leases/{lease_id}/renew", response_model=RenewLeaseResponse)
+def renew_mutation_lease(lease_id: str, req: RenewLeaseRequest):
+    return concurrency_manager.renew_lease(lease_id, req.extend_seconds)
+
+@app.post("/api/v1/concurrency/leases/{lease_id}/release", response_model=ReleaseLeaseResponse)
+def release_mutation_lease(lease_id: str, run_id: str):
+    return concurrency_manager.release_lease(lease_id, run_id)
+
+@app.get("/api/v1/concurrency/leases/active", response_model=ActiveLeasesResponse)
+def list_active_leases():
+    return concurrency_manager.get_active_leases()
+
+@app.post("/api/v1/canary/verify", response_model=CanaryVerificationReport)
+def verify_canary_patch_endpoint(req: CanaryVerificationRequest):
+    return canary_engine.verify_canary_patch(req)
+
+@app.get("/api/v1/canary/{run_id}/report", response_model=Optional[CanaryVerificationReport])
+def get_canary_report(run_id: str):
+    rep = canary_engine.get_report(run_id)
+    if not rep:
+        raise HTTPException(status_code=404, detail="Canary report not found")
+    return rep
+
+@app.post("/api/v1/events/publish", response_model=StreamEvent)
+def publish_stream_event(req: PublishEventRequest):
+    return event_stream_hub.publish_event(req)
+
+@app.get("/api/v1/events/history", response_model=EventStreamHistoryResponse)
+def get_stream_history(run_id: Optional[str] = None, limit: int = 50):
+    return event_stream_hub.get_events(run_id=run_id, limit=limit)
+
+@app.get("/api/v1/events/stream")
+async def stream_live_events(run_id: Optional[str] = None):
+    async def event_generator():
+        event_stream_hub.increment_subscriber()
+        try:
+            history = event_stream_hub.get_events(run_id=run_id, limit=10)
+            for ev in history.events:
+                yield event_stream_hub.format_sse(ev)
+                await asyncio.sleep(0.01)
+        finally:
+            event_stream_hub.decrement_subscriber()
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

@@ -3,8 +3,14 @@ Spatial and Visual Diff Diagnostic Service for OmniSight Backend.
 Generates pixel-difference heatmaps and bounding box annotations for QA review.
 """
 
+import sys
 from pathlib import Path
 from typing import Optional
+
+# Ensure repository root is on sys.path for automation module imports
+repo_root = Path(__file__).resolve().parents[3]
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
 
 from automation.engine import VisualComparator
 

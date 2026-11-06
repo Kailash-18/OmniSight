@@ -53,12 +53,14 @@ flowchart LR
 
 ## Key Features
 
-* **Multimodal Visual QA**: Detects visual defects that selector assertions miss (clipping, overlapping, overflow).
-* **Closed-Loop Self-Healing**: Automatically generates, applies, and verifies CSS fixes.
-* **Zero-Trust Guardrails**: Patches are constrained to safe style files—no arbitrary shell execution or rogue edits.
-* **Bounded Retries**: Self-repair attempts are capped (max 1 retry) to prevent runaway loops.
-* **Verifiable Proof**: Every PR includes before/after screenshots, element selectors, and confidence scores.
-* **Interactive Dashboard**: Clean web UI to monitor runs, review diffs, and inspect visual evidence.
+* **Universal Web Application Audits**: Seamlessly audit external web applications (e.g. Flipkart, SaaS portals) via `UniversalWebJourney` alongside localhost environments.
+* **Wildcard Domain Allowlisting & SSRF Protection**: Granular target host allowlisting (`*.domain.com`) with unconditional defense against cloud metadata exposure (AWS, GCP, Azure).
+* **Multimodal Visual QA & WCAG Scanner**: Detects element overlaps, clipping, and automated WCAG 2.1 AA accessibility contrast and touch target violations.
+* **Spatial Diff Heatmaps & Defect Overlays**: Real-time visual comparison with pixel-delta heatmaps and high-contrast bounding box overlays in the dashboard.
+* **Confidence-Aware Remediation Risk Engine**: Automated composite blast-radius and confidence scoring to gate safe auto-merges versus manual reviews.
+* **Cryptographic Forensic Bundle Integrity**: Automated SHA-256 manifest packaging and one-click in-dashboard tamper verification.
+* **Closed-Loop Self-Healing**: Automatically generates, applies, and verifies CSS fixes with zero-trust sandboxing and atomic rollback.
+* **Interactive Review Dashboard**: Full-featured React dashboard with live progress, diff sliders, side-by-side comparisons, and CI verification.
 
 ---
 

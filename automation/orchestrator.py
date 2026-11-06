@@ -36,6 +36,8 @@ from automation.engine import (
 )
 
 from automation.interaction_check import run_interaction_check
+from automation.engine import audit_dom_accessibility
+import uuid
 
 logger = logging.getLogger("omnisight.automation.orchestrator")
 
@@ -314,6 +316,44 @@ class Orchestrator:
             visual_comparator=self.visual_comparator,
         )
 
+    def _enrich_with_accessibility_analysis(
+        self, audit_report: AuditReport, run_results: Dict[str, Any]
+    ) -> AuditReport:
+        """Audits captured DOM snapshots for WCAG 2.1 AA compliance and target sizes."""
+        dom_snapshots = run_results.get("dom_snapshots", [])
+        for snap_path in dom_snapshots:
+            p = Path(snap_path)
+            if not p.exists():
+                continue
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                elements = data.get("elements", [])
+                if elements:
+                    a11y_list = audit_dom_accessibility(elements)
+                    vp = "desktop_1440x900"
+                    for part in p.name.split("_"):
+                        if "x" in part:
+                            vp = part
+                    for a11y in a11y_list:
+                        category = DefectCategory.CONTRAST_ISSUE if "contrast" in a11y.issue_type else DefectCategory.ELEMENT_OBSTRUCTION
+                        sev = Severity.HIGH if a11y.severity == "high" else Severity.MEDIUM if a11y.severity == "medium" else Severity.LOW
+                        audit_report.findings.append(
+                            Finding(
+                                id=f"a11y-{uuid.uuid4().hex[:6]}",
+                                category=category,
+                                severity=sev,
+                                description=f"[{a11y.wcag_criterion}] {a11y.description}",
+                                viewport=vp,
+                                target_element=a11y.element_selector,
+                                suggested_change=a11y.recommendation,
+                                confidence=0.92,
+                                rationale=f"Automated WCAG rule: {a11y.issue_type}",
+                            )
+                        )
+            except Exception as e:
+                logger.warning("Accessibility DOM scan failed on %s: %s", snap_path, e)
+        return audit_report
+
     def _enrich_with_spatial_analysis(
         self,
         audit_report: VisualAuditReport,
@@ -419,6 +459,11 @@ class Orchestrator:
             audit_report = self._enrich_with_spatial_analysis(
                 audit_report=audit_report,
                 evidence=evidence,
+                run_results=run_results,
+            )
+
+            audit_report = self._enrich_with_accessibility_analysis(
+                audit_report=audit_report,
                 run_results=run_results,
             )
 

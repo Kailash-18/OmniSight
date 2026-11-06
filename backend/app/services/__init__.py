@@ -185,3 +185,7 @@ __all__.extend(['CoordinateClusterEngine', 'AuditTelemetryEngine'])
 from backend.app.services.circuit_breaker_service import CircuitBreakerService
 from backend.app.services.regression_guard_service import RegressionGuardEngine
 from backend.app.services.rollback_manifest_service import RollbackManifestEngine
+
+from backend.app.services.concurrency_service import ConcurrencyLeaseManager, concurrency_manager
+from backend.app.services.canary_service import CanaryVerificationEngine, canary_engine
+from backend.app.services.event_stream_service import EventStreamHub, event_stream_hub

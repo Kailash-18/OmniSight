@@ -16,7 +16,7 @@ from fastapi import HTTPException, Request, status
 from app.core.config import settings
 
 TOKEN_TTL_SECONDS = 8 * 60 * 60
-PUBLIC_PATHS = {"/health", "/auth/login", "/webhook/build", "/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
+PUBLIC_PATHS = {"/health", "/auth/login", "/webhook/build", "/webhook/github/pull-request", "/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
 
 # Handed only to test processes this backend starts, so they can report progress.
 SERVICE_TOKEN = secrets.token_urlsafe(32)

@@ -92,7 +92,8 @@ class RunLauncher:
     def _kill_tree(proc) -> None:
         """Kill the CLI and the Playwright/Chromium processes it started (POSIX); plain kill elsewhere."""
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            sig = getattr(signal, "SIGKILL", getattr(signal, "SIGTERM", 9))
+            os.killpg(os.getpgid(proc.pid), sig)
         except (AttributeError, OSError):
             proc.kill()
 

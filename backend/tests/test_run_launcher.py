@@ -15,8 +15,8 @@ def _never_kill_real_processes(monkeypatch):
     def refuse(*a):
         raise OSError("test: real killpg disabled")
 
-    monkeypatch.setattr(rl.os, "killpg", refuse)
-    monkeypatch.setattr(rl.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(rl.os, "killpg", refuse, raising=False)
+    monkeypatch.setattr(rl.os, "getpgid", lambda pid: pid, raising=False)
 
 
 class FakeProc:
@@ -202,8 +202,8 @@ def test_child_runs_in_its_own_process_group(tmp_path):
 def test_timeout_kills_whole_process_group(tmp_path, monkeypatch):
     import app.services.run_launcher as rl
     killed = []
-    monkeypatch.setattr(rl.os, "killpg", lambda pgid, sig: killed.append((pgid, sig)))
-    monkeypatch.setattr(rl.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(rl.os, "killpg", lambda pgid, sig: killed.append((pgid, sig)), raising=False)
+    monkeypatch.setattr(rl.os, "getpgid", lambda pid: pid, raising=False)
     proc = FakeProc(0, hang=True)
     proc.kill = lambda: None  # only the group kill should be relied on
     proc.wait_calls = 0

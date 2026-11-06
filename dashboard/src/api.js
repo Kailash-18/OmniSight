@@ -105,3 +105,13 @@ export async function fetchMetricsSummary() {
   }
   return call('/runs/metrics/summary')
 }
+
+export async function fetchTargetHosts() {
+  if (DATA_SOURCE === 'mock') {
+    return {
+      allowed_hosts: ['localhost', '127.0.0.1', 'staging.internal', '*.flipkart.com', 'flipkart.com', '*'],
+      wildcard_enabled: true,
+    }
+  }
+  return call('/config/target-hosts')
+}

@@ -9,6 +9,11 @@ import { useToast } from './Toast.jsx'
 
 const DEFAULT_TARGET = 'http://localhost:5173'
 const POLL_MS = 2000
+const PRESETS = [
+  { label: 'Local Store (:5173)', url: 'http://localhost:5173' },
+  { label: 'Flipkart (flipkart.com)', url: 'https://www.flipkart.com/' },
+  { label: 'Staging Mock', url: 'http://staging.internal:5173' },
+]
 const INTERACTION = new Set(['broken_link', 'click_error', 'no_effect'])
 const CATEGORY_LABELS = {
   element_overlap: 'Overlap', element_clipping: 'Clipped', element_obstruction: 'Covered',
@@ -57,8 +62,34 @@ function RunLauncherBar({ onStarted, running }) {
           {running ? 'Test running…' : 'Run test'}
         </button>
       </div>
+      <div className="launcher-presets" role="group" aria-label="Target Presets">
+        <span className="preset-label">Quick Presets:</span>
+        {PRESETS.map((p) => (
+          <button
+            key={p.url}
+            type="button"
+            className={`btn-pill ${url.trim() === p.url ? 'is-active' : ''}`}
+            onClick={() => { setUrl(p.url); setError(null); }}
+            data-testid={`preset-${p.label.split(' ')[0].toLowerCase()}`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
       {DATA_SOURCE === 'mock' && <p className="muted small">Tests can only be started in live mode. These are sample runs.</p>}
-      {error && <p className="alert" role="alert" data-testid="run-start-error">{error}</p>}
+      {error && (
+        <div className="alert alert-with-action" role="alert" data-testid="run-start-error">
+          <span>{error}</span>
+          <button
+            type="button"
+            className="btn-text alert-action"
+            onClick={() => { setUrl(DEFAULT_TARGET); setError(null); }}
+            data-testid="reset-target-btn"
+          >
+            Reset to Local Store
+          </button>
+        </div>
+      )}
     </form>
   )
 }

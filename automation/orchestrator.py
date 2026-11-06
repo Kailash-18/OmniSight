@@ -7,6 +7,7 @@ import argparse
 from enum import Enum
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import sys
@@ -33,6 +34,8 @@ from automation.engine import (
     create_forensic_bundle,
     run_visual_audit_journey,
 )
+
+from automation.interaction_check import run_interaction_check
 
 logger = logging.getLogger("omnisight.automation.orchestrator")
 
@@ -85,6 +88,9 @@ class BackendClient:
                 if params is not None:
                     kwargs["params"] = params
 
+                token = os.environ.get("OMNISIGHT_SERVICE_TOKEN")
+                if token:
+                    kwargs["headers"] = {"Authorization": f"Bearer {token}"}
                 response = fn(endpoint, **kwargs)
                 if response.status_code in (200, 201, 202):
                     self._is_available = True
@@ -111,6 +117,9 @@ class BackendClient:
             "Accept": "application/json",
             "User-Agent": "OmniSight-AutomationClient/1.0",
         }
+        token = os.environ.get("OMNISIGHT_SERVICE_TOKEN")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
         body_bytes = None
         if json_data is not None:
             headers["Content-Type"] = "application/json"
@@ -285,8 +294,10 @@ class Orchestrator:
         backend_client: Optional[Any] = None,
         sync_backend: bool = False,
         auto_create_pr: bool = False,
+        interaction_check: bool = False,
     ):
         self.vlm = vlm_adapter or MockVLMAdapter()
+        self.interaction_check = interaction_check
         self.max_retries = max_retries
         self.sync_backend = sync_backend
         self.auto_create_pr = auto_create_pr
@@ -363,9 +374,10 @@ class Orchestrator:
         auto_create_pr: Optional[bool] = None,
         scenario: str = "checkout_flow",
         bundle_forensics: bool = False,
+        run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         should_create_pr = self.auto_create_pr if auto_create_pr is None else auto_create_pr
-        evidence = EvidenceCollector()
+        evidence = EvidenceCollector(run_id=run_id)
         app_url = target_url or config.app_url
 
         try:
@@ -409,6 +421,12 @@ class Orchestrator:
                 evidence=evidence,
                 run_results=run_results,
             )
+
+            if self.interaction_check:
+                try:
+                    audit_report.findings.extend(run_interaction_check(app_url))
+                except Exception as e:  # never fail the whole run because of the extra check
+                    logger.warning("Interaction check failed: %s", e)
 
             if self.sync_backend and self.backend_client:
                 self.backend_client.update_run_state(
@@ -696,6 +714,17 @@ def main(args_list: Optional[List[str]] = None) -> int:
         help=f"FastAPI backend gateway URL (default: {config.backend_url})",
     )
 
+    parser.add_argument(
+        "--no-interaction-check",
+        action="store_true",
+        help="Skip clicking every button/link to find broken, blocked, or dead controls",
+    )
+    parser.add_argument(
+        "--run-id",
+        type=str,
+        default=None,
+        help="Use this run ID (set by the backend when the dashboard starts a run)",
+    )
     args = parser.parse_args(args_list)
 
     backend_client = None
@@ -713,6 +742,7 @@ def main(args_list: Optional[List[str]] = None) -> int:
         backend_client=backend_client,
         sync_backend=args.sync_backend,
         auto_create_pr=args.auto_pr,
+        interaction_check=not args.no_interaction_check,
     )
 
     if not args.json_output:
@@ -736,6 +766,7 @@ def main(args_list: Optional[List[str]] = None) -> int:
         auto_retest=not args.no_retest,
         auto_create_pr=args.auto_pr,
         bundle_forensics=args.bundle_forensics,
+        run_id=args.run_id,
     )
 
     if args.json_output:

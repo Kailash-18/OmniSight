@@ -1,66 +1,82 @@
 import { useEffect, useState } from 'react'
-import { DATA_SOURCE } from './api.js'
+import { DATA_SOURCE, me } from './api.js'
+import { clearSession, getToken, getUser, onUnauthorized } from './auth.js'
+import { applyTheme, readTheme, writeTheme } from './theme.js'
+import Shell from './components/Shell.jsx'
+import Login from './components/Login.jsx'
+import Overview from './components/Overview.jsx'
 import RunList from './components/RunList.jsx'
 import RunDetail from './components/RunDetail.jsx'
-import MetricsPanel from './components/MetricsPanel.jsx'
+import { ToastProvider } from './components/Toast.jsx'
 
-// ponytail: two routes, so a pushState switch replaces a router library (same as app-under-test).
+// ponytail: four routes, so a pushState switch replaces a router library (same as app-under-test).
 const matchRun = (path) => path.match(/^\/runs\/([^/]+)\/?$/)
+const needsLogin = DATA_SOURCE === 'live'
 
 export default function App() {
   const [path, setPath] = useState(window.location.pathname)
+  const [user, setUser] = useState(needsLogin ? getUser() : 'demo')
+  const [expired, setExpired] = useState(false)
+  const [theme, setTheme] = useState(readTheme())
 
-  useEffect(() => {
-    const onPop = () => setPath(window.location.pathname)
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [])
-
+  const go = (to) => {
+    window.history.pushState(null, '', to)
+    setPath(to)
+    window.scrollTo(0, 0)
+  }
   const link = (to) => ({
     href: to,
     onClick: (e) => {
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
       e.preventDefault()
-      window.history.pushState(null, '', to)
-      setPath(to)
-      window.scrollTo(0, 0)
+      go(to)
     },
   })
 
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', onPop)
+    onUnauthorized(() => { setUser(null); setExpired(true) })
+    if (needsLogin && getToken()) me().then((r) => setUser(r.username)).catch(() => {})
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  const toggleTheme = () => {
+    const t = theme === 'dark' ? 'light' : 'dark'
+    setTheme(t)
+    applyTheme(t)
+    writeTheme(t)
+  }
+  const logout = () => { clearSession(); setUser(null); setExpired(false); go('/login') }
+
+  if (needsLogin && !user) {
+    return (
+      <Login expired={expired} onSignedIn={(name) => {
+        setUser(name)
+        setExpired(false)
+        if (path === '/login') go('/')
+      }} />
+    )
+  }
+
   const runMatch = matchRun(path)
   let page
-  if (path === '/') page = <RunList link={link} />
+  if (path === '/' || path === '/login') page = <Overview link={link} />
+  else if (path === '/runs') page = <RunList link={link} />
   else if (runMatch) page = <RunDetail runId={decodeURIComponent(runMatch[1])} link={link} />
-  else
-    page = (
-      <section className="panel state" data-testid="page-not-found">
-        <h1>Page not found</h1>
-        <a className="btn" {...link('/')}>Back to runs</a>
-      </section>
-    )
+  else page = (
+    <section className="panel empty" data-testid="page-not-found">
+      <h1>Page not found</h1>
+      <p>This address doesn’t match any page.</p>
+      <a className="btn" {...link('/')}>Go to overview</a>
+    </section>
+  )
 
   return (
-    <>
-      <header className="topbar">
-        <div className="wrap topbar-inner">
-          <a className="brand" data-testid="brand-link" {...link('/')}>OmniSight <span>QA</span></a>
-          <span className={`source source-${DATA_SOURCE}`} data-testid="data-source">
-            {DATA_SOURCE === 'mock' ? 'Mock data' : 'Live API'}
-          </span>
-        </div>
-      </header>
-      {DATA_SOURCE === 'mock' && (
-        <div className="mock-banner" role="note" data-testid="mock-banner">
-          <div className="wrap">
-            <strong>Mock Data</strong> — these runs are fixtures from <code>dashboard/src/fixtures/runs.json</code>, not live
-            OmniSight results.
-          </div>
-        </div>
-      )}
-      <main className="wrap main">
-        {path === '/' && <MetricsPanel />}
+    <ToastProvider>
+      <Shell user={needsLogin ? user : null} theme={theme} onTheme={toggleTheme} onLogout={logout} link={link} path={path}>
         {page}
-      </main>
-    </>
+      </Shell>
+    </ToastProvider>
   )
 }

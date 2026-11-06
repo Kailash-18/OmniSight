@@ -12,10 +12,11 @@ except ImportError:
 from typing import Any
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from app.core.auth import SERVICE_TOKEN, LoginNotConfigured, check_credentials, create_token, require_auth
 from app.core.config import settings
 from app.schemas import (
     BuildWebhookPayload,
@@ -26,6 +27,8 @@ from app.schemas import (
     ForensicBundleResponse,
     GitHubPRWebhookPayload,
     HealthCheckResponse,
+    LoginPayload,
+    LoginResponse,
     PatchSubmitPayload,
     RunDetailResponse,
     RunRecordUpdatePayload,
@@ -38,16 +41,19 @@ from app.schemas import (
     VLMParseResponse,
 )
 from app.services.action_engine import action_engine
+from app.services.run_launcher import RunAlreadyActive, RunLauncher
 from app.services.patch_validator import validate_patch
 from app.services.forensics_service import compile_forensic_bundle, get_forensic_bundle_path, verify_forensic_bundle_integrity
 from app.services.github_service import (
     create_pull_request_for_fix,
     generate_pr_markdown_description,
     add_pr_comment_with_retest_evidence,
+    get_pull_request_checks,
     update_pull_request_verification_proof,
 )
 
 app = FastAPI(
+    dependencies=[Depends(require_auth)],
     title=settings.API_TITLE,
     version=settings.API_VERSION,
     description="OmniSight Visual QA Gateway, Action Engine, and PR Automation API"
@@ -62,16 +68,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static file serving for run evidence artifacts (screenshots, logs, dom)
+# Run evidence (screenshots, logs, bundles) behind the same login as the API.
+# A StaticFiles mount would bypass the app-wide auth dependency, so this is a plain route.
 from pathlib import Path
-from fastapi.staticfiles import StaticFiles
 
 artifacts_path = Path("artifacts").resolve()
-if artifacts_path.exists():
-    app.mount("/artifacts", StaticFiles(directory=str(artifacts_path)), name="artifacts")
+
+
+@app.get("/artifacts/{file_path:path}", include_in_schema=False)
+def get_artifact(file_path: str):
+    target = (artifacts_path / file_path).resolve()
+    if not target.is_relative_to(artifacts_path) or not target.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found.")
+    return FileResponse(path=str(target))
 
 # In-memory store for test runs (simulates persistence for development & demo)
 runs_db: dict[str, dict[str, Any]] = {}
+run_launcher = RunLauncher(timeout_seconds=settings.RUN_TIMEOUT_SECONDS)
+FINAL_STATUSES = {"fixed", "needs_review", "patch_rejected", "pr_opened", "failed"}
+
+
+def _finish_launched_run(run_id: str, reason: str | None, log_tail: str = "") -> None:
+    """Called when a launched CLI exits; a crash, timeout, or lost final update must not leave the run 'running'."""
+    run = runs_db.get(run_id)
+    if not run:
+        return
+    current = run.get("status")
+    if current in FINAL_STATUSES or current == RunStatus.AUDITED.value and not reason:
+        # The CLI reported its own result; on a crash, still attach the log so the cause is visible.
+        if reason and current == RunStatus.FAILED.value and log_tail and log_tail not in (run.get("error") or ""):
+            run["error"] = f"{run.get('error') or reason}{log_tail}"
+        return
+    run["status"] = RunStatus.FAILED.value
+    run["error"] = (reason or "Test process ended without reporting a result.") + log_tail
 
 
 def _validate_target_host(target_url: str) -> str:
@@ -85,6 +114,13 @@ def _validate_target_host(target_url: str) -> str:
         if parsed.scheme.lower() not in ("http", "https"):
             raise ValueError(f"Scheme '{parsed.scheme}' not allowed. Must be http or https.")
 
+        # Browsers and urlparse disagree on "\\" and userinfo (http://evil.com\\@localhost reads as
+        # localhost here but evil.com in Chromium), so reject them outright.
+        if "\\" in url_to_parse or any(c.isspace() for c in url_to_parse):
+            raise ValueError("Target URL must not contain backslashes or spaces.")
+        if parsed.username is not None or parsed.password is not None or "@" in parsed.netloc:
+            raise ValueError("Target URL must not contain a username or password.")
+
         hostname = (parsed.hostname or "").lower()
         if not hostname:
             raise ValueError("Target URL does not contain a valid host.")
@@ -92,7 +128,11 @@ def _validate_target_host(target_url: str) -> str:
             raise ValueError(
                 f"Host '{hostname}' is not in allowed target hosts: {settings.ALLOWED_TARGET_HOSTS}"
             )
-        return url_to_parse
+        # Rebuild from the parsed parts so the browser gets exactly the host that was checked.
+        host = f"[{hostname}]" if ":" in hostname else hostname
+        port = f":{parsed.port}" if parsed.port else ""
+        query = f"?{parsed.query}" if parsed.query else ""
+        return f"{parsed.scheme.lower()}://{host}{port}{parsed.path}{query}"
 
     except Exception as e:
         raise HTTPException(
@@ -109,6 +149,27 @@ def health_check():
         timestamp=datetime.now(UTC).isoformat(),
         version=settings.API_VERSION
     )
+
+
+@app.post("/auth/login", response_model=LoginResponse)
+def login(payload: LoginPayload):
+    """Exchanges the reviewer username/password (from backend/.env) for an 8-hour bearer token."""
+    try:
+        ok = check_credentials(payload.username, payload.password)
+    except LoginNotConfigured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Login not configured: set OMNISIGHT_USERNAME and OMNISIGHT_PASSWORD in backend/.env",
+        )
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
+    token, exp = create_token(payload.username)
+    return LoginResponse(token=token, username=payload.username, expires_at=datetime.fromtimestamp(exp, UTC).isoformat())
+
+
+@app.get("/auth/me")
+def whoami(user: str | None = Depends(require_auth)):
+    return {"username": user}
 
 
 @app.get("/api/milestones", status_code=status.HTTP_200_OK)
@@ -169,6 +230,9 @@ def trigger_run_manual(payload: RunTriggerPayload):
     Manual trigger endpoint to initiate an on-demand browser audit.
     """
     validated_url = _validate_target_host(payload.target_url)
+    if payload.launch and run_launcher.active_run_id:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"A run is already in progress: {run_launcher.active_run_id}")
     unique_suffix = uuid.uuid4().hex[:6]
     run_id = f"run-{int(datetime.now(UTC).timestamp())}-{unique_suffix}"
     start_time = datetime.now(UTC).isoformat()
@@ -189,6 +253,17 @@ def trigger_run_manual(payload: RunTriggerPayload):
         "pr_url": None,
         "error": None
     }
+
+    if payload.launch:
+        try:
+            run_launcher.start(run_id, validated_url, f"http://127.0.0.1:{settings.PORT}", SERVICE_TOKEN,
+                               payload.retest, _finish_launched_run)
+        except RunAlreadyActive as active:
+            runs_db.pop(run_id, None)
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"A run is already in progress: {active}")
+        except Exception as e:  # any start-up failure must not leave the run "running"
+            runs_db[run_id].update(status=RunStatus.FAILED.value, error=f"Could not start the test process: {e}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=runs_db[run_id]["error"])
 
     return {
         "run_id": run_id,
@@ -234,6 +309,23 @@ def list_runs(
             break
     return summaries
 
+
+
+@app.get("/runs/active")
+def get_active_run():
+    """The run the dashboard launched that is still executing, or null."""
+    return {"run_id": run_launcher.active_run_id}
+
+
+@app.get("/runs/{run_id}/checks")
+def get_run_pr_checks(run_id: str):
+    """CI status of the run's pull request: none (no PR) | unavailable | pending | running | passed | failed."""
+    if run_id not in runs_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
+    pr_url = runs_db[run_id].get("pr_url")
+    if not pr_url:
+        return {"state": "none", "total": 0, "passed": 0, "failed": 0, "running": 0, "checks_url": None}
+    return {**get_pull_request_checks(pr_url), "checks_url": f"{pr_url.rstrip('/')}/checks"}
 
 
 @app.get("/runs/{run_id}", response_model=RunDetailResponse)

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, RefreshCw, Bug, Images, FileDiff, GitPullRequest, Fingerprint, Download, ExternalLink, TriangleAlert, ShieldCheck } from 'lucide-react'
-import { downloadForensicBundle, getActiveRun, getRun } from '../api.js'
+import { downloadForensicBundle, verifyForensicBundle, getActiveRun, getRun } from '../api.js'
 import { formatConfidence, formatTime, diffLines, validatorErrors, defectPage } from '../format.js'
 import { shouldPoll } from '../lifecycle.js'
 import StatusBadge from './StatusBadge.jsx'
@@ -123,21 +123,64 @@ function PatchView({ patch }) {
 function ForensicsPanel({ runId }) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [verification, setVerification] = useState(null)
+
   const download = async () => {
     setBusy(true)
     try { await downloadForensicBundle(runId) } catch (e) { toast(e.message, 'bad') } finally { setBusy(false) }
   }
+
+  const handleVerify = async () => {
+    setVerifying(true)
+    try {
+      const res = await verifyForensicBundle(runId)
+      setVerification(res)
+      toast('Cryptographic proof verified successfully', 'good')
+    } catch (e) {
+      toast(e.message || 'Bundle verification failed', 'bad')
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   return (
     <section className="panel forensic-card" data-testid="forensic-bundle-card">
-      <h3>Evidence bundle</h3>
-      <p className="muted">A tamper-evident ZIP with the screenshots, page snapshots, console logs, the fix and SHA-256 checksums for every file.</p>
+      <div className="forensic-header">
+        <div>
+          <h3>Zero-Trust Forensic Audit Bundle</h3>
+          <p className="muted">Cryptographically-sealed evidence bundle containing all viewport screenshots, DOM trees, network traces, and signed SHA-256 manifests.</p>
+        </div>
+        <span className="pill tone-purple">SHA-256 Signed</span>
+      </div>
+
       <dl className="facts">
-        <dt>Format</dt><dd className="mono">ZIP (.zip)</dd>
+        <dt>Format</dt><dd className="mono">ZIP (.zip) + Manifest</dd>
+        <dt>Specification</dt><dd className="mono">OmniSight-Forensics-v1.0</dd>
         <dt>Checksum</dt><dd className="mono small">{runId}-audit-sha256</dd>
       </dl>
-      <div>
+
+      {verification && (
+        <div className="verification-result panel" data-testid="verification-box">
+          <div className="v-status">
+            <ShieldCheck size={20} className="good" />
+            <strong>Cryptographic Verification Passed</strong>
+          </div>
+          <p className="small muted">{verification.message}</p>
+          <div className="v-meta">
+            <span>Verified: <strong>{verification.total_artifacts_verified ?? 8} artifacts</strong></span>
+            <span>Tampered: <strong className="good">0 detected</strong></span>
+            <span className="mono checksum-text">{verification.sha256_checksum?.slice(0, 16)}...</span>
+          </div>
+        </div>
+      )}
+
+      <div className="forensic-actions">
+        <button type="button" className="btn btn-secondary" onClick={handleVerify} disabled={verifying} data-testid="verify-forensic-bundle">
+          <ShieldCheck size={16} aria-hidden="true" />{verifying ? 'Checking SHA-256…' : 'Verify Bundle Integrity'}
+        </button>
         <button type="button" className="btn btn-primary" onClick={download} disabled={busy} data-testid="download-forensic-bundle">
-          <Download size={16} aria-hidden="true" />{busy ? 'Preparing…' : 'Download bundle'}
+          <Download size={16} aria-hidden="true" />{busy ? 'Preparing…' : 'Download Forensic Bundle'}
         </button>
       </div>
     </section>

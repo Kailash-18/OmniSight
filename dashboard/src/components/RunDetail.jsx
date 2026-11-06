@@ -50,15 +50,20 @@ function ConfidenceRing({ value }) {
 
 function FindingCard({ f, run }) {
   const interaction = INTERACTION.has(f.category) || f.id?.startsWith('interaction-')
+  const isA11y = f.id?.startsWith('a11y-') || f.category === 'contrast_issue' || f.description?.includes('WCAG')
   return (
-    <article className={`finding-card${interaction ? ' interaction' : ''}`} data-testid={`finding-${f.id}`}>
+    <article className={`finding-card${isA11y ? ' a11y' : interaction ? ' interaction' : ''}`} data-testid={`finding-${f.id}`}>
       <ConfidenceRing value={f.confidence} />
       <div>
         <div className="finding-top">
           <strong>{f.description}</strong>
           <div className="finding-tags">
             <span className={`pill sev sev-${f.severity}`}>{f.severity}</span>
-            <span className="pill tone-neutral">{interaction ? 'Interaction' : 'Visual'}</span>
+            {isA11y ? (
+              <span className="pill tone-purple">Accessibility (WCAG)</span>
+            ) : (
+              <span className="pill tone-neutral">{interaction ? 'Interaction' : 'Visual'}</span>
+            )}
           </div>
         </div>
         <dl className="facts">
@@ -150,6 +155,7 @@ const TABS = [
 export default function RunDetail({ runId, link }) {
   const [state, setState] = useState({ loading: true, error: null, run: null })
   const [tab, setTab] = useState('findings')
+  const [findingFilter, setFindingFilter] = useState('all')
   const tabRefs = useRef({})
 
   const load = (quiet = false) => {
@@ -249,9 +255,43 @@ export default function RunDetail({ runId, link }) {
       </div>
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tabpanel">
-        {tab === 'findings' && (findings.length === 0
-          ? <div className="panel empty" data-testid="findings-empty"><ShieldCheck size={28} aria-hidden="true" /><h2>No defects found</h2><p>This run found nothing to fix.</p></div>
-          : findings.map((f) => <FindingCard key={f.id} f={f} run={run} />))}
+        {tab === 'findings' && (
+          <div>
+            {findings.length > 0 && (
+              <div className="finding-filter-bar">
+                <span className="filter-label">Filter Category:</span>
+                {[
+                  { id: 'all', label: `All (${findings.length})` },
+                  { id: 'visual', label: `Visual (${findings.filter(f => !INTERACTION.has(f.category) && !f.id?.startsWith('interaction-') && !f.id?.startsWith('a11y-') && f.category !== 'contrast_issue').length})` },
+                  { id: 'interaction', label: `Interaction (${findings.filter(f => INTERACTION.has(f.category) || f.id?.startsWith('interaction-')).length})` },
+                  { id: 'a11y', label: `Accessibility (${findings.filter(f => f.id?.startsWith('a11y-') || f.category === 'contrast_issue' || f.description?.includes('WCAG')).length})` },
+                ].map((flt) => (
+                  <button
+                    key={flt.id}
+                    type="button"
+                    className={`btn-pill ${findingFilter === flt.id ? 'is-active' : ''}`}
+                    onClick={() => setFindingFilter(flt.id)}
+                  >
+                    {flt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {findings.length === 0 ? (
+              <div className="panel empty" data-testid="findings-empty"><ShieldCheck size={28} aria-hidden="true" /><h2>No defects found</h2><p>This run found nothing to fix.</p></div>
+            ) : (
+              findings
+                .filter((f) => {
+                  if (findingFilter === 'all') return true
+                  if (findingFilter === 'a11y') return f.id?.startsWith('a11y-') || f.category === 'contrast_issue' || f.description?.includes('WCAG')
+                  if (findingFilter === 'interaction') return INTERACTION.has(f.category) || f.id?.startsWith('interaction-')
+                  if (findingFilter === 'visual') return !INTERACTION.has(f.category) && !f.id?.startsWith('interaction-') && !f.id?.startsWith('a11y-') && f.category !== 'contrast_issue'
+                  return true
+                })
+                .map((f) => <FindingCard key={f.id} f={f} run={run} />)
+            )}
+          </div>
+        )}
         {tab === 'evidence' && <><Evidence evidence={run.evidence_paths} runId={run.run_id} /><RetestSummary retest={retest} /></>}
         {tab === 'patch' && <PatchView patch={run.patch} />}
         {tab === 'review' && (

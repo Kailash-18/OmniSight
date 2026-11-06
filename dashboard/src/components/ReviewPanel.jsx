@@ -32,7 +32,7 @@ function CiStatus({ runId, prUrl }) {
   )
 }
 
-export default function ReviewPanel({ runId, patch, prUrl: initialPrUrl, onPrCreated }) {
+export default function ReviewPanel({ runId, patch, prUrl: initialPrUrl, riskScore, riskVerdict, onPrCreated }) {
   const [review, setReview] = useState(() => loadReview(runId))
   const [note, setNote] = useState(review?.note || '')
   const [persisted, setPersisted] = useState(true)
@@ -69,6 +69,22 @@ export default function ReviewPanel({ runId, patch, prUrl: initialPrUrl, onPrCre
 
   return (
     <div className="review" data-testid="review-panel">
+      {riskScore != null && (
+        <div className={`risk-gate-banner risk-${riskVerdict || 'review'}`}>
+          <div className="risk-score-badge">
+            <span className="risk-num">{riskScore}</span>
+            <span className="risk-denom">/ 100</span>
+          </div>
+          <div className="risk-details">
+            <strong>{riskVerdict === 'auto_approved' ? '✓ Auto-Merge Safety Approved' : '⚠ Manual Human Review Required'}</strong>
+            <p className="muted small">
+              {riskVerdict === 'auto_approved'
+                ? 'Remediation evaluated as low blast-radius with high visual confidence score.'
+                : 'Remediation affects sensitive layout containers; manual code verification recommended before merge.'}
+            </p>
+          </div>
+        </div>
+      )}
       <p className="muted small">Approve or reject the fix here (saved in this browser), then open a pull request on GitHub.</p>
       {review && (
         <p className={`review-result ${review.decision}`} data-testid="review-result" role="status">

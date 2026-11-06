@@ -586,3 +586,42 @@ ul.alert { padding-left: 32px; }
 .finding-card.a11y {
   border-left: 3px solid #a855f7;
 }
+
+
+/* Risk Gate Banner */
+.risk-gate-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-radius: var(--radius-sm, 8px);
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+}
+.risk-gate-banner.risk-auto_approved {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.risk-gate-banner.risk-requires_human_review, .risk-gate-banner.risk-review {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+.risk-score-badge {
+  display: flex;
+  align-items: baseline;
+  background: var(--surface-1, #12151c);
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.risk-num {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  color: var(--text);
+}
+.risk-denom {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-left: 4px;
+}

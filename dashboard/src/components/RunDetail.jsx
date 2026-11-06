@@ -296,7 +296,7 @@ export default function RunDetail({ runId, link }) {
         {tab === 'patch' && <PatchView patch={run.patch} />}
         {tab === 'review' && (
           <section className="panel">
-            <ReviewPanel key={run.run_id} runId={run.run_id} patch={run.patch} prUrl={run.pr_url}
+            <ReviewPanel key={run.run_id} runId={run.run_id} patch={run.patch} prUrl={run.pr_url} riskScore={run.risk_score} riskVerdict={run.risk_verdict}
               onPrCreated={(url) => setState((s) => ({ ...s, run: { ...s.run, pr_url: url, status: 'pr_opened' } }))} />
           </section>
         )}

@@ -12,7 +12,7 @@ from urllib.parse import urldefrag, urlparse
 from playwright.sync_api import Page
 
 from automation.core import STANDARD_VIEWPORTS, DefectCategory, Finding, Severity
-from automation.engine import StoreJourney, create_isolated_page, launch_browser
+from automation.engine import StoreJourney, UniversalWebJourney, create_journey, is_mock_store, create_isolated_page, launch_browser
 
 logger = logging.getLogger("omnisight.automation.interaction")
 
@@ -167,20 +167,30 @@ def check_page(page: Page, prepare: Callable[[Page], None], page_name: str, view
 
 
 def store_pages(base_url: str) -> List[Tuple[str, Callable[[Page], None]]]:
-    def home(p: Page) -> None:
-        StoreJourney(p, base_url).navigate_home()
+    if is_mock_store(base_url):
+        def home(p: Page) -> None:
+            StoreJourney(p, base_url).navigate_home()
 
-    def cart(p: Page) -> None:
-        j = StoreJourney(p, base_url)
-        j.navigate_home()
-        j.add_product_to_cart("mug")
-        j.navigate_to_cart()
+        def cart(p: Page) -> None:
+            j = StoreJourney(p, base_url)
+            j.navigate_home()
+            j.add_product_to_cart("mug")
+            j.navigate_to_cart()
 
-    def checkout(p: Page) -> None:
-        cart(p)
-        StoreJourney(p, base_url).continue_to_checkout()
+        def checkout(p: Page) -> None:
+            cart(p)
+            StoreJourney(p, base_url).continue_to_checkout()
 
-    return [("home", home), ("cart", cart), ("checkout", checkout)]
+        return [("home", home), ("cart", cart), ("checkout", checkout)]
+    else:
+        def home_generic(p: Page) -> None:
+            p.goto(base_url, wait_until="load", timeout=30000)
+
+        def explore_generic(p: Page) -> None:
+            p.goto(base_url, wait_until="load", timeout=30000)
+            p.evaluate("window.scrollBy({ top: 400, behavior: 'smooth' });")
+
+        return [("home", home_generic), ("explore", explore_generic)]
 
 
 def run_interaction_check(app_url: str, pages: Optional[List[Tuple[str, Callable[[Page], None]]]] = None,

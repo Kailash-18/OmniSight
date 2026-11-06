@@ -252,7 +252,7 @@ export default function RunDetail({ runId, link }) {
         {tab === 'findings' && (findings.length === 0
           ? <div className="panel empty" data-testid="findings-empty"><ShieldCheck size={28} aria-hidden="true" /><h2>No defects found</h2><p>This run found nothing to fix.</p></div>
           : findings.map((f) => <FindingCard key={f.id} f={f} run={run} />))}
-        {tab === 'evidence' && <><Evidence evidence={run.evidence_paths} /><RetestSummary retest={retest} /></>}
+        {tab === 'evidence' && <><Evidence evidence={run.evidence_paths} runId={run.run_id} /><RetestSummary retest={retest} /></>}
         {tab === 'patch' && <PatchView patch={run.patch} />}
         {tab === 'review' && (
           <section className="panel">

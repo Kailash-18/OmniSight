@@ -24,10 +24,11 @@ function Shot({ path, label }) {
 
 const viewportLabel = (v) => (v === 'all' ? 'All sizes' : v.replace(/^(desktop|mobile)_(\d+)x(\d+)$/, '$1 $2×$3'))
 
-export default function Evidence({ evidence }) {
+export default function Evidence({ evidence, runId }) {
   const pairs = pairEvidence(evidence)
   const viewports = [...new Set(pairs.map((p) => p.viewport || 'other'))]
   const [vp, setVp] = useState('all')
+  const [viewMode, setViewMode] = useState('slider')
   if (pairs.length === 0)
     return <div className="empty" data-testid="evidence-empty"><ImageOff size={28} aria-hidden="true" /><p>No screenshots were captured for this run.</p></div>
 
@@ -36,18 +37,65 @@ export default function Evidence({ evidence }) {
     .slice().sort((a, b) => Number(!!b.after) - Number(!!a.after))
   return (
     <>
-      {viewports.length > 1 && (
-        <div className="chips" role="group" aria-label="Screen size">
-          {['all', ...viewports].map((v) => (
-            <button key={v} type="button" className="chip" aria-pressed={vp === v} onClick={() => setVp(v)}>{viewportLabel(v)}</button>
+      <div className="evidence-toolbar">
+        {viewports.length > 1 && (
+          <div className="chips" role="group" aria-label="Screen size">
+            {['all', ...viewports].map((v) => (
+              <button key={v} type="button" className="chip" aria-pressed={vp === v} onClick={() => setVp(v)}>{viewportLabel(v)}</button>
+            ))}
+          </div>
+        )}
+        <div className="chips view-modes" role="group" aria-label="Visual Diff Mode">
+          {[
+            { id: 'slider', label: '⇄ Compare Slider' },
+            { id: 'side', label: '◫ Side-by-Side' },
+            { id: 'heatmap', label: '🔥 Diff Heatmap' },
+            { id: 'annotated', label: '⛶ Defect Overlay' },
+          ].map((m) => (
+            <button key={m.id} type="button" className="chip" aria-pressed={viewMode === m.id} onClick={() => setViewMode(m.id)}>
+              {m.label}
+            </button>
           ))}
         </div>
-      )}
+      </div>
       <div className="pairs">
         {shown.map((p) => (
           <figure key={p.key} className="pair panel" data-testid={`evidence-pair-${p.key}`}>
             <figcaption><span className="mono">{p.viewport || 'unknown size'}</span><span>{p.page}</span></figcaption>
-            {p.before && p.after ? (
+            {viewMode === 'heatmap' && runId ? (
+              <div className="diag-view">
+                <div className="shot-label heatmap">Visual Diff Heatmap (Pixel-Level Anomaly)</div>
+                <img
+                  src={`/api/runs/${encodeURIComponent(runId)}/heatmap?viewport=${encodeURIComponent(p.viewport || 'desktop_1440x900')}&page=${encodeURIComponent(p.page || 'home')}`}
+                  alt="Diff Heatmap"
+                  loading="lazy"
+                  className="diag-img"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'block'; }}
+                />
+                <p className="muted small" style={{ display: 'none', padding: '16px' }}>Heatmap generation requires both baseline and retest captures.</p>
+              </div>
+            ) : viewMode === 'annotated' && runId ? (
+              <div className="diag-view">
+                <div className="shot-label annotated">Detected Defect Remediations Overlay</div>
+                <img
+                  src={`/api/runs/${encodeURIComponent(runId)}/annotated?viewport=${encodeURIComponent(p.viewport || 'desktop_1440x900')}&page=${encodeURIComponent(p.page || 'home')}`}
+                  alt="Annotated Bounding Box"
+                  loading="lazy"
+                  className="diag-img"
+                />
+              </div>
+            ) : viewMode === 'side' && p.before && p.after ? (
+              <div className="side-by-side">
+                <div>
+                  <div className="shot-label before">Before (Baseline)</div>
+                  <Shot path={p.before} label="Before" />
+                </div>
+                <div>
+                  <div className="shot-label after">After (Retest)</div>
+                  <Shot path={p.after} label="After" />
+                </div>
+              </div>
+            ) : p.before && p.after ? (
               <CompareSlider before={evidenceUrl(p.before)} after={evidenceUrl(p.after)} label={`${p.viewport} ${p.page}`} />
             ) : (
               <div>

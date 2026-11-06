@@ -110,6 +110,38 @@ function StatTiles({ runs, metrics }) {
   )
 }
 
+function QualityTelemetryPanel({ metrics }) {
+  if (!metrics) return null
+  const successRate = metrics.success_rate_percentage || 0
+  const avgDiff = metrics.average_diff_reduction ? (metrics.average_diff_reduction * 100).toFixed(1) : '0.0'
+  return (
+    <section className="panel quality-telemetry-panel" data-testid="quality-telemetry">
+      <div className="section-head">
+        <h2>Quality & Remediation Telemetry</h2>
+        <span className="pill tone-good">Zero-Trust Active</span>
+      </div>
+      <div className="telemetry-metrics">
+        <div className="metric-box">
+          <span className="m-val">{successRate}%</span>
+          <span className="m-lbl">Remediation Success Rate</span>
+          <div className="m-bar"><div className="m-bar-fill" style={{ width: `${successRate}%` }} /></div>
+        </div>
+        <div className="metric-box">
+          <span className="m-val">{avgDiff}%</span>
+          <span className="m-lbl">Avg Pixel Diff Reduction</span>
+          <div className="m-bar"><div className="m-bar-fill" style={{ width: `${Math.min(100, parseFloat(avgDiff) * 10)}%` }} /></div>
+        </div>
+      </div>
+      <dl className="facts compact">
+        <dt>Total Runs Audited</dt><dd className="mono">{metrics.total_runs ?? 0}</dd>
+        <dt>Auto-Remediated</dt><dd className="mono good">{metrics.fixed_runs ?? 0}</dd>
+        <dt>Review Gates Triggered</dt><dd className="mono warn">{metrics.needs_review_runs ?? 0}</dd>
+        <dt>Audit Failures</dt><dd className="mono bad">{metrics.failed_runs ?? 0}</dd>
+      </dl>
+    </section>
+  )
+}
+
 function DefectBars({ categories }) {
   const rows = Object.entries(categories || {}).sort((a, b) => b[1] - a[1])
   const max = Math.max(1, ...rows.map(([, n]) => n))
@@ -245,6 +277,7 @@ export default function Overview({ link }) {
         </section>
         <DefectBars categories={metrics?.defect_categories} />
       </div>
+      <QualityTelemetryPanel metrics={metrics} />
     </div>
   )
 }

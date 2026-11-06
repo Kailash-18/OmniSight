@@ -44,4 +44,11 @@ class EventStreamHub:
     def decrement_subscriber(self):
         self._active_subscribers = max(0, self._active_subscribers - 1)
 
+    def export_prometheus_stream_metrics(self) -> str:
+        return (
+            f"# HELP omnisight_live_stream_subscribers Current active real-time SSE stream connections\n"
+            f"# TYPE omnisight_live_stream_subscribers gauge\n"
+            f"omnisight_live_stream_subscribers {self._active_subscribers}\n"
+        )
+
 event_stream_hub = EventStreamHub()

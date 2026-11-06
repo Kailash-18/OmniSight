@@ -524,3 +524,42 @@ ul.alert { padding-left: 32px; }
 .btn-text.alert-action:hover {
   filter: brightness(1.2);
 }
+
+
+/* Visual Diff Toolbar & Diagnostic Views */
+.evidence-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.diag-view {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1, #12151c);
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+}
+.diag-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+.shot-label.heatmap {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.3);
+}
+.shot-label.annotated {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+}

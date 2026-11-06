@@ -47,6 +47,7 @@ from app.services.action_engine import action_engine
 from app.services.run_launcher import RunAlreadyActive, RunLauncher
 from app.services.patch_validator import validate_patch
 from app.services.forensics_service import compile_forensic_bundle, get_forensic_bundle_path, verify_forensic_bundle_integrity
+from app.services.spatial_service import spatial_service
 from app.services.github_service import (
     create_pull_request_for_fix,
     generate_pr_markdown_description,
@@ -382,6 +383,45 @@ def get_run_details(run_id: str):
         pr_url=r.get("pr_url"),
         error=r.get("error")
     )
+
+
+@app.get(
+    "/runs/{run_id}/heatmap",
+    summary="Get Visual Diff Heatmap Image",
+    responses={200: {"content": {"image/png": {}}}},
+)
+def get_run_visual_heatmap(run_id: str, viewport: str = "desktop_1440x900", page: str = "home"):
+    """Returns visual diff heatmap between pre-fix and post-fix screenshots."""
+    if run_id not in runs_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
+
+    path = spatial_service.get_or_generate_heatmap(run_id, viewport=viewport, page=page)
+    if not path or not path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Visual diff heatmap for run '{run_id}' ({viewport} {page}) is not yet available."
+        )
+    return FileResponse(path, media_type="image/png")
+
+
+@app.get(
+    "/runs/{run_id}/annotated",
+    summary="Get Defect Annotated Screenshot",
+    responses={200: {"content": {"image/png": {}}}},
+)
+def get_run_annotated_screenshot(run_id: str, viewport: str = "desktop_1440x900", page: str = "home"):
+    """Returns screenshot overlaid with defect bounding box annotations."""
+    if run_id not in runs_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
+
+    findings = runs_db[run_id].get("findings", [])
+    path = spatial_service.get_or_generate_annotated(run_id, viewport=viewport, page=page, findings=findings)
+    if not path or not path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Annotated screenshot for run '{run_id}' ({viewport} {page}) is not yet available."
+        )
+    return FileResponse(path, media_type="image/png")
 
 
 @app.put("/runs/{run_id}", status_code=status.HTTP_200_OK)

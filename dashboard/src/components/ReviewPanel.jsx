@@ -76,9 +76,9 @@ export default function ReviewPanel({ runId, patch, prUrl: initialPrUrl, riskSco
             <span className="risk-denom">/ 100</span>
           </div>
           <div className="risk-details">
-            <strong>{riskVerdict === 'auto_approved' ? '✓ Auto-Merge Safety Approved' : '⚠ Manual Human Review Required'}</strong>
+            <strong>{(riskVerdict === 'auto_approved' || riskVerdict === 'auto_pr_allowed') ? '✓ Auto-Merge Safety Approved' : '⚠ Manual Human Review Required'}</strong>
             <p className="muted small">
-              {riskVerdict === 'auto_approved'
+              {(riskVerdict === 'auto_approved' || riskVerdict === 'auto_pr_allowed')
                 ? 'Remediation evaluated as low blast-radius with high visual confidence score.'
                 : 'Remediation affects sensitive layout containers; manual code verification recommended before merge.'}
             </p>

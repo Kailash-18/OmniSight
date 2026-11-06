@@ -563,3 +563,26 @@ ul.alert { padding-left: 32px; }
   color: #3b82f6;
   border-bottom: 1px solid rgba(59, 130, 246, 0.3);
 }
+
+
+/* Accessibility & Category Findings Filters */
+.finding-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.filter-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+.pill.tone-purple {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+.finding-card.a11y {
+  border-left: 3px solid #a855f7;
+}

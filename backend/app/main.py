@@ -12,7 +12,10 @@ except ImportError:
 from typing import Any
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, HTTPException, status
+import hashlib
+import hmac
+import json
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -190,11 +193,29 @@ def get_milestone_status():
 
 
 @app.post("/webhook/build", status_code=status.HTTP_202_ACCEPTED)
-def receive_build_webhook(payload: BuildWebhookPayload):
+def receive_build_webhook(
+    payload: BuildWebhookPayload,
+    request: Request,
+    x_webhook_secret: str | None = Header(None, alias="X-Webhook-Secret"),
+    webhook_secret: str | None = Header(None, alias="Webhook-Secret"),
+):
     """
     Simulated CI/CD build event webhook.
     Validates target URL and registers a new audit run in queued status.
+    Protected by WEBHOOK_SECRET shared secret when configured.
     """
+    if settings.WEBHOOK_SECRET:
+        token = x_webhook_secret or webhook_secret
+        if not token:
+            auth_header = request.headers.get("authorization", "")
+            if auth_header.lower().startswith("bearer "):
+                token = auth_header[7:].strip()
+        if not token or not hmac.compare_digest(token.encode("utf-8"), settings.WEBHOOK_SECRET.encode("utf-8")):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or missing webhook secret header."
+            )
+
     validated_url = _validate_target_host(payload.target_url)
     unique_suffix = uuid.uuid4().hex[:6]
     run_id = f"run-{int(datetime.now(UTC).timestamp())}-{unique_suffix}"
@@ -697,11 +718,42 @@ def update_pr_verification(run_id: str):
     status_code=status.HTTP_200_OK,
     summary="GitHub PR and Review Webhook Ingestion"
 )
-def receive_github_pr_webhook(payload: GitHubPRWebhookPayload):
+async def receive_github_pr_webhook(
+    request: Request,
+    x_hub_signature_256: str | None = Header(None, alias="X-Hub-Signature-256")
+):
     """
     Ingests GitHub pull_request and pull_request_review webhook events.
-    Matches the incoming PR to recorded audit runs and updates review & merge status.
+    Verifies GitHub HMAC-SHA256 signature when configured, matches incoming PR to recorded audit runs,
+    and updates review & merge status. Exempt from user session login.
     """
+    raw_body = await request.body()
+    if settings.GITHUB_WEBHOOK_SECRET:
+        if not x_hub_signature_256 or not x_hub_signature_256.startswith("sha256="):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing or invalid X-Hub-Signature-256 header."
+            )
+        expected_sig = "sha256=" + hmac.new(
+            settings.GITHUB_WEBHOOK_SECRET.encode("utf-8"),
+            raw_body,
+            hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(x_hub_signature_256, expected_sig):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid GitHub webhook signature."
+            )
+
+    try:
+        data = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+        payload = GitHubPRWebhookPayload(**data)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Malformed GitHub webhook payload: {e}"
+        )
+
     pr_data = payload.pull_request
     pr_number = pr_data.get("number")
     pr_url = pr_data.get("html_url")

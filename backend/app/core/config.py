@@ -34,6 +34,10 @@ class Settings:
         self.OMNISIGHT_PASSWORD: str = os.getenv("OMNISIGHT_PASSWORD", "")
         self.OMNISIGHT_SECRET_KEY: str = os.getenv("OMNISIGHT_SECRET_KEY", "")
 
+        # Webhook Shared Secrets
+        self.WEBHOOK_SECRET: str = os.getenv("WEBHOOK_SECRET", "")
+        self.GITHUB_WEBHOOK_SECRET: str = os.getenv("GITHUB_WEBHOOK_SECRET", os.getenv("WEBHOOK_SECRET", ""))
+
         # Audit Journey Timeouts
         self.RUN_TIMEOUT_SECONDS: int = int(os.getenv("RUN_TIMEOUT_SECONDS", "300"))
 

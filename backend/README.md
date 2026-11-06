@@ -221,9 +221,9 @@ To ensure the AI cannot harm repository integrity or internal network services, 
 
 **Test-runner token scope.** The token handed to launched tests only works on `/runs/{id}` and its sub-routes, `/action-engine/parse` and `/api/milestones`. It can't list runs, start runs or use account routes. On timeout the whole process group is killed (Chromium included), and any start-up error marks the run `failed`.
 
-**Still to do (backend owner):**
-1. Protect `/webhook/build` with a shared secret header (`WEBHOOK_SECRET`), so only CI can create runs.
-2. Exempt `/webhook/github/pull-request` from login and verify GitHub's signature (`X-Hub-Signature-256`) instead. It now needs a login token, so real GitHub deliveries get 401.
+**Webhook Security & GitHub Ingestion:**
+1. `/webhook/build` is protected by `WEBHOOK_SECRET`. CI calls must supply `X-Webhook-Secret: <secret>` or `Authorization: Bearer <secret>`.
+2. `/webhook/github/pull-request` is exempt from reviewer session login and verified via GitHub's `X-Hub-Signature-256` HMAC-SHA256 signature against `GITHUB_WEBHOOK_SECRET`.
 
 ## 🛠️ Environment Configuration & Zero Hardcoding
 

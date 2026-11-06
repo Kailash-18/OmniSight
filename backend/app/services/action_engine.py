@@ -358,22 +358,38 @@ class ActionEngine:
         risk = 10.0
 
         if findings:
-            min_conf = min(f.confidence for f in findings)
+            def _get_conf(f):
+                if hasattr(f, "confidence"):
+                    return f.confidence
+                if isinstance(f, dict):
+                    return f.get("confidence", 1.0)
+                return 1.0
+
+            def _get_sev(f):
+                if hasattr(f, "severity"):
+                    s = f.severity
+                    return s.value if hasattr(s, "value") else str(s)
+                if isinstance(f, dict):
+                    return str(f.get("severity", ""))
+                return ""
+
+            min_conf = min((_get_conf(f) for f in findings), default=1.0)
             if min_conf < 0.70:
                 risk += 40.0
             elif min_conf < 0.85:
                 risk += 20.0
 
-            if any(f.severity == Severity.CRITICAL for f in findings):
+            if any(_get_sev(f).lower() == "critical" for f in findings):
                 risk += 15.0
 
-        target = proposed_patch.target_file.lower()
+        target = (proposed_patch.target_file if hasattr(proposed_patch, "target_file") else proposed_patch.get("target_file", "")).lower()
         if "app.jsx" in target or "main.jsx" in target:
             risk += 25.0
         elif "base.css" in target or "index.css" in target:
             risk += 15.0
 
-        diff_lines = len(proposed_patch.diff.strip().splitlines())
+        diff_str = proposed_patch.diff if hasattr(proposed_patch, "diff") else proposed_patch.get("diff", "")
+        diff_lines = len(str(diff_str).strip().splitlines())
         if diff_lines > 30:
             risk += 20.0
         elif diff_lines > 15:

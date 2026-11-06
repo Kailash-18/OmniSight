@@ -116,4 +116,13 @@ class ConcurrencyLeaseManager:
         active = list(self._leases_by_key.values())
         return ActiveLeasesResponse(total_active=len(active), leases=active)
 
+    def export_prometheus_lease_metrics(self) -> str:
+        self._clean_expired()
+        active_count = len(self._leases_by_key)
+        return (
+            f"# HELP omnisight_active_leases Number of active concurrent DOM mutation leases\n"
+            f"# TYPE omnisight_active_leases gauge\n"
+            f"omnisight_active_leases {active_count}\n"
+        )
+
 concurrency_manager = ConcurrencyLeaseManager()

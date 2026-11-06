@@ -61,4 +61,11 @@ class CanaryVerificationEngine:
     def get_report(self, run_id: str) -> Optional[CanaryVerificationReport]:
         return self._cached_reports.get(run_id)
 
+    def export_prometheus_canary_metrics(self) -> str:
+        return (
+            f"# HELP omnisight_canary_stability_index Cross-viewport canary stability index score (0-100%)\n"
+            f"# TYPE omnisight_canary_stability_index gauge\n"
+            f"omnisight_canary_stability_index {self._latest_csi}\n"
+        )
+
 canary_engine = CanaryVerificationEngine()

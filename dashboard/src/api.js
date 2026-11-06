@@ -115,3 +115,18 @@ export async function fetchTargetHosts() {
   }
   return call('/config/target-hosts')
 }
+
+export async function verifyForensicBundle(runId) {
+  if (DATA_SOURCE === 'mock') {
+    return {
+      run_id: runId,
+      status: 'verified',
+      verified: true,
+      sha256_checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      total_artifacts_verified: 8,
+      tampered_artifacts: 0,
+      message: 'Cryptographic SHA-256 integrity verified. No artifacts modified.',
+    }
+  }
+  return call(`/runs/${encodeURIComponent(runId)}/verify-bundle`)
+}

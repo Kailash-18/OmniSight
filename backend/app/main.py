@@ -369,6 +369,17 @@ def get_run_details(run_id: str):
         )
 
     r = runs_db[run_id]
+    findings = r.get("findings", [])
+    patch = r.get("patch")
+    risk_score, risk_verdict = None, None
+    if patch:
+        try:
+            score, verdict = action_engine.calculate_remediation_risk(findings, patch)
+            risk_score = round(float(score), 1)
+            risk_verdict = verdict
+        except Exception:
+            pass
+
     return RunDetailResponse(
         run_id=r["run_id"],
         start_time=r["start_time"],
@@ -376,12 +387,14 @@ def get_run_details(run_id: str):
         status=RunStatus(r["status"]),
         steps=r.get("steps", []),
         evidence_paths=r.get("evidence_paths", {}),
-        findings=r.get("findings", []),
-        patch=r.get("patch"),
+        findings=findings,
+        patch=patch,
         retry_count=r.get("retry_count", 0),
         retest_outcome=r.get("retest_outcome"),
         pr_url=r.get("pr_url"),
-        error=r.get("error")
+        error=r.get("error"),
+        risk_score=risk_score,
+        risk_verdict=risk_verdict,
     )
 
 

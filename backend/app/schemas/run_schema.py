@@ -260,6 +260,8 @@ class RunDetailResponse(BaseModel):
     retest_outcome: dict[str, Any] | None = None
     pr_url: str | None = None
     error: str | None = None
+    risk_score: float | None = None
+    risk_verdict: str | None = None
 
 
 class CreatePRPayload(BaseModel):

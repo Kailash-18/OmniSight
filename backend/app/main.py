@@ -1009,6 +1009,11 @@ def get_runs_metrics_summary():
     status_code=status.HTTP_200_OK,
     summary="Verify Forensic Bundle Cryptographic Integrity"
 )
+@app.get(
+    "/runs/{run_id}/verify-bundle",
+    status_code=status.HTTP_200_OK,
+    summary="Verify Forensic Bundle Cryptographic Integrity (Dashboard Alias)"
+)
 def verify_run_forensic_bundle(run_id: str):
     """
     Validates SHA-256 hashes of all artifacts inside a forensic bundle against its cryptographic manifest.

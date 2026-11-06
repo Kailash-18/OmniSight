@@ -71,9 +71,21 @@ class Settings:
     def is_host_allowed(self, hostname: str) -> bool:
         """Checks if a given host is in the allowed target hosts list, supporting exact and wildcards."""
         host = (hostname or "").lower().strip()
+        if not host:
+            return False
+
+        # Critical SSRF Guard: Deny cloud metadata services and link-local ranges unconditionally
+        blocked_hosts = {"169.254.169.254", "metadata.google.internal", "instance-data"}
+        if host in blocked_hosts or host.startswith("169.254."):
+            return False
+
         for allowed in self.ALLOWED_TARGET_HOSTS:
-            if allowed.startswith("*.") and host.endswith(allowed[1:]):
+            if allowed in ("*", "all"):
                 return True
+            if allowed.startswith("*."):
+                suffix = allowed[1:]  # e.g. .flipkart.com
+                if host.endswith(suffix) or host == allowed[2:]:
+                    return True
             if host == allowed:
                 return True
         return False

@@ -144,6 +144,15 @@ def _validate_target_host(target_url: str) -> str:
         )
 
 
+@app.get("/config/target-hosts", status_code=status.HTTP_200_OK, summary="Get Allowed Target Hosts")
+def get_allowed_target_hosts():
+    """Returns the list of allowed target hosts and whether wildcard audits are enabled."""
+    return {
+        "allowed_hosts": settings.ALLOWED_TARGET_HOSTS,
+        "wildcard_enabled": any(h in ("*", "all") for h in settings.ALLOWED_TARGET_HOSTS),
+    }
+
+
 @app.get("/health", response_model=HealthCheckResponse, status_code=status.HTTP_200_OK)
 def health_check():
     """Health check endpoint to verify backend service readiness."""

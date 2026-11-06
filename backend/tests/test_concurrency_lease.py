@@ -29,3 +29,23 @@ def test_lease_ttl_expiration(manager):
     time.sleep(0.1)
     active = manager.get_active_leases()
     assert active.total_active == 0
+
+def test_lock_contention_conflict(manager):
+    req1 = AcquireLeaseRequest(run_id="run_A", target_selector=".btn-primary", url_path="/login", ttl_seconds=15.0)
+    res1 = manager.acquire_lease(req1)
+    assert res1.success is True
+
+    # Run B attempts to acquire the same selector
+    req2 = AcquireLeaseRequest(run_id="run_B", target_selector=".btn-primary", url_path="/login", ttl_seconds=15.0)
+    res2 = manager.acquire_lease(req2)
+    assert res2.success is False
+    assert "MUTATION_CONFLICT" in res2.rejection_reason
+
+def test_independent_selector_concurrency(manager):
+    req1 = AcquireLeaseRequest(run_id="run_A", target_selector=".header", url_path="/", ttl_seconds=15.0)
+    req2 = AcquireLeaseRequest(run_id="run_B", target_selector=".footer", url_path="/", ttl_seconds=15.0)
+    res1 = manager.acquire_lease(req1)
+    res2 = manager.acquire_lease(req2)
+    assert res1.success is True
+    assert res2.success is True
+    assert manager.get_active_leases().total_active == 2

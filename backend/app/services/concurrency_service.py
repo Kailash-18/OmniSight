@@ -75,6 +75,42 @@ class ConcurrencyLeaseManager:
 
         return AcquireLeaseResponse(success=True, lease=record)
 
+    def renew_lease(self, lease_id: str, extend_seconds: float = 30.0) -> RenewLeaseResponse:
+        self._clean_expired()
+        if lease_id not in self._lease_lookup:
+            return RenewLeaseResponse(lease_id=lease_id, renewed=False, renewed_count=0)
+
+        key = self._lease_lookup[lease_id]
+        rec = self._leases_by_key[key]
+        now_ts = time.time()
+        new_exp = max(self._lease_timestamps[lease_id], now_ts) + extend_seconds
+        self._lease_timestamps[lease_id] = new_exp
+        rec.expires_at = datetime.fromtimestamp(new_exp, tz=timezone.utc).isoformat()
+        rec.renewed_count += 1
+
+        return RenewLeaseResponse(
+            lease_id=lease_id,
+            renewed=True,
+            new_expires_at=rec.expires_at,
+            renewed_count=rec.renewed_count
+        )
+
+    def release_lease(self, lease_id: str, run_id: str) -> ReleaseLeaseResponse:
+        if lease_id not in self._lease_lookup:
+            return ReleaseLeaseResponse(lease_id=lease_id, released=False, message="Lease not found or already expired")
+
+        key = self._lease_lookup[lease_id]
+        rec = self._leases_by_key[key]
+        if rec.run_id != run_id:
+            return ReleaseLeaseResponse(lease_id=lease_id, released=False, message=f"Run '{run_id}' unauthorized to release lease owned by '{rec.run_id}'")
+
+        rec.status = LeaseStatus.RELEASED
+        del self._leases_by_key[key]
+        self._lease_lookup.pop(lease_id, None)
+        self._lease_timestamps.pop(lease_id, None)
+
+        return ReleaseLeaseResponse(lease_id=lease_id, released=True, message=f"Lease '{lease_id}' successfully released")
+
     def get_active_leases(self) -> ActiveLeasesResponse:
         self._clean_expired()
         active = list(self._leases_by_key.values())

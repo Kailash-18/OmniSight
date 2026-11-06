@@ -21,13 +21,22 @@ class RunAlreadyActive(Exception):
     pass
 
 
-def _log_tail(path: Path, lines: int = 8) -> str:
+def _log_tail(path: Path, lines: int = 12) -> str:
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             tail = "".join(deque(f, maxlen=lines)).strip()
     except OSError:
         return ""
-    return f"\n--- last lines of runner.log ---\n{tail}" if tail else ""
+    if not tail:
+        return ""
+
+    diagnostic = ""
+    if "ConnectionRefusedError" in tail or "URLError" in tail or "not reachable" in tail:
+        diagnostic = "\n[Diagnostic: Target web application is unreachable. Check port and server status.]"
+    elif "TimeoutError" in tail or "timed out" in tail:
+        diagnostic = "\n[Diagnostic: Browser interaction timed out. Inspect page response times.]"
+
+    return f"\n--- last lines of runner.log ---{diagnostic}\n{tail}"
 
 
 class RunLauncher:
@@ -90,12 +99,24 @@ class RunLauncher:
 
     @staticmethod
     def _kill_tree(proc) -> None:
-        """Kill the CLI and the Playwright/Chromium processes it started (POSIX); plain kill elsewhere."""
+        """Kill the CLI and the Playwright/Chromium processes it started (POSIX & Windows taskkill)."""
         try:
             sig = getattr(signal, "SIGKILL", getattr(signal, "SIGTERM", 9))
             os.killpg(os.getpgid(proc.pid), sig)
         except (AttributeError, OSError):
-            proc.kill()
+            if os.name == "nt":
+                try:
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                        capture_output=True,
+                        timeout=5
+                    )
+                except Exception:
+                    pass
+            try:
+                proc.kill()
+            except Exception:
+                pass
 
     def join(self, timeout: float | None = None) -> None:
         if self._thread:

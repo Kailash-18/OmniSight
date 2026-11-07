@@ -189,3 +189,13 @@ from backend.app.services.rollback_manifest_service import RollbackManifestEngin
 from backend.app.services.concurrency_service import ConcurrencyLeaseManager, concurrency_manager
 from backend.app.services.canary_service import CanaryVerificationEngine, canary_engine
 from backend.app.services.event_stream_service import EventStreamHub, event_stream_hub
+
+from backend.app.services.adaptive_throttler_service import AdaptiveThrottlerService, adaptive_throttler
+from backend.app.services.snapshot_service import SnapshotService, snapshot_engine
+from backend.app.services.health_telemetry_service import HealthTelemetryService, health_pulse_hub
+
+__all__.extend([
+    'AdaptiveThrottlerService', 'adaptive_throttler',
+    'SnapshotService', 'snapshot_engine',
+    'HealthTelemetryService', 'health_pulse_hub'
+])

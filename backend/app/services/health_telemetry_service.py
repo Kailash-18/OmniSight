@@ -61,3 +61,17 @@ class HealthTelemetryService:
         )
 
 health_pulse_hub = HealthTelemetryService()
+
+# Prometheus Metrics Export
+try:
+    from prometheus_client import Gauge, Counter
+    OMNISIGHT_SYSTEM_HEALTH = Gauge('omnisight_system_health_score', 'System composite health score index (0-100)')
+    OMNISIGHT_THROTTLE_RATIO = Gauge('omnisight_adaptive_throttle_ratio', 'Current adaptive throttling backpressure ratio')
+    OMNISIGHT_SNAPSHOTS_TOTAL = Counter('omnisight_state_snapshots_total', 'Total immutable state snapshots captured')
+    def update_prometheus_health_metrics(report: HealthPulseReport):
+        OMNISIGHT_SYSTEM_HEALTH.set(report.overall_health_score)
+        OMNISIGHT_THROTTLE_RATIO.set(report.throttle_backpressure_ratio)
+        OMNISIGHT_SNAPSHOTS_TOTAL.inc(0)
+except Exception:
+    def update_prometheus_health_metrics(report: HealthPulseReport):
+        pass

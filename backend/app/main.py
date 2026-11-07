@@ -2905,3 +2905,49 @@ async def stream_live_events(run_id: Optional[str] = None):
         finally:
             event_stream_hub.decrement_subscriber()
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+# --- Week 4 Day 5: Adaptive Throttling, State Snapshots & Health Pulse ---
+from backend.app.schemas.throttler_schemas import ThrottleRequest, ThrottleEvaluation, ThrottleStats
+from backend.app.services.adaptive_throttler_service import adaptive_throttler
+from backend.app.schemas.snapshot_schemas import SnapshotCreateRequest, SnapshotManifest, SnapshotDelta, SnapshotRestoreResult
+from backend.app.services.snapshot_service import snapshot_engine
+from backend.app.schemas.health_schemas import HealthPulseReport
+from backend.app.services.health_telemetry_service import health_pulse_hub
+
+@app.post('/api/v1/throttler/evaluate', response_model=ThrottleEvaluation)
+def evaluate_worker_throttle(req: ThrottleRequest):
+    return adaptive_throttler.evaluate(req)
+
+@app.get('/api/v1/throttler/stats', response_model=ThrottleStats)
+def get_throttler_statistics():
+    return adaptive_throttler.get_stats()
+
+@app.post('/api/v1/snapshots/create', response_model=SnapshotManifest)
+def create_state_snapshot(req: SnapshotCreateRequest):
+    return snapshot_engine.create_snapshot(req)
+
+@app.get('/api/v1/snapshots/{snapshot_id}', response_model=SnapshotManifest)
+def get_snapshot_by_id(snapshot_id: str):
+    snap = snapshot_engine.get_snapshot(snapshot_id)
+    if not snap:
+        raise HTTPException(status_code=404, detail='Snapshot not found')
+    return snap
+
+@app.post('/api/v1/snapshots/delta', response_model=SnapshotDelta)
+def compute_snapshot_delta(base_id: str, target_id: str):
+    try:
+        return snapshot_engine.compute_delta(base_id, target_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post('/api/v1/snapshots/{snapshot_id}/restore', response_model=SnapshotRestoreResult)
+def restore_snapshot_point_in_time(snapshot_id: str):
+    try:
+        return snapshot_engine.restore_snapshot(snapshot_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get('/api/v1/health/pulse', response_model=HealthPulseReport)
+def get_system_health_pulse():
+    return health_pulse_hub.generate_pulse()

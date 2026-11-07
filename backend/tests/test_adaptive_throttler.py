@@ -19,3 +19,17 @@ def test_token_bucket_burst_exhaustion():
     assert second.allowed is False
     assert second.wait_ms > 0
     assert 'Insufficient' in second.reason
+
+def test_backpressure_shedding_p2():
+    throttler = AdaptiveThrottlerService(capacity=20.0, latency_sla_ms=100.0)
+    req_p2 = ThrottleRequest(worker_id='w-p2', operation='analytics', priority=PriorityLevel.P2_BACKGROUND, current_latency_ms=250.0)
+    decision = throttler.evaluate(req_p2)
+    assert decision.allowed is False
+    assert 'Backpressure shed' in decision.reason
+    assert decision.backpressure_ratio > 0.6
+
+def test_p0_critical_bypasses_moderate_backpressure():
+    throttler = AdaptiveThrottlerService(capacity=20.0, latency_sla_ms=100.0)
+    req_p0 = ThrottleRequest(worker_id='w-p0', operation='rollback', priority=PriorityLevel.P0_CRITICAL, current_latency_ms=250.0)
+    decision = throttler.evaluate(req_p0)
+    assert decision.allowed is True

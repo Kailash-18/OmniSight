@@ -65,6 +65,19 @@ class AdaptiveThrottlerService:
                 reason=f'Insufficient tokens (required {tokens_needed}, available {self.tokens:.1f})'
             )
 
+    def reset(self) -> None:
+        self.tokens = self.capacity
+        self.last_refill = time.time()
+        self.total_requests = 0
+        self.allowed_requests = 0
+        self.throttled_requests = 0
+        self.active_workers.clear()
+
+    def compute_backpressure_factor(self, observed_latency_ms: float) -> float:
+        if observed_latency_ms <= self.latency_sla_ms:
+            return 0.0
+        return min(1.0, (observed_latency_ms - self.latency_sla_ms) / self.latency_sla_ms)
+
     def get_stats(self) -> ThrottleStats:
         self._refill()
         now = time.time()

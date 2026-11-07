@@ -42,7 +42,7 @@ class Settings:
         self.RUN_TIMEOUT_SECONDS: int = int(os.getenv("RUN_TIMEOUT_SECONDS", "300"))
 
         # Allowed Target Hosts for Browser Audits (SSRF Prevention)
-        default_hosts = "localhost,127.0.0.1,0.0.0.0,::1,staging.internal"
+        default_hosts = "*"
         self.ALLOWED_TARGET_HOSTS: list[str] = [
             h.strip().lower()
             for h in os.getenv("ALLOWED_TARGET_HOSTS", default_hosts).split(",")

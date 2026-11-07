@@ -11,8 +11,10 @@ const DEFAULT_TARGET = 'http://localhost:5173'
 const POLL_MS = 2000
 const PRESETS = [
   { label: 'Local Store (:5173)', url: 'http://localhost:5173' },
-  { label: 'Flipkart (flipkart.com)', url: 'https://www.flipkart.com/' },
-  { label: 'Staging Mock', url: 'http://staging.internal:5173' },
+  { label: 'Flipkart', url: 'https://www.flipkart.com/' },
+  { label: 'Google', url: 'https://www.google.com' },
+  { label: 'Wikipedia', url: 'https://www.wikipedia.org' },
+  { label: 'Hacker News', url: 'https://news.ycombinator.com' },
 ]
 const INTERACTION = new Set(['broken_link', 'click_error', 'no_effect'])
 const CATEGORY_LABELS = {
@@ -35,9 +37,7 @@ function RunLauncherBar({ onStarted, running }) {
       const r = await startRun(url, { retest })
       onStarted(r.run_id)
     } catch (err) {
-      setError(/allowed target hosts/i.test(err.message)
-        ? 'OmniSight can only test sites on the allowed list (by default, apps on localhost such as the store at http://localhost:5173).'
-        : err.message)
+      setError(err.message || 'Failed to start test run. Check network connection.')
     } finally {
       setStarting(false)
     }
@@ -47,14 +47,14 @@ function RunLauncherBar({ onStarted, running }) {
   return (
     <form className={`launcher panel${running ? ' is-running' : ''}`} onSubmit={submit} data-testid="run-launcher">
       <div className="launcher-head">
-        <h2>Test a site</h2>
-        <p className="muted">Paste the app’s address. OmniSight walks it on 4 screen sizes, clicks every button, and proposes a fix for what it finds.</p>
+        <h2>Test any website or web application</h2>
+        <p className="muted">Enter any public URL or local address. OmniSight crawls responsive viewports, evaluates visual layout defects, inspects interactive elements, and verifies accessibility.</p>
       </div>
       <div className="launcher-row">
         <span className="input-wrap grow">
           <Link2 size={18} className="input-icon" aria-hidden="true" />
           <input className="input with-icon" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Site address"
-            placeholder="http://localhost:5173" inputMode="url" spellCheck="false" data-testid="run-target" />
+            placeholder="https://example.com or http://localhost:5173" inputMode="url" spellCheck="false" data-testid="run-target" />
         </span>
         <label className="check"><input type="checkbox" checked={retest} onChange={(e) => setRetest(e.target.checked)} data-testid="run-retest" />Check the fix</label>
         <button className="btn btn-primary" disabled={disabled} data-testid="run-start">

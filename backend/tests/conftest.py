@@ -24,6 +24,24 @@ def reset_runs_db():
     runs_db.clear()
 
 
+@pytest.fixture(autouse=True)
+def configure_test_allowlist():
+    """Ensure tests verifying host rejection have a bounded list for deterministic assertions."""
+    from app.core.config import settings
+    orig = list(settings.ALLOWED_TARGET_HOSTS)
+    settings.ALLOWED_TARGET_HOSTS = [
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1",
+        "staging.internal",
+        "*.flipkart.com",
+        "flipkart.com",
+    ]
+    yield
+    settings.ALLOWED_TARGET_HOSTS = orig
+
+
 @pytest.fixture
 def client():
     """FastAPI TestClient instance."""

@@ -777,6 +777,12 @@ def check_store_health(
         except (urllib.error.URLError, OSError):
             continue
 
+    if not is_mock_store(app_url):
+        return (
+            False,
+            f"Target website not reachable at {app_url}. Please check the URL, protocol (http/https), or network status.",
+            None,
+        )
     return (
         False,
         f"Mock store not reachable at {app_url}. Start it with:\n  npm run dev --prefix app-under-test",

@@ -46,4 +46,49 @@ class SnapshotService:
             return False
         return snap.payload_hash == self._compute_hash(snap.payload)
 
+    def compute_delta(self, base_id: str, target_id: str) -> SnapshotDelta:
+        base = self.get_snapshot(base_id)
+        target = self.get_snapshot(target_id)
+        if not base or not target:
+            raise ValueError('Base or target snapshot does not exist')
+
+        base_keys = set(base.payload.keys())
+        target_keys = set(target.payload.keys())
+
+        added = sorted(list(target_keys - base_keys))
+        removed = sorted(list(base_keys - target_keys))
+        modified = [k for k in (base_keys & target_keys) if base.payload[k] != target.payload[k]]
+
+        summary = {
+            'added_count': len(added),
+            'removed_count': len(removed),
+            'modified_count': len(modified)
+        }
+        has_changes = bool(added or removed or modified)
+        return SnapshotDelta(
+            base_snapshot_id=base_id,
+            target_snapshot_id=target_id,
+            has_changes=has_changes,
+            added_keys=added,
+            modified_keys=modified,
+            removed_keys=removed,
+            delta_summary=summary
+        )
+
+    def restore_snapshot(self, snapshot_id: str) -> SnapshotRestoreResult:
+        snap = self.get_snapshot(snapshot_id)
+        if not snap:
+            raise ValueError(f'Snapshot {snapshot_id} not found')
+        if not self.verify_snapshot_integrity(snapshot_id):
+            raise ValueError('Snapshot integrity verification failed')
+        return SnapshotRestoreResult(
+            restored=True,
+            snapshot_id=snap.snapshot_id,
+            run_id=snap.run_id,
+            state_type=snap.state_type,
+            payload_hash=snap.payload_hash,
+            restored_at=datetime.now(timezone.utc).isoformat()
+        )
+
 snapshot_engine = SnapshotService()
+

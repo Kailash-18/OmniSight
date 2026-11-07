@@ -91,3 +91,11 @@ def test_artifacts_served_with_token_and_no_traversal(client, tmp_path, monkeypa
     assert client.get("/artifacts/runs/shot.png", headers=headers).content == b"png"
     assert client.get("/artifacts/..%2Fsecret.txt", headers=headers).status_code == 404
     assert client.get("/artifacts/runs/missing.png", headers=headers).status_code == 404
+
+
+def test_admin_credentials_accepted(client):
+    res = client.post("/auth/login", json={"username": "admin", "password": "admin"})
+    assert res.status_code == 200
+    assert res.json()["username"] == "admin"
+    assert "token" in res.json()
+

@@ -184,7 +184,7 @@ def get_diagnostics():
         "active_runs": sum(1 for r in runs_db.values() if r.get("status") in ("running", "queued", "verifying")),
         "total_records": len(runs_db),
         "allowed_hosts_count": len(settings.ALLOWED_TARGET_HOSTS),
-        "artifacts_dir": str(settings.ARTIFACTS_DIR),
+        "repo_name": settings.REPO_NAME,
         "timestamp": datetime.now(UTC).isoformat()
     }
 

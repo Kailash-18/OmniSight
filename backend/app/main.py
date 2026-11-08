@@ -2951,3 +2951,22 @@ def restore_snapshot_point_in_time(snapshot_id: str):
 @app.get('/api/v1/health/pulse', response_model=HealthPulseReport)
 def get_system_health_pulse():
     return health_pulse_hub.generate_pulse()
+
+
+# --- Week 4 Day 6: DLQ Endpoints ---
+from backend.app.schemas.dlq_schemas import DLQEnqueueRequest, DLQReplayRequest
+from backend.app.services.dlq_service import dlq_service
+
+@app.post('/api/v1/dlq/enqueue')
+def api_dlq_enqueue(req: DLQEnqueueRequest):
+    msg = dlq_service.enqueue(req)
+    return {'success': True, 'message': msg.model_dump()}
+
+@app.post('/api/v1/dlq/replay')
+def api_dlq_replay(req: DLQReplayRequest):
+    res = dlq_service.replay_messages(run_id=req.run_id, force_poison=req.force_poison_pill)
+    return res.model_dump()
+
+@app.get('/api/v1/dlq/stats')
+def api_dlq_stats():
+    return dlq_service.get_stats().model_dump()

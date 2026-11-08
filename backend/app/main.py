@@ -2970,3 +2970,17 @@ def api_dlq_replay(req: DLQReplayRequest):
 @app.get('/api/v1/dlq/stats')
 def api_dlq_stats():
     return dlq_service.get_stats().model_dump()
+
+
+# --- Week 4 Day 6: Autoscale Endpoints ---
+from backend.app.schemas.autoscale_schemas import WorkerPoolMetrics
+from backend.app.services.autoscale_service import worker_autoscaler
+
+@app.post('/api/v1/autoscale/evaluate')
+def api_autoscale_evaluate(metrics: WorkerPoolMetrics):
+    decision = worker_autoscaler.evaluate(metrics)
+    return decision.model_dump()
+
+@app.get('/api/v1/autoscale/status')
+def api_autoscale_status():
+    return worker_autoscaler.get_status().model_dump()

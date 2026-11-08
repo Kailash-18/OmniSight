@@ -60,6 +60,16 @@ class HealthTelemetryService:
             snapshot_count=snap_count
         )
 
+    def get_dlq_worker_telemetry(self) -> dict:
+        from backend.app.services.dlq_service import dlq_service
+        from backend.app.services.autoscale_service import worker_autoscaler
+        from backend.app.services.quarantine_service import cluster_quarantine
+        return {
+            'dlq': dlq_service.get_stats().model_dump(),
+            'autoscale': worker_autoscaler.get_status().model_dump(),
+            'quarantine': cluster_quarantine.get_cluster_status().model_dump()
+        }
+
 health_pulse_hub = HealthTelemetryService()
 
 # Prometheus Metrics Export

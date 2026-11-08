@@ -199,3 +199,7 @@ __all__.extend([
     'SnapshotService', 'snapshot_engine',
     'HealthTelemetryService', 'health_pulse_hub'
 ])
+
+from backend.app.services.dlq_service import DeadLetterQueueService, dlq_service
+from backend.app.services.autoscale_service import WorkerPoolAutoscalerService, worker_autoscaler
+from backend.app.services.quarantine_service import ClusterQuarantineService, cluster_quarantine

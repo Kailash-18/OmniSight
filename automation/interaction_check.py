@@ -26,10 +26,11 @@ COLLECT_JS = """(sel) => {
   document.querySelectorAll(sel).forEach((el) => {
     const r = el.getBoundingClientRect(), s = getComputedStyle(el);
     if (!r.width || !r.height || s.visibility === 'hidden' || s.display === 'none') return;
+    const disabled = el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true';
     el.setAttribute('data-omni-idx', String(out.length));
     out.push({ index: out.length, testid: el.getAttribute('data-testid'), tag: el.tagName.toLowerCase(),
       text: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 60),
-      href: el.tagName === 'A' ? el.href : null });
+      href: el.tagName === 'A' ? el.href : null, disabled: disabled });
   });
   return out;
 }"""
@@ -102,7 +103,14 @@ def _click_and_watch(page: Page, item: dict) -> Tuple[List[str], bool]:
         validation = page.evaluate(INVALID_FORM_JS, item["index"])
         page.evaluate(OBSERVE_JS)
         try:
-            page.locator(f'[data-omni-idx="{item["index"]}"]').click(timeout=3000)
+            loc = page.locator(f'[data-omni-idx="{item["index"]}"]')
+            try:
+                loc.scroll_into_view_if_needed(timeout=1000)
+                loc.click(timeout=3000)
+            except Exception:
+                # Resilient single retry after brief settling debounce for animated or hydrating controls
+                page.wait_for_timeout(250)
+                loc.click(timeout=2500)
         except Exception as e:
             errors.append(f"click failed: {str(e).splitlines()[0]}")
         page.wait_for_timeout(SETTLE_MS)
@@ -157,7 +165,7 @@ def check_page(page: Page, prepare: Callable[[Page], None], page_name: str, view
                 DefectCategory.CLICK_ERROR, Severity.HIGH, page_name, viewport_name, item,
                 f"Clicking “{label}” on the {page_name} page causes an error.",
                 "Fix the click handler so it completes without errors.", "; ".join(errors[:3]), 0.9))
-        elif not changed:
+        elif not changed and not item.get("disabled"):
             findings.append(_finding(
                 DefectCategory.NO_EFFECT, Severity.LOW, page_name, viewport_name, item,
                 f"“{label}” on the {page_name} page possibly does nothing when clicked.",

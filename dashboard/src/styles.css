@@ -718,3 +718,16 @@ ul.alert { padding-left: 32px; }
   row-gap: 6px;
   font-size: 0.85rem;
 }
+
+.ci-status-pill {
+  text-decoration: none;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.ci-status-pill:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}

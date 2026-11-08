@@ -130,3 +130,48 @@ export async function verifyForensicBundle(runId) {
   }
   return call(`/runs/${encodeURIComponent(runId)}/verify-bundle`)
 }
+
+export async function downloadReportMarkdown(runId) {
+  if (DATA_SOURCE === 'mock') {
+    const run = fixtureRuns.find((r) => r.run_id === runId) || {}
+    const content = `# OmniSight Visual QA Audit Report\n\nRun ID: ${runId}\nStatus: ${run.status || 'audited'}\n`
+    const blob = new Blob([content], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = Object.assign(document.createElement('a'), { href: url, download: `omnisight-report-${runId}.md` })
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    return
+  }
+  const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/export/markdown`, { headers: authHeaders(getToken()) })
+  await checkResponse(res)
+  const url = URL.createObjectURL(await res.blob())
+  const a = Object.assign(document.createElement('a'), { href: url, download: `omnisight-report-${runId}.md` })
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export async function downloadReportJson(runId) {
+  if (DATA_SOURCE === 'mock') {
+    const run = fixtureRuns.find((r) => r.run_id === runId) || {}
+    const blob = new Blob([JSON.stringify(run, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = Object.assign(document.createElement('a'), { href: url, download: `omnisight-run-${runId}.json` })
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    return
+  }
+  const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/export/json`, { headers: authHeaders(getToken()) })
+  await checkResponse(res)
+  const url = URL.createObjectURL(await res.blob())
+  const a = Object.assign(document.createElement('a'), { href: url, download: `omnisight-run-${runId}.json` })
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

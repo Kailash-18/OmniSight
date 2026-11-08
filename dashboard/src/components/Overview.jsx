@@ -142,9 +142,16 @@ function QualityTelemetryPanel({ metrics }) {
   )
 }
 
-function DefectBars({ categories }) {
+function DefectBars({ categories, runs }) {
   const rows = Object.entries(categories || {}).sort((a, b) => b[1] - a[1])
   const max = Math.max(1, ...rows.map(([, n]) => n))
+  const sevCounts = { critical: 0, high: 0, medium: 0, low: 0 }
+  for (const r of runs || []) {
+    for (const f of r.findings || []) {
+      const sev = (f.severity || 'medium').toLowerCase()
+      if (sev in sevCounts) sevCounts[sev]++
+    }
+  }
   return (
     <section className="panel" data-testid="defect-breakdown">
       <div className="section-head"><h2>What OmniSight finds</h2></div>
@@ -161,6 +168,12 @@ function DefectBars({ categories }) {
           ))}
         </div>
       )}
+      <div className="severity-pills" data-testid="severity-distribution">
+        <span className="severity-pill critical">Critical: {sevCounts.critical}</span>
+        <span className="severity-pill high">High: {sevCounts.high}</span>
+        <span className="severity-pill medium">Medium: {sevCounts.medium}</span>
+        <span className="severity-pill low">Low: {sevCounts.low}</span>
+      </div>
     </section>
   )
 }
@@ -275,7 +288,7 @@ export default function Overview({ link }) {
             ))}
           </ul>
         </section>
-        <DefectBars categories={metrics?.defect_categories} />
+        <DefectBars categories={metrics?.defect_categories} runs={runs} />
       </div>
       <QualityTelemetryPanel metrics={metrics} />
     </div>

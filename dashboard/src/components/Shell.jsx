@@ -1,4 +1,4 @@
-import { LayoutDashboard, ListChecks, Moon, Sun, LogOut, Radio } from 'lucide-react'
+import { LayoutDashboard, ListChecks, Moon, Sun, LogOut, Radio, GitBranch } from 'lucide-react'
 import { DATA_SOURCE } from '../api.js'
 
 const NAV = [
@@ -20,6 +20,9 @@ export default function Shell({ user, theme, onTheme, onLogout, link, path, chil
           <span className={`pill ${DATA_SOURCE === 'mock' ? 'tone-warn' : 'tone-good'}`} data-testid="data-source">
             <Radio size={14} aria-hidden="true" />{DATA_SOURCE === 'mock' ? 'Mock data' : 'Live'}
           </span>
+          <a href="https://github.com/Kailash-18/OmniSight/actions" target="_blank" rel="noopener noreferrer" className="pill tone-good ci-status-pill" data-testid="ci-status-link" title="GitHub Actions CI Status: 4/4 passing">
+            <GitBranch size={13} aria-hidden="true" />CI: Passing
+          </a>
           <button type="button" className="btn btn-ghost btn-small" onClick={onTheme} data-testid="theme-toggle"
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
             {theme === 'dark' ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}

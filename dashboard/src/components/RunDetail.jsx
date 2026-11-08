@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, RefreshCw, Bug, Images, FileDiff, GitPullRequest, Fingerprint, Download, ExternalLink, TriangleAlert, ShieldCheck } from 'lucide-react'
-import { downloadForensicBundle, verifyForensicBundle, getActiveRun, getRun } from '../api.js'
+import { downloadForensicBundle, verifyForensicBundle, getActiveRun, getRun, downloadReportMarkdown, downloadReportJson } from '../api.js'
 import { formatConfidence, formatTime, diffLines, validatorErrors, defectPage } from '../format.js'
 import { shouldPoll } from '../lifecycle.js'
 import StatusBadge from './StatusBadge.jsx'
@@ -268,6 +268,12 @@ export default function RunDetail({ runId, link }) {
         <div className="head-actions">
           <button type="button" className="btn btn-small" data-testid="sync-run-status" onClick={() => load(true)} title="Fetch the latest status">
             <RefreshCw size={14} aria-hidden="true" />Refresh
+          </button>
+          <button type="button" className="btn btn-ghost btn-small" onClick={() => downloadReportMarkdown(run.run_id)} data-testid="export-md" title="Download Markdown executive summary">
+            <Download size={14} aria-hidden="true" />Export MD
+          </button>
+          <button type="button" className="btn btn-ghost btn-small" onClick={() => downloadReportJson(run.run_id)} data-testid="export-json" title="Download structured audit JSON">
+            <Download size={14} aria-hidden="true" />Export JSON
           </button>
           <StatusBadge status={run.status} />
         </div>

@@ -3,6 +3,8 @@ Closed-Loop Agent Orchestrator & Backend Gateway Client.
 Coordinates the Inspect -> Audit -> Patch -> Retest -> Forensics -> Release state machine.
 """
 
+from __future__ import annotations
+
 import argparse
 from enum import Enum
 import json
@@ -95,8 +97,8 @@ class Orchestrator:
         )
 
     def _enrich_with_accessibility_analysis(
-        self, audit_report: AuditReport, run_results: Dict[str, Any]
-    ) -> AuditReport:
+        self, audit_report: VisualAuditReport, run_results: Dict[str, Any]
+    ) -> VisualAuditReport:
         """Audits captured DOM snapshots for WCAG 2.1 AA compliance and target sizes."""
         dom_snapshots = run_results.get("dom_snapshots", [])
         for snap_path in dom_snapshots:
@@ -643,7 +645,7 @@ def main(args_list: Optional[List[str]] = None) -> int:
             print(f"\nArtifacts stored in: {result['artifacts_dir']}")
         print("=" * 60)
 
-    return 0 if result.get("status") in ("fixed", "audited", "pr_opened") else 1
+    return 1 if result.get("status") == "failed" or result.get("error") else 0
 
 
 if __name__ == "__main__":

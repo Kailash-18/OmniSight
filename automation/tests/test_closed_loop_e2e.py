@@ -5,9 +5,14 @@ Inspection -> VLM Audit -> Security Patch Validation -> Retest Proof -> PR Gener
 """
 
 from pathlib import Path
+import sys
 from PIL import Image
 import pytest
 from fastapi.testclient import TestClient
+
+backend_root = Path(__file__).resolve().parent.parent.parent / "backend"
+if str(backend_root) not in sys.path:
+    sys.path.insert(0, str(backend_root))
 
 from app.main import app, runs_db
 from automation.orchestrator import BackendClient, Orchestrator

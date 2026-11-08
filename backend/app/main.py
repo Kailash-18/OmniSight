@@ -17,7 +17,7 @@ import hmac
 import json
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
 from app.core.auth import SERVICE_TOKEN, LoginNotConfigured, check_credentials, create_token, require_auth
 from app.core.config import settings
@@ -1024,3 +1024,95 @@ def verify_run_forensic_bundle(run_id: str):
             detail=f"Run '{run_id}' not found."
         )
     return verify_forensic_bundle_integrity(run_id)
+
+
+@app.get(
+    "/runs/{run_id}/export/markdown",
+    summary="Export Audit Findings as Formatted Markdown Report"
+)
+def export_run_markdown_report(run_id: str):
+    """Generates an executive visual QA audit report in GitHub Flavored Markdown."""
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    run = runs_db[run_id]
+    findings = run.get("findings", [])
+    target = run.get("target", "N/A")
+    status_val = run.get("status", "unknown")
+    start_time = run.get("start_time", "N/A")
+    pr_url = run.get("pr_url")
+
+    md = [
+        "# OmniSight Visual QA Audit Report",
+        "",
+        f"- **Run ID**: `{run_id}`",
+        f"- **Target Application**: {target}",
+        f"- **Audit Status**: `{status_val}`",
+        f"- **Timestamp**: {start_time}",
+    ]
+    if pr_url:
+        md.append(f"- **Remediation PR**: [{pr_url}]({pr_url})")
+
+    md.extend([
+        "",
+        "## Executive Summary",
+        "",
+        f"OmniSight autonomous audit evaluated the target across responsive viewports and detected **{len(findings)} defect(s)**.",
+        "",
+        "## Defect Findings Breakdown",
+        "",
+        "| # | Severity | Category | Viewport | Target Element | Description |",
+        "|---|---|---|---|---|---|",
+    ])
+
+    for idx, f in enumerate(findings, 1):
+        sev = str(f.get("severity", "medium")).upper()
+        cat = str(f.get("category", "other"))
+        vp = str(f.get("viewport", "all"))
+        target_el = str(f.get("target_element", "N/A"))
+        desc = str(f.get("description", "")).replace("|", "/")
+        md.append(f"| {idx} | {sev} | {cat} | {vp} | `{target_el}` | {desc} |")
+
+    patch = run.get("patch")
+    if patch:
+        md.extend([
+            "",
+            "## Remediation Patch",
+            "",
+            f"- **Target File**: `{patch.get('target_file')}`",
+            f"- **Validation Status**: `{'Approved' if patch.get('validation_status') else 'Rejected'}`",
+            "",
+            "```diff",
+            str(patch.get("diff", "")).strip(),
+            "```",
+        ])
+
+    report_content = "\n".join(md) + "\n"
+    return PlainTextResponse(
+        content=report_content,
+        media_type="text/markdown",
+        headers={
+            "Content-Disposition": f'attachment; filename="omnisight-report-{run_id}.md"'
+        }
+    )
+
+
+@app.get(
+    "/runs/{run_id}/export/json",
+    summary="Export Complete Audit Run Schema as JSON File"
+)
+def export_run_json_report(run_id: str):
+    """Exports full structured audit findings and telemetry payload as downloadable JSON."""
+    if run_id not in runs_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{run_id}' not found."
+        )
+    return JSONResponse(
+        content=runs_db[run_id],
+        headers={
+            "Content-Disposition": f'attachment; filename="omnisight-run-{run_id}.json"'
+        }
+    )

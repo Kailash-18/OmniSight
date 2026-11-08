@@ -56,6 +56,8 @@ from app.services.github_service import (
     update_pull_request_verification_proof,
 )
 
+SERVER_START_TIME = datetime.now(UTC)
+
 app = FastAPI(
     dependencies=[Depends(require_auth)],
     title=settings.API_TITLE,
@@ -157,11 +159,34 @@ def get_allowed_target_hosts():
 @app.get("/health", response_model=HealthCheckResponse, status_code=status.HTTP_200_OK)
 def health_check():
     """Health check endpoint to verify backend service readiness."""
+    active_count = sum(1 for r in runs_db.values() if r.get("status") in (RunStatus.RUNNING.value, RunStatus.QUEUED.value, RunStatus.VERIFYING.value))
+    uptime = (datetime.now(UTC) - SERVER_START_TIME).total_seconds()
     return HealthCheckResponse(
         status="healthy",
         timestamp=datetime.now(UTC).isoformat(),
-        version=settings.API_VERSION
+        version=settings.API_VERSION,
+        uptime_seconds=round(uptime, 2),
+        active_runs_count=active_count,
+        database_records=len(runs_db)
     )
+
+
+@app.get("/api/diagnostics", status_code=status.HTTP_200_OK)
+def get_diagnostics():
+    """Returns runtime diagnostics, platform environment, and operational telemetry."""
+    import platform
+    import sys
+    return {
+        "status": "healthy",
+        "api_version": settings.API_VERSION,
+        "platform": platform.platform(),
+        "python_version": sys.version.split()[0],
+        "active_runs": sum(1 for r in runs_db.values() if r.get("status") in ("running", "queued", "verifying")),
+        "total_records": len(runs_db),
+        "allowed_hosts_count": len(settings.ALLOWED_TARGET_HOSTS),
+        "artifacts_dir": str(settings.ARTIFACTS_DIR),
+        "timestamp": datetime.now(UTC).isoformat()
+    }
 
 
 @app.post("/auth/login", response_model=LoginResponse)

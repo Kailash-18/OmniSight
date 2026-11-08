@@ -47,6 +47,9 @@ class HealthCheckResponse(BaseModel):
     status: str = Field(default="healthy", description="Readiness status of API gateway")
     timestamp: str = Field(..., description="Current UTC timestamp in ISO 8601 format")
     version: str = Field(..., description="API software version")
+    uptime_seconds: float = Field(default=0.0, description="Server process uptime")
+    active_runs_count: int = Field(default=0, description="Count of currently active or queued audit runs")
+    database_records: int = Field(default=0, description="Total run records persisted")
 
 
 

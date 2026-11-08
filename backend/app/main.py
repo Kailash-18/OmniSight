@@ -2984,3 +2984,25 @@ def api_autoscale_evaluate(metrics: WorkerPoolMetrics):
 @app.get('/api/v1/autoscale/status')
 def api_autoscale_status():
     return worker_autoscaler.get_status().model_dump()
+
+
+# --- Week 4 Day 6: Quarantine Endpoints ---
+from backend.app.schemas.quarantine_schemas import QuarantineRequest, QuarantineReleaseRequest
+from backend.app.services.quarantine_service import cluster_quarantine
+
+@app.post('/api/v1/quarantine/isolate')
+def api_quarantine_isolate(req: QuarantineRequest):
+    record = cluster_quarantine.isolate_node(req)
+    return {'success': True, 'record': record.model_dump()}
+
+@app.post('/api/v1/quarantine/release')
+def api_quarantine_release(req: QuarantineReleaseRequest):
+    try:
+        record = cluster_quarantine.release_node(req.node_id)
+        return {'success': True, 'record': record.model_dump()}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.get('/api/v1/quarantine/status')
+def api_quarantine_status():
+    return cluster_quarantine.get_cluster_status().model_dump()

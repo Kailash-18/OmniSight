@@ -647,11 +647,54 @@ class AccessibilityScanner:
     """
     Lightweight accessibility and contrast scanner.
     Analyzes DOM element snapshots for WCAG 2.1 AA compliance, missing accessible names,
-    and high-risk interactive target occlusion.
+    substandard touch targets, and relative luminance contrast violations.
     """
 
     @staticmethod
-    def audit_element_tree(dom_elements: List[Dict[str, Any]]) -> List[AccessibilityFinding]:
+    def parse_css_color(color_str: str) -> Optional[Tuple[int, int, int]]:
+        """Parses hex or rgb/rgba CSS color strings into (R, G, B) integer tuples."""
+        if not color_str:
+            return None
+        c = color_str.strip().lower()
+        try:
+            if c.startswith("#"):
+                hex_part = c.lstrip("#")
+                if len(hex_part) == 3:
+                    hex_part = "".join(ch * 2 for ch in hex_part)
+                if len(hex_part) == 6:
+                    return int(hex_part[0:2], 16), int(hex_part[2:4], 16), int(hex_part[4:6], 16)
+            elif c.startswith("rgb"):
+                nums = re.findall(r"\d+", c)
+                if len(nums) >= 3:
+                    return int(nums[0]), int(nums[1]), int(nums[2])
+        except Exception:
+            return None
+        return None
+
+    @staticmethod
+    def calculate_relative_luminance(rgb: Tuple[int, int, int]) -> float:
+        """Calculates relative luminance per W3C WCAG 2.1 AA specification."""
+        linear = []
+        for v in rgb:
+            s = v / 255.0
+            linear.append(s / 12.92 if s <= 0.04045 else ((s + 0.055) / 1.055) ** 2.4)
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    @classmethod
+    def calculate_contrast_ratio(cls, fg: str, bg: str) -> Optional[float]:
+        """Computes contrast ratio (L1 + 0.05) / (L2 + 0.05) between two CSS colors."""
+        rgb_fg = cls.parse_css_color(fg)
+        rgb_bg = cls.parse_css_color(bg)
+        if not rgb_fg or not rgb_bg:
+            return None
+        l1 = cls.calculate_relative_luminance(rgb_fg)
+        l2 = cls.calculate_relative_luminance(rgb_bg)
+        lighter = max(l1, l2)
+        darker = min(l1, l2)
+        return round((lighter + 0.05) / (darker + 0.05), 2)
+
+    @classmethod
+    def audit_element_tree(cls, dom_elements: List[Dict[str, Any]]) -> List[AccessibilityFinding]:
         findings: List[AccessibilityFinding] = []
         for el in dom_elements:
             tag = el.get("tag", "").lower()
@@ -705,6 +748,23 @@ class AccessibilityScanner:
                         recommendation="Increase padding or min-width/min-height to at least 24px.",
                     )
                 )
+
+            # Check 4: WCAG 2.1 AA text contrast ratio (minimum 4.5:1 for normal text)
+            fg = el.get("color") or el.get("style", {}).get("color")
+            bg = el.get("background_color") or el.get("background") or el.get("style", {}).get("background-color")
+            if fg and bg and text:
+                ratio = cls.calculate_contrast_ratio(fg, bg)
+                if ratio is not None and ratio < 4.5:
+                    findings.append(
+                        AccessibilityFinding(
+                            element_selector=selector,
+                            wcag_criterion="WCAG 2.1 AA 1.4.3 (Contrast Minimum)",
+                            issue_type="insufficient_contrast_ratio",
+                            severity="medium",
+                            description=f"Text contrast ratio ({ratio}:1) fails the WCAG 2.1 AA minimum threshold of 4.5:1.",
+                            recommendation=f"Adjust foreground ({fg}) or background ({bg}) to achieve at least 4.5:1 contrast.",
+                        )
+                    )
 
         return findings
 

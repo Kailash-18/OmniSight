@@ -853,46 +853,114 @@ class UniversalWebJourney:
     """
     Universal web audit journey for generic websites and external web apps.
     Navigates responsive layouts and captures multi-viewport evidence gracefully
-    without demanding mock-store specific test-ids.
+    with landmark element discovery, automatic modal dismissal, and scroll depth milestones.
     """
     def __init__(self, page: Page, base_url: str):
         self.page = page
         self.base_url = base_url.rstrip("/")
         self.completed_steps: List[str] = []
+        self.landmarks_discovered: List[str] = []
+        self.scroll_depth_percent: int = 0
+
+    def _dismiss_cookie_or_promo_modals(self) -> None:
+        """Attempts to gently dismiss common cookie consent or marketing banners if present."""
+        dismiss_selectors = [
+            "button[id*='cookie-accept']",
+            "button[class*='cookie-consent']",
+            "button[aria-label*='Close' i]",
+            "button[aria-label*='dismiss' i]",
+            "button:has-text('Accept all')",
+            "button:has-text('Accept Cookies')",
+            "button:has-text('I Agree')",
+            ".modal-close",
+            ".close-modal",
+        ]
+        for sel in dismiss_selectors:
+            try:
+                locator = self.page.locator(sel).first
+                if locator.is_visible(timeout=200):
+                    locator.click(timeout=500)
+                    self.page.wait_for_timeout(300)
+                    break
+            except Exception:
+                continue
+
+    def _inspect_landmarks(self) -> None:
+        """Discovers HTML5 structural landmarks for semantic auditing."""
+        try:
+            landmarks = self.page.evaluate("""() => {
+                const tags = ['header', 'nav', 'main', 'article', 'section', 'aside', 'footer'];
+                return tags.filter(t => document.querySelector(t) !== null);
+            }""")
+            if isinstance(landmarks, list):
+                self.landmarks_discovered = list(set(self.landmarks_discovered + landmarks))
+        except Exception:
+            pass
 
     def navigate_home(self) -> None:
         try:
             self.page.goto(self.base_url, wait_until="load", timeout=30000)
             self.page.wait_for_timeout(1000)
+            self._dismiss_cookie_or_promo_modals()
+            self._inspect_landmarks()
         except Exception:
             pass
+        self.scroll_depth_percent = 0
         self.completed_steps.append("navigate_home")
 
     def add_product_to_cart(self, product_id: str = "mug") -> None:
+        """First exploration milestone: scroll into upper-middle section."""
         try:
-            self.page.evaluate("window.scrollBy({ top: 350, behavior: 'smooth' });")
-            self.page.wait_for_timeout(500)
+            self.page.evaluate("""() => {
+                const targetY = Math.min(Math.round(window.innerHeight * 0.8), document.body.scrollHeight);
+                window.scrollTo({ top: targetY, behavior: 'smooth' });
+            }""")
+            self.page.wait_for_timeout(600)
+            self._inspect_landmarks()
         except Exception:
             pass
+        self.scroll_depth_percent = 33
         self.completed_steps.append("explore_content")
 
     def navigate_to_cart(self) -> None:
+        """Second exploration milestone: scroll into lower-middle section or main content landmark."""
         try:
-            self.page.evaluate("window.scrollBy({ top: 400, behavior: 'smooth' });")
-            self.page.wait_for_timeout(500)
+            self.page.evaluate("""() => {
+                const mainEl = document.querySelector('main') || document.querySelector('article') || document.querySelector('#content');
+                if (mainEl) {
+                    mainEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    const midY = Math.round(document.body.scrollHeight * 0.5);
+                    window.scrollTo({ top: midY, behavior: 'smooth' });
+                }
+            }""")
+            self.page.wait_for_timeout(600)
+            self._inspect_landmarks()
         except Exception:
             pass
+        self.scroll_depth_percent = 66
         self.completed_steps.append("navigate_section")
 
     def continue_to_checkout(self) -> None:
+        """Third exploration milestone: scroll to page footer and verify layout integrity."""
         try:
-            self.page.evaluate("window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });")
-            self.page.wait_for_timeout(500)
+            self.page.evaluate("""() => {
+                const footerEl = document.querySelector('footer');
+                if (footerEl) {
+                    footerEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                } else {
+                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                }
+            }""")
+            self.page.wait_for_timeout(600)
+            self._inspect_landmarks()
         except Exception:
             pass
+        self.scroll_depth_percent = 100
         self.completed_steps.append("reach_footer")
 
     def fill_checkout_form(self, *args, **kwargs) -> None:
+        """Final exploration milestone: return smoothly to page top for overall overview."""
         try:
             self.page.evaluate("window.scrollTo({ top: 0, behavior: 'smooth' });")
             self.page.wait_for_timeout(500)

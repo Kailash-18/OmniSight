@@ -150,14 +150,15 @@ npm run dev --prefix dashboard
 # Run Closed-Loop Autonomous PR & Forensics Demo Script
 python scripts/demo_week3_closed_loop.py
 
-# Run Full Test Suite (107 Python tests + 8 Dashboard tests + 1 Store test = 116 tests)
-python -m pytest
+# Run Full Test Suite (187 Python tests + 17 Dashboard tests + 1 Store test = 205 tests)
+python -m pytest -q
 ```
 
 ---
 
 ## Technical Documentation
 
+* [CI/CD Pipeline Architecture & Test Guidelines](docs/ci-cd.md): GitHub Actions multi-platform workflow, root pytest.ini configuration, and diagnostic endpoints.
 * [Automation & RPA Engine Architecture](automation/README.md): Headless Playwright runner, spatial geometry engine, isolated sandbox retesting, and cryptographic forensics.
 * [Backend Gateway Architecture](backend/README.md): FastAPI CI/CD gateway, Action Engine, zero-trust security validator, and GitHub PR service.
 * [QA Dashboard Architecture](dashboard/README.md): React reviewer dashboard, evidence viewers, retest proof, and manual review controls.

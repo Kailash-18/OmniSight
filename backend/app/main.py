@@ -3039,3 +3039,16 @@ def get_production_readiness():
 @app.post('/release/sign-off', response_model=ReleaseSignOffResponse)
 def submit_release_sign_off(req: ReleaseSignOffRequest):
     return readiness_service.record_sign_off(req)
+
+
+# --- Month 1 Day 8 System Diagnostics & Release Certification Endpoints ---
+from backend.app.schemas.diagnostics_schemas import (
+    FullSystemDiagnosticsReport, ReleaseCertificationManifest,
+    VerifyCertificateRequest, VerifyCertificateResponse
+)
+from backend.app.services.system_diagnostics_service import system_diagnostics_service
+from backend.app.services.release_certification_service import release_certification_service
+
+@app.get('/health/full-audit', response_model=FullSystemDiagnosticsReport)
+def get_full_system_audit():
+    return system_diagnostics_service.run_full_diagnostics()

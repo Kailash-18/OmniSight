@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-2.0%2B-e92063.svg)](https://docs.pydantic.dev/)
-[![Pytest](https://img.shields.io/badge/Pytest-107%20Automated%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
+[![Pytest](https://img.shields.io/badge/Pytest-195%20Automated%20Tests%20Passed-45ba4b.svg)](https://pytest.org/)
 [![Terraform](https://img.shields.io/badge/Terraform-Secured-844FBA.svg)](https://www.terraform.io/)
 
 ---
@@ -29,7 +29,7 @@ The OmniSight Backend service acts as the central intelligence and security clea
 | **Week 2 (Day 1-2)** | Action Engine & Security Validator | ✅ Completed | Multimodal JSON/diff extractor (`action_engine.py`), path traversal defense, allowlist checks, script injection filters, 40 unit/integration tests. |
 | **Week 2 (Day 3-5)** | Mid-Project Review & Integration | ✅ Completed | Extraction check verified, sandbox retest coordination with Team Lead & Member 2, end-to-end integration verified. |
 | **Week 3** | PR Automation, Webhooks & Forensic Bundling | ✅ Completed (100%) | PyGithub PR automation service, deterministic mock fallback, PR evidence markdown, GitHub webhook ingestion, and cryptographic forensic archive streaming. |
-| **Week 4** | Production Hardening & Cloud Deploy | ⏳ Planned | Containerized deployment and cloud infrastructure. |
+| **Week 4** | Production Hardening & Cloud Deploy | ✅ Completed (100%) | Multi-stage Docker containerization, AWS App Runner / ECS Terraform, health probes (/health/readiness, /health/liveness), and concurrency telemetry. |
 
 ---
 
@@ -245,11 +245,30 @@ cp backend/.env.example backend/.env
 
 ---
 
-## ☁️ Cloud Infrastructure (Week 4 Milestone)
+## ☁️ Cloud Infrastructure & Production Hardening (Week 4 Deliverables)
 
-Infrastructure definitions for deploying the containerized backend gateway to AWS App Runner / ECS are staged in `backend/terraform/` for Week 4 deliverables:
-* Zero hardcoded credentials; all parameters and sensitive GitHub PATs are managed via environment variables and `.tfvars` excluded by `.gitignore`.
-* Production containerization will package FastAPI, Uvicorn, and health endpoints.
+Week 4 completes enterprise cloud infrastructure and production deployment readiness:
+* **Containerization**: Multi-stage production `Dockerfile` bundling Python 3.11, Playwright Chromium headless engine, and Uvicorn. Full stack orchestration is provided via `docker-compose.yml` linking backend (8000), dashboard (5174), and target app (5173).
+* **Terraform Cloud Infrastructure (`backend/terraform/`)**: Automated provisioning of AWS App Runner services, VPC connectors, security groups, CloudWatch log groups, and IAM least-privilege roles.
+* **Zero Hardcoded Secrets**: All sensitive tokens (`GITHUB_TOKEN`, `WEBHOOK_SECRET`) are referenced by ARN from AWS Secrets Manager or `.tfvars` excluded by `.gitignore`.
+* **Probes & Telemetry**:
+  - `GET /health/liveness`: Container vitality check.
+  - `GET /health/readiness`: Deep filesystem, database, and concurrency capacity check.
+  - `GET /api/system/concurrency`: Real-time worker pool saturation telemetry.
+
+### Running with Docker Compose:
+```bash
+docker compose up --build -d
+```
+
+### Deploying via Terraform:
+```bash
+cd backend/terraform
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform plan
+terraform apply
+```
 
 ---
 

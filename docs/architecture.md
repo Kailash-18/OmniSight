@@ -49,3 +49,62 @@ graph TD
 * **Zero-Trust File Access**: Generated patches can only modify files in the designated allowlist (`app-under-test/src/styles/`). All JavaScript, shell, and configuration modifications are rejected.
 * **Deterministic Baseline**: Seeded defects in `app-under-test/src/styles/defects.css` provide repeatable visual anomalies for audit benchmarking.
 * **Strict Retest Requirement**: No Pull Request is ever opened without browser-verified proof that the defect was cleared.
+
+
+---
+
+## 5. Week 4 Production Hardening & Cloud Topology
+
+OmniSight Week 4 introduces containerized deployment and Cloud Infrastructure as Code (IaC) via Terraform:
+
+```mermaid
+flowchart TD
+    subgraph ClientAndTriggers["Client & CI/CD Layer"]
+        A[GitHub Actions / Webhook Trigger] --> LB[AWS App Runner / Cloud Ingress]
+        B[Enterprise QA Dashboard] --> LB
+    end
+
+    subgraph ContainerCluster["Production Container Topology"]
+        LB --> C[FastAPI CI/CD Gateway :8000]
+        C --> D[Playwright Chromium RPA Engine]
+        C --> E[In-Memory Run Store & Diagnostics]
+        C --> F[Artifact & Forensic Volume: /artifacts]
+    end
+
+    subgraph SecurityAndTelemetry["Zero-Trust Security & Telemetry"]
+        C --> G[AWS CloudWatch Log Group]
+        C --> H[AWS Secrets Manager / SSM]
+        C --> I[GitHub API / PyGithub Automation]
+    end
+```
+
+### Containerization Strategy:
+- **FastAPI & Playwright Image** (`Dockerfile`): Multi-stage Debian-slim image packaging Python 3.11, Playwright Chromium headless engine, and Uvicorn ASGI server with `/health` health checks.
+- **QA Review Dashboard** (`dashboard/Dockerfile`): Multi-stage Alpine container compiling React 18 / Vite SPA assets and serving through production Nginx with reverse proxy for `/api/`.
+- **Target Application** (`app-under-test/Dockerfile`): Production container serving the mock everyday e-commerce storefront.
+- **Docker Compose** (`docker-compose.yml`): Full-stack orchestration establishing network isolation (`omnisight-net`), volume mounts for artifacts, and health check dependencies.
+
+### Cloud Infrastructure as Code (Terraform):
+- Located in `backend/terraform/`.
+- Provisions AWS App Runner Service with auto-scaling (1-5 instances), CloudWatch log groups, and IAM least-privilege execution roles.
+- Zero hardcoded credentials: sensitive PATs and webhook keys are managed through AWS Secrets Manager and `.tfvars` excluded from source control.
+
+---
+
+## 6. Production Health Probes & Lifecycle Protocol
+
+OmniSight exposes multi-tier health and diagnostic endpoints for cloud container orchestrators:
+
+- **Liveness Probe (`GET /health/liveness`)**: Evaluates process responsiveness and ASGI event loop vitality.
+- **Readiness Probe (`GET /health/readiness`)**: Validates database records, disk write permissions on `/artifacts/runs`, and concurrency saturation. Returns HTTP 503 during graceful shutdown draining.
+- **Concurrency Guard (`GET /api/system/concurrency`)**: Monitors worker pool capacity (5 concurrent runs default) to prevent CPU and memory starvation on browser automation hosts.
+- **Graceful Shutdown**: Traps SIGTERM / SIGINT, sets draining state, terminates child browser processes, and flushes forensic logs before container eviction.
+
+---
+
+## 7. Spatial Optimization & VLM Token Economics
+
+To optimize inference latency and cost at scale, OmniSight implements localized anomaly cropping:
+1. Anomaly bounding box coordinates are extracted from DOM geometry.
+2. A contextual margin (24px or 15%) is applied with boundary clamping to the viewport dimensions.
+3. Cropping reduces multimodal image payload area by >85%, lowering VLM vision token consumption from ~1,200 tokens to under 250 tokens per evaluation.

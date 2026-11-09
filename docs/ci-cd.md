@@ -28,7 +28,7 @@ flowchart TD
 |---|---|---|---|
 | `store` | `ubuntu-latest` | Node.js 20 | Builds `app-under-test` mock store, runs vitest unit tests. |
 | `dashboard` | `ubuntu-latest` | Node.js 20 | Builds reviewer dashboard, runs 17 frontend unit & logic tests. |
-| `python` | `ubuntu-latest` | Python 3.12 | Installs Playwright Chromium dependencies, runs 187 backend & automation pytest tests. |
+| `python` | `ubuntu-latest` | Python 3.12 | Installs Playwright Chromium dependencies, runs 195 backend & automation pytest tests. |
 | `visual-check` | `ubuntu-latest` | Python 3.12 + Node 20 | Starts local store daemon, executes `python -m automation.cli`, captures findings, renders GitHub Step Summary, uploads forensic artifacts. |
 
 ---
@@ -49,7 +49,7 @@ filterwarnings =
 ### Running Tests Locally
 
 ```bash
-# Run complete Python test suite (all 187 tests)
+# Run complete Python test suite (all 195 tests)
 python -m pytest -q
 
 # Run specific test suites
@@ -83,3 +83,21 @@ The FastAPI backend provides runtime diagnostics and report export endpoints:
 - `GET /api/diagnostics`: Returns platform OS, Python version, allowed hosts, and active runs.
 - `GET /runs/{run_id}/export/markdown`: Downloads an executive audit summary formatted in GitHub Flavored Markdown.
 - `GET /runs/{run_id}/export/json`: Downloads full structured forensic run telemetry.
+
+
+---
+
+## 5. Production Container Build & Health Probes
+
+In addition to standard unit and browser test suites, production deployments validate container health:
+
+- **Pre-Flight Readiness Check**:
+  ```bash
+  python scripts/verify_production_readiness.py
+  ```
+- **Liveness Probe**:
+  `GET /health/liveness` confirms the process is alive (returns HTTP 200).
+- **Readiness Probe**:
+  `GET /health/readiness` verifies in-memory database stability, disk write access on `/artifacts/runs`, and worker pool capacity.
+- **Concurrency Monitoring**:
+  `GET /api/system/concurrency` reports active worker load and graceful draining states.

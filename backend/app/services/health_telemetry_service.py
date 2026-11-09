@@ -93,3 +93,15 @@ try:
 except Exception:
     def update_prometheus_health_metrics(report: HealthPulseReport):
         pass
+
+
+# Diagnostics & Release Certification Telemetry Gauges
+try:
+    OMNISIGHT_DIAGNOSTICS_SCORE = Gauge('omnisight_diagnostics_score', 'System diagnostic composite score index (0-100)')
+    OMNISIGHT_RELEASE_CERTIFIED = Gauge('omnisight_release_certified', 'Binary flag indicating active release certification status')
+    def update_diagnostic_telemetry(score: float, certified: bool = True):
+        OMNISIGHT_DIAGNOSTICS_SCORE.set(score)
+        OMNISIGHT_RELEASE_CERTIFIED.set(1 if certified else 0)
+except Exception:
+    def update_diagnostic_telemetry(score: float, certified: bool = True):
+        pass

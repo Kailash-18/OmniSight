@@ -39,3 +39,23 @@ class SystemDiagnosticsService:
             details=details,
             checked_at=datetime.now(timezone.utc).isoformat()
         )
+
+    def check_worker_pool_subsystem(self) -> SystemDiagnosticCheck:
+        start = time.perf_counter()
+        from backend.app.services.autoscale_service import worker_autoscaler
+        status_info = worker_autoscaler.get_status()
+        status = "PASS" if status_info.current_workers >= 1 else "WARN"
+        details = {
+            "current_workers": status_info.current_workers,
+            "min_workers": status_info.min_workers,
+            "max_workers": status_info.max_workers,
+            "last_scale_action": status_info.last_scale_action,
+        }
+        latency = (time.perf_counter() - start) * 1000.0
+        return SystemDiagnosticCheck(
+            component="worker_pool_autoscaler",
+            status=status,
+            latency_ms=round(latency, 3),
+            details=details,
+            checked_at=datetime.now(timezone.utc).isoformat()
+        )

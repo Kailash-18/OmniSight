@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, RefreshCw, Bug, Images, FileDiff, GitPullRequest, Fingerprint, Download, ExternalLink, TriangleAlert, ShieldCheck } from 'lucide-react'
-import { downloadForensicBundle, verifyForensicBundle, getActiveRun, getRun, downloadReportMarkdown, downloadReportJson } from '../api.js'
+import { downloadForensicBundle, verifyForensicBundle, getActiveRun, getRun, downloadReportMarkdown, downloadReportJson, subscribeRunEvents } from '../api.js'
 import { formatConfidence, formatTime, diffLines, validatorErrors, defectPage } from '../format.js'
 import { shouldPoll } from '../lifecycle.js'
 import StatusBadge from './StatusBadge.jsx'
@@ -215,11 +215,18 @@ export default function RunDetail({ runId, link }) {
   const live = shouldPoll(state.run, activeId)
   useEffect(() => {
     if (!live) return undefined
+    const unsub = subscribeRunEvents(runId, () => {
+      load(true)
+      getActiveRun().then((a) => setActiveId(a.run_id)).catch(() => {})
+    })
     const id = setInterval(() => {
       load(true)
       getActiveRun().then((a) => setActiveId(a.run_id)).catch(() => {})
     }, POLL_MS)
-    return () => clearInterval(id)
+    return () => {
+      unsub()
+      clearInterval(id)
+    }
   }, [live, runId])
 
   const back = <a className="back" data-testid="back-to-runs" {...link('/runs')}><ArrowLeft size={16} aria-hidden="true" />All runs</a>

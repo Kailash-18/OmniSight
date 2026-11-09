@@ -1,0 +1,21 @@
+# ==============================================================================
+# OmniSight Terraform Variable Configuration Template
+# Copy this file to terraform.tfvars and populate with deployment-specific values.
+# NEVER commit terraform.tfvars containing live secret ARNs to git.
+# ==============================================================================
+
+aws_region           = "us-east-1"
+environment          = "production"
+service_name         = "omnisight-backend"
+container_image      = "123456789012.dkr.ecr.us-east-1.amazonaws.com/omnisight-backend:latest"
+container_port       = 8000
+cpu                  = "1024"
+memory               = "2048"
+health_check_path    = "/health"
+allowed_target_hosts = "localhost,127.0.0.1,staging.internal"
+github_repo          = "Kailash-18/OmniSight"
+mock_github          = false
+
+# ARN references to AWS Secrets Manager (zero plaintext tokens in code)
+github_token_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:omnisight/github_token-AbCdEf"
+webhook_secret_arn      = "arn:aws:secretsmanager:us-east-1:123456789012:secret:omnisight/webhook_secret-GhIjKl"

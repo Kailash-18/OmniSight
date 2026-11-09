@@ -1,0 +1,83 @@
+services:
+  # ============================================================================
+  # OmniSight FastAPI CI/CD Gateway & Playwright Runner
+  # ============================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: omnisight-backend:latest
+    container_name: omnisight-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - BACKEND_PORT=8000
+      - ALLOWED_TARGET_HOSTS=localhost,127.0.0.1,staging.internal,app-under-test
+      - ALLOWED_PATCH_FILES=app-under-test/src/styles/defects.css,app-under-test/src/styles/base.css,app-under-test/src/components/
+      - MOCK_GITHUB=${MOCK_GITHUB:-true}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - REPO_NAME=${REPO_NAME:-Kailash-18/OmniSight}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-development-insecure-secret}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-}
+      - OMNISIGHT_USERNAME=${OMNISIGHT_USERNAME:-reviewer}
+      - OMNISIGHT_PASSWORD=${OMNISIGHT_PASSWORD:-OmniSightQA2026!}
+      - OMNISIGHT_SECRET_KEY=${OMNISIGHT_SECRET_KEY:-omnisight-production-session-token-key-2026}
+    volumes:
+      - ./artifacts:/app/artifacts
+    networks:
+      - omnisight-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ============================================================================
+  # OmniSight React QA Reviewer Dashboard
+  # ============================================================================
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    image: omnisight-dashboard:latest
+    container_name: omnisight-dashboard
+    restart: unless-stopped
+    ports:
+      - "5174:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - omnisight-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ============================================================================
+  # OmniSight Mock Target Store (Everyday Store with Seeded Defects)
+  # ============================================================================
+  app-under-test:
+    build:
+      context: ./app-under-test
+      dockerfile: Dockerfile
+    image: omnisight-store:latest
+    container_name: omnisight-store
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    networks:
+      - omnisight-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5173/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  omnisight-net:
+    driver: bridge

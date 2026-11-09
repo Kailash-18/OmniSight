@@ -245,8 +245,9 @@ export default function Overview({ link }) {
       }
     }
     tick()
+    const unsub = subscribeRunEvents(liveId, () => tick())
     const id = setInterval(tick, POLL_MS)
-    return () => { stop = true; clearInterval(id) }
+    return () => { stop = true; unsub(); clearInterval(id) }
   }, [liveId])
 
   const onStarted = (runId) => {

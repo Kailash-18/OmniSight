@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ImageOff } from 'lucide-react'
 import { pairEvidence, evidenceUrl } from '../format.js'
 import CompareSlider from './CompareSlider.jsx'
@@ -17,7 +17,7 @@ function Shot({ path, label }) {
   const url = evidenceUrl(path)
   return (
     <a href={url} target="_blank" rel="noreferrer" className="shot-link viewfinder">
-      <img src={url} alt={`${label} screenshot: ${path}`} loading="lazy" onError={() => setFailed(true)} />
+      <img src={url} alt={`${label} screenshot: ${path}`} loading="lazy" decoding="async" onError={() => setFailed(true)} />
     </a>
   )
 }
@@ -25,16 +25,21 @@ function Shot({ path, label }) {
 const viewportLabel = (v) => (v === 'all' ? 'All sizes' : v.replace(/^(desktop|mobile)_(\d+)x(\d+)$/, '$1 $2×$3'))
 
 export default function Evidence({ evidence, runId }) {
-  const pairs = pairEvidence(evidence)
-  const viewports = [...new Set(pairs.map((p) => p.viewport || 'other'))]
+  const pairs = useMemo(() => pairEvidence(evidence), [evidence])
+  const viewports = useMemo(() => [...new Set(pairs.map((p) => p.viewport || 'other'))], [pairs])
   const [vp, setVp] = useState('all')
   const [viewMode, setViewMode] = useState('slider')
   if (pairs.length === 0)
     return <div className="empty" data-testid="evidence-empty"><ImageOff size={28} aria-hidden="true" /><p>No screenshots were captured for this run.</p></div>
 
   // Pairs with a retest "after" image (the slider) first: that's where the fix is visible.
-  const shown = (vp === 'all' ? pairs : pairs.filter((p) => (p.viewport || 'other') === vp))
-    .slice().sort((a, b) => Number(!!b.after) - Number(!!a.after))
+  const shown = useMemo(
+    () =>
+      (vp === 'all' ? pairs : pairs.filter((p) => (p.viewport || 'other') === vp))
+        .slice()
+        .sort((a, b) => Number(!!b.after) - Number(!!a.after)),
+    [pairs, vp]
+  )
   return (
     <>
       <div className="evidence-toolbar">

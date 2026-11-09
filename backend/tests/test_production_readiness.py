@@ -66,3 +66,26 @@ def test_graceful_shutdown_draining_readiness(client):
         assert data["capacity_available"] is False
     finally:
         main_module.IS_SHUTTING_DOWN = orig
+
+
+def test_stream_run_events_endpoint(client):
+    import json
+    # Unknown run returns 404
+    resp = client.get("/runs/non-existent-run-xyz/events")
+    assert resp.status_code == 404
+
+    # Known completed run streams event and closes
+    main_module.runs_db["run-sse-test-1"] = {
+        "run_id": "run-sse-test-1",
+        "status": "fixed",
+        "findings": [{"id": "f1"}],
+        "pr_url": "https://github.com/Kailash-18/OmniSight/pull/10"
+    }
+    with client.stream("GET", "/runs/run-sse-test-1/events") as response:
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers.get("content-type", "")
+        lines = [line for line in response.iter_lines() if line]
+        assert len(lines) >= 1
+        data = json.loads(lines[0].replace("data: ", ""))
+        assert data["run_id"] == "run-sse-test-1"
+        assert data["status"] == "fixed"

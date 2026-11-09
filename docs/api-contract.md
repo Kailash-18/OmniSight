@@ -336,3 +336,45 @@ Dashboard alias for `/runs/{run_id}/forensics/verify`. Validates cryptographic S
     "bundle_sha256": "98178a112b518ace91bbbf0c814ccd111270a3ad9350c2f8eb91e94575bd7363"
   }
   ```
+
+
+### `GET /health/liveness`
+Liveness probe endpoint verifying that the ASGI server event loop and container process are responsive.
+* **Response (200 OK)**:
+  ```json
+  {
+    "status": "alive",
+    "timestamp": "2026-11-09T12:00:00Z",
+    "version": "1.0.0"
+  }
+  ```
+
+### `GET /health/readiness`
+Comprehensive readiness probe evaluating artifact storage write permissions, database integrity, and run concurrency limits.
+* **Response (200 OK or 503 Service Unavailable)**:
+  ```json
+  {
+    "status": "ready",
+    "timestamp": "2026-11-09T12:00:00Z",
+    "version": "1.0.0",
+    "checks": {
+      "store": "ok",
+      "artifact_storage": "ok",
+      "concurrency": "ok"
+    },
+    "active_runs_count": 0,
+    "capacity_available": true
+  }
+  ```
+
+### `GET /api/system/concurrency`
+Runtime worker concurrency metrics and capacity limits for container orchestrators and auto-scalers.
+* **Response (200 OK)**:
+  ```json
+  {
+    "max_concurrent_runs": 5,
+    "active_runs_count": 0,
+    "available_slots": 5,
+    "is_shutting_down": false
+  }
+  ```

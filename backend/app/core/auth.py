@@ -16,7 +16,7 @@ from fastapi import HTTPException, Request, status
 from app.core.config import settings
 
 TOKEN_TTL_SECONDS = 8 * 60 * 60
-PUBLIC_PATHS = {"/health", "/auth/login", "/config/target-hosts", "/webhook/build", "/webhook/github/pull-request", "/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
+PUBLIC_PATHS = {"/health", "/health/liveness", "/health/readiness", "/api/system/concurrency", "/auth/login", "/config/target-hosts", "/webhook/build", "/webhook/github/pull-request", "/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
 
 # Handed only to test processes this backend starts, so they can report progress.
 SERVICE_TOKEN = secrets.token_urlsafe(32)
@@ -68,7 +68,7 @@ def check_credentials(username: str, password: str) -> bool:
 
 def require_auth(request: Request) -> str | None:
     """App-wide dependency: every route except PUBLIC_PATHS needs a user token or the service token."""
-    if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS:
+    if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS or request.url.path.startswith("/health"): 
         return None
     header = request.headers.get("authorization", "")
     token = header[7:].strip() if header.lower().startswith("bearer ") else ""

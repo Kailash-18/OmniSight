@@ -30,3 +30,13 @@ def test_full_system_diagnostics_report_schema():
     assert report.overall_status == "HEALTHY"
     assert report.system_readiness_score == 100.0
     assert report.failures == 0
+
+
+def test_system_diagnostics_service_execution():
+    from backend.app.services.system_diagnostics_service import system_diagnostics_service
+    report = system_diagnostics_service.run_full_diagnostics()
+    assert report.components_checked == 5
+    assert report.overall_status in ["HEALTHY", "DEGRADED"]
+    assert report.system_readiness_score >= 85.0
+    assert len(report.audit_digest) == 64
+    assert all(c.latency_ms >= 0.0 for c in report.checks)

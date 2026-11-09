@@ -206,3 +206,19 @@ from backend.app.services.quarantine_service import ClusterQuarantineService, cl
 
 from backend.app.services.dr_service import DisasterRecoveryService, dr_service
 from backend.app.services.tenant_service import TenantIsolationService, tenant_service
+
+from backend.app.services.system_diagnostics_service import (
+    SystemDiagnosticsService,
+    system_diagnostics_service
+)
+from backend.app.services.release_certification_service import (
+    ReleaseCertificationService,
+    release_certification_service
+)
+
+__all__.extend([
+    'SystemDiagnosticsService',
+    'system_diagnostics_service',
+    'ReleaseCertificationService',
+    'release_certification_service'
+])

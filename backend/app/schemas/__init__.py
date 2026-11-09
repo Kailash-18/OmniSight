@@ -248,3 +248,19 @@ from backend.app.schemas.canary_schema import (
 from backend.app.schemas.stream_schema import (
     RunEventType, StreamEvent, PublishEventRequest, EventStreamHistoryResponse
 )
+
+from backend.app.schemas.diagnostics_schemas import (
+    SystemDiagnosticCheck,
+    FullSystemDiagnosticsReport,
+    ReleaseCertificationManifest,
+    VerifyCertificateRequest,
+    VerifyCertificateResponse
+)
+
+__all__.extend([
+    'SystemDiagnosticCheck',
+    'FullSystemDiagnosticsReport',
+    'ReleaseCertificationManifest',
+    'VerifyCertificateRequest',
+    'VerifyCertificateResponse'
+])

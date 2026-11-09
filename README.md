@@ -147,11 +147,17 @@ python -m automation.cli --target http://localhost:5173 --sync-backend --auto-pr
 # Terminal 4: QA Review React Dashboard (Port 5180)
 npm run dev --prefix dashboard
 
-# Run Closed-Loop Autonomous PR & Forensics Demo Script
-python scripts/demo_week3_closed_loop.py
+# Run Production Readiness Pre-Flight Check
+python scripts/verify_production_readiness.py
 
-# Run Full Test Suite (187 Python tests + 17 Dashboard tests + 1 Store test = 205 tests)
+# Run Week 4 Production-Ready Closed-Loop Demo
+python scripts/demo_week4_production_ready.py
+
+# Run Full Test Suite (195 Python tests + 17 Dashboard tests + 1 Store test = 213 tests)
 python -m pytest -q
+
+# Or run full containerized stack via Docker Compose
+docker compose up --build -d
 ```
 
 ---
@@ -164,6 +170,8 @@ python -m pytest -q
 * [QA Dashboard Architecture](dashboard/README.md): React reviewer dashboard, evidence viewers, retest proof, and manual review controls.
 * [System Architecture Overview](docs/architecture.md): High-level component topology, team ownership division, and closed-loop state machine.
 * [API & Data Contract](docs/api-contract.md): Endpoint specifications, finding schemas, run status enums, and forensic bundle contracts.
+* [Week 4 Final Review & 100% Project Completion Report](docs/week-4-final-review.md): Complete project delivery report through Week 4: containerization, Terraform cloud infrastructure, readiness probes, token optimization, and 213 passing tests.
+* [Terraform Cloud Infrastructure Guide](backend/terraform/README.md): AWS App Runner and Amazon ECS deployment specifications with zero hardcoded secrets.
 * [Week 3 Final Review & 100% Completion Report](docs/week-3-final-review.md): Final Week 3 milestone review, closed-loop PR engine, dashboard controls, and cryptographic forensics.
 * [Week 3 Milestone Progress Report](docs/week-3-progress.md): Progression from 10% kickoff to 100% full delivery.
 * [Week 2 Day 3 Review & Integration Report](docs/week-2-day-3-review.md): Mid-project milestone review, component status, test matrix, and verification proofs.

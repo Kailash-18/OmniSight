@@ -45,3 +45,22 @@ artifacts/
 Thumbs.db
 .vscode/
 .idea/
+
+# Android Debloat / Local Diagnostic Scratch Tools
+debloat_*/
+*debloat*
+restore_*
+*dialer*
+scratch_*
+analyze_packages.py
+generate_final_report.py
+generate_final_summary_artifact.py
+inspect_plan.py
+make_artifact.py
+prepare_batches.py
+reboot_and_measure.py
+test_adb.py
+find_remaining_unwanted.py
+get_uptodown_apk.py
+make_restore_scripts.py
+update_restore_scripts.py

@@ -59,3 +59,24 @@ class SystemDiagnosticsService:
             details=details,
             checked_at=datetime.now(timezone.utc).isoformat()
         )
+
+    def check_disaster_recovery_subsystem(self) -> SystemDiagnosticCheck:
+        start = time.perf_counter()
+        from backend.app.services.dr_service import dr_service
+        dr_state = dr_service.get_recovery_status()
+        status = "PASS" if dr_state.rto_ms < 1000.0 and dr_state.healthy else "WARN"
+        details = {
+            "cluster_id": dr_state.cluster_id,
+            "snapshot_id": dr_state.snapshot_id,
+            "rto_ms": dr_state.rto_ms,
+            "healthy": dr_state.healthy,
+            "components_restored": dr_state.components_restored
+        }
+        latency = (time.perf_counter() - start) * 1000.0
+        return SystemDiagnosticCheck(
+            component="disaster_recovery_engine",
+            status=status,
+            latency_ms=round(latency, 3),
+            details=details,
+            checked_at=datetime.now(timezone.utc).isoformat()
+        )

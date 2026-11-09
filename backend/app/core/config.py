@@ -4,6 +4,7 @@ Centralizes environment variables and application settings with zero hardcoded s
 """
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -23,6 +24,7 @@ class Settings:
         # Server Configuration
         self.HOST: str = os.getenv("BACKEND_HOST", "0.0.0.0")
         self.PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
+        self.ARTIFACTS_DIR: Path = Path(os.getenv("ARTIFACTS_DIR", "artifacts")).resolve()
 
         # GitHub Service Configuration
         self.GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")

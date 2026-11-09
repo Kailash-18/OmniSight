@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Search, RefreshCw, ExternalLink, ListChecks } from 'lucide-react'
 import { listRuns, DATA_SOURCE } from '../api.js'
 import { STATUSES, formatTime } from '../format.js'
@@ -20,10 +20,12 @@ export default function RunList({ link }) {
   }
   useEffect(load, [])
 
-  const q = query.trim().toLowerCase()
-  const shown = state.runs
-    .filter((r) => filter === 'all' || r.status === filter)
-    .filter((r) => !q || r.run_id.toLowerCase().includes(q) || String(r.target || '').toLowerCase().includes(q))
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return state.runs
+      .filter((r) => filter === 'all' || r.status === filter)
+      .filter((r) => !q || r.run_id.toLowerCase().includes(q) || String(r.target || '').toLowerCase().includes(q))
+  }, [state.runs, filter, query])
 
   return (
     <section className="run-hero">

@@ -1,3 +1,7 @@
+from backend.app.schemas.readiness_schemas import ProductionReadinessChecklist, ReleaseSignOffRequest, ReleaseSignOffResponse
+from backend.app.services.readiness_service import readiness_service
+from backend.app.schemas.tenant_schemas import TenantSession, TenantCreateRequest, TenantValidateResponse
+from backend.app.services.tenant_service import tenant_service
 from backend.app.schemas.dr_schemas import DisasterRecoveryState, DRHydrateRequest, DRHydrateResponse
 from backend.app.services.dr_service import dr_service
 
@@ -3017,3 +3021,21 @@ def trigger_dr_hydration(req: DRHydrateRequest):
 @app.get('/dr/status', response_model=DisasterRecoveryState)
 def get_dr_status():
     return dr_service.get_recovery_status()
+
+# --- Multi-Tenant Isolation Endpoints ---
+@app.post('/tenants/session', response_model=TenantSession)
+def create_tenant_session(req: TenantCreateRequest):
+    return tenant_service.create_tenant(req)
+
+@app.post('/tenants/validate', response_model=TenantValidateResponse)
+def validate_tenant_session(tenant_id: str, session_token: str):
+    return tenant_service.validate_session(tenant_id, session_token)
+
+# --- Production Readiness & Sign-off Endpoints ---
+@app.get('/release/readiness', response_model=ProductionReadinessChecklist)
+def get_production_readiness():
+    return readiness_service.evaluate_readiness()
+
+@app.post('/release/sign-off', response_model=ReleaseSignOffResponse)
+def submit_release_sign_off(req: ReleaseSignOffRequest):
+    return readiness_service.record_sign_off(req)

@@ -70,6 +70,14 @@ class HealthTelemetryService:
             'quarantine': cluster_quarantine.get_cluster_status().model_dump()
         }
 
+    def get_dr_tenant_telemetry(self) -> dict:
+        from backend.app.services.dr_service import dr_service
+        from backend.app.services.tenant_service import tenant_service
+        return {
+            'dr': dr_service.get_recovery_status().model_dump(),
+            'active_tenants': len(tenant_service._tenants)
+        }
+
 health_pulse_hub = HealthTelemetryService()
 
 # Prometheus Metrics Export

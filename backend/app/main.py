@@ -3052,3 +3052,11 @@ from backend.app.services.release_certification_service import release_certifica
 @app.get('/health/full-audit', response_model=FullSystemDiagnosticsReport)
 def get_full_system_audit():
     return system_diagnostics_service.run_full_diagnostics()
+
+@app.get('/release/final-certificate', response_model=ReleaseCertificationManifest)
+def get_final_release_certificate():
+    return release_certification_service.generate_release_certificate()
+
+@app.post('/release/verify-certificate', response_model=VerifyCertificateResponse)
+def verify_release_certificate(req: VerifyCertificateRequest):
+    return release_certification_service.verify_certificate(req)

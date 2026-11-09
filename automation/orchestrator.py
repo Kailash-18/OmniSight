@@ -18,9 +18,11 @@ import urllib.error
 import urllib.request
 
 from automation.core import (
+    DefectCategory,
     EvidenceCollector,
     Finding,
     RetestStatus,
+    Severity,
     VisualAuditReport,
     config,
 )

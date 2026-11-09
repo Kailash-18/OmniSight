@@ -1,3 +1,5 @@
+from backend.app.schemas.dr_schemas import DisasterRecoveryState, DRHydrateRequest, DRHydrateResponse
+from backend.app.services.dr_service import dr_service
 
 from backend.app.schemas.approval_schema import (
     ApprovalDecision,
@@ -3006,3 +3008,12 @@ def api_quarantine_release(req: QuarantineReleaseRequest):
 @app.get('/api/v1/quarantine/status')
 def api_quarantine_status():
     return cluster_quarantine.get_cluster_status().model_dump()
+
+# --- Disaster Recovery Endpoints ---
+@app.post('/dr/hydrate', response_model=DRHydrateResponse)
+def trigger_dr_hydration(req: DRHydrateRequest):
+    return dr_service.hydrate_from_snapshot(req)
+
+@app.get('/dr/status', response_model=DisasterRecoveryState)
+def get_dr_status():
+    return dr_service.get_recovery_status()

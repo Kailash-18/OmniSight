@@ -203,3 +203,6 @@ __all__.extend([
 from backend.app.services.dlq_service import DeadLetterQueueService, dlq_service
 from backend.app.services.autoscale_service import WorkerPoolAutoscalerService, worker_autoscaler
 from backend.app.services.quarantine_service import ClusterQuarantineService, cluster_quarantine
+
+from backend.app.services.dr_service import DisasterRecoveryService, dr_service
+from backend.app.services.tenant_service import TenantIsolationService, tenant_service

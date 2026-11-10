@@ -32,6 +32,7 @@ class SpatialDiagnosticService:
         ]
         after_candidates = [
             screenshots_dir / f"{viewport}_{page}_after.png",
+            run_dir / "retest" / f"{viewport}_{page}_after.png",  # where the retest step saves it
         ]
 
         before_path = next((p for p in before_candidates if p.exists()), None)

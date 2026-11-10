@@ -1,7 +1,28 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { ImageOff } from 'lucide-react'
 import { pairEvidence, evidenceUrl } from '../format.js'
+import { fetchImageUrl } from '../api.js'
 import CompareSlider from './CompareSlider.jsx'
+
+// Backend-generated image (heatmap, defect overlay): these routes need the login token.
+function AuthImg({ path, alt, missing }) {
+  const [state, setState] = useState({ url: null, failed: false })
+  useEffect(() => {
+    let live = true
+    let made = null
+    setState({ url: null, failed: false })
+    fetchImageUrl(path)
+      .then((u) => { made = u; if (live) setState({ url: u, failed: false }); else URL.revokeObjectURL(u) })
+      .catch(() => { if (live) setState({ url: null, failed: true }) })
+    return () => { live = false; if (made) URL.revokeObjectURL(made) }
+  }, [path])
+  if (state.failed) return <div className="shot-missing" role="img" aria-label={missing}><ImageOff size={20} aria-hidden="true" />{missing}</div>
+  if (!state.url) return <div className="skeleton skeleton-row" aria-busy="true" />
+  return <img src={state.url} alt={alt} className="diag-img" />
+}
+
+const diagPath = (runId, kind, p) =>
+  `/runs/${encodeURIComponent(runId)}/${kind}?viewport=${encodeURIComponent(p.viewport || 'desktop_1440x900')}&page=${encodeURIComponent(p.page || 'home')}`
 
 // One screenshot with a fallback when the file is missing or fails to load.
 function Shot({ path, label }) {
@@ -29,8 +50,6 @@ export default function Evidence({ evidence, runId }) {
   const viewports = useMemo(() => [...new Set(pairs.map((p) => p.viewport || 'other'))], [pairs])
   const [vp, setVp] = useState('all')
   const [viewMode, setViewMode] = useState('slider')
-  if (pairs.length === 0)
-    return <div className="empty" data-testid="evidence-empty"><ImageOff size={28} aria-hidden="true" /><p>No screenshots were captured for this run.</p></div>
 
   // Pairs with a retest "after" image (the slider) first: that's where the fix is visible.
   const shown = useMemo(
@@ -40,6 +59,8 @@ export default function Evidence({ evidence, runId }) {
         .sort((a, b) => Number(!!b.after) - Number(!!a.after)),
     [pairs, vp]
   )
+  if (pairs.length === 0)
+    return <div className="empty" data-testid="evidence-empty"><ImageOff size={28} aria-hidden="true" /><p>No screenshots were captured for this run.</p></div>
   return (
     <>
       <div className="evidence-toolbar">
@@ -54,7 +75,7 @@ export default function Evidence({ evidence, runId }) {
           {[
             { id: 'slider', label: '⇄ Compare Slider' },
             { id: 'side', label: '◫ Side-by-Side' },
-            { id: 'heatmap', label: '🔥 Diff Heatmap' },
+            { id: 'heatmap', label: 'Diff Heatmap' },
             { id: 'annotated', label: '⛶ Defect Overlay' },
           ].map((m) => (
             <button key={m.id} type="button" className="chip" aria-pressed={viewMode === m.id} onClick={() => setViewMode(m.id)}>
@@ -70,24 +91,14 @@ export default function Evidence({ evidence, runId }) {
             {viewMode === 'heatmap' && runId ? (
               <div className="diag-view">
                 <div className="shot-label heatmap">Visual Diff Heatmap (Pixel-Level Anomaly)</div>
-                <img
-                  src={`/api/runs/${encodeURIComponent(runId)}/heatmap?viewport=${encodeURIComponent(p.viewport || 'desktop_1440x900')}&page=${encodeURIComponent(p.page || 'home')}`}
-                  alt="Diff Heatmap"
-                  loading="lazy"
-                  className="diag-img"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'block'; }}
-                />
-                <p className="muted small" style={{ display: 'none', padding: '16px' }}>Heatmap generation requires both baseline and retest captures.</p>
+                <AuthImg path={diagPath(runId, 'heatmap', p)} alt={`Diff heatmap: ${p.viewport} ${p.page}`}
+                  missing="No heatmap: this page wasn't re-tested after the fix" />
               </div>
             ) : viewMode === 'annotated' && runId ? (
               <div className="diag-view">
                 <div className="shot-label annotated">Detected Defect Remediations Overlay</div>
-                <img
-                  src={`/api/runs/${encodeURIComponent(runId)}/annotated?viewport=${encodeURIComponent(p.viewport || 'desktop_1440x900')}&page=${encodeURIComponent(p.page || 'home')}`}
-                  alt="Annotated Bounding Box"
-                  loading="lazy"
-                  className="diag-img"
-                />
+                <AuthImg path={diagPath(runId, 'annotated', p)} alt={`Defects marked: ${p.viewport} ${p.page}`}
+                  missing="No defect overlay for this screenshot" />
               </div>
             ) : viewMode === 'side' && p.before && p.after ? (
               <div className="side-by-side">

@@ -75,6 +75,13 @@ export async function getPrChecks(runId) {
   return call(`/runs/${encodeURIComponent(runId)}/checks`)
 }
 
+// <img src> can't send the bearer token either: fetch the image and return a blob URL (caller revokes it).
+export async function fetchImageUrl(path) {
+  const res = await fetch('/api' + path, { headers: authHeaders(getToken()) })
+  await checkResponse(res)
+  return URL.createObjectURL(await res.blob())
+}
+
 // A plain <a href> can't send the bearer token, so fetch the zip and hand the browser a blob URL.
 export async function downloadForensicBundle(runId) {
   if (DATA_SOURCE === 'mock') throw Object.assign(new Error('Forensic bundles are only available in live mode'), { status: 400 })

@@ -17,3 +17,10 @@ export const totalPaise = (cart) =>
 
 const fmt = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })
 export const money = (paise) => fmt.format(paise / 100)
+
+// `required` accepts a field of only spaces, so checkout re-checks the trimmed values.
+export const blankFields = (data, names) => names.filter((n) => !String(data[n] ?? '').trim())
+
+// Order numbers count up per page load (demo store, nothing is stored).
+let lastOrder = 1000
+export const nextOrderNumber = () => `EV-${++lastOrder}`

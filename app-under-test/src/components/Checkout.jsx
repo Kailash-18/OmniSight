@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { findProduct } from '../data/products.js'
-import { itemCount, totalPaise, money } from '../cart.js'
+import { itemCount, totalPaise, money, blankFields, nextOrderNumber } from '../cart.js'
+
+const clearValidity = (e) => e.currentTarget.setCustomValidity('')
 
 export default function Checkout({ cart, link, onClear }) {
   const [placed, setPlaced] = useState(null)
@@ -9,7 +11,7 @@ export default function Checkout({ cart, link, onClear }) {
     return (
       <section className="empty card" data-testid="order-success" role="status">
         <h1>Thank you, {placed.name}!</h1>
-        <p>Your demo order <strong data-testid="order-number">EV-1001</strong> for {placed.total} is confirmed.</p>
+        <p>Your demo order <strong data-testid="order-number">{placed.number}</strong> for {placed.total} is confirmed.</p>
         <p className="muted">A confirmation would be sent to {placed.email}. (Demo only, nothing was charged.)</p>
         <a className="btn btn-primary" data-testid="continue-shopping" {...link('/')}>Continue shopping</a>
       </section>
@@ -26,11 +28,20 @@ export default function Checkout({ cart, link, onClear }) {
     )
   }
 
-  // Native required/type validation blocks invalid submits before this runs.
+  // Native required/type validation blocks empty and invalid fields before this runs;
+  // a name or address of only spaces gets the same browser message here.
   const submit = (e) => {
     e.preventDefault()
-    const data = Object.fromEntries(new FormData(e.currentTarget))
-    setPlaced({ name: data.name.trim(), email: data.email, total: money(totalPaise(cart)) })
+    const form = e.currentTarget
+    const data = Object.fromEntries(new FormData(form))
+    const blank = blankFields(data, ['name', 'address'])
+    if (blank.length) {
+      const field = form.elements[blank[0]]
+      field.setCustomValidity('Please fill in this field.')
+      field.reportValidity()
+      return
+    }
+    setPlaced({ name: data.name.trim(), email: data.email, total: money(totalPaise(cart)), number: nextOrderNumber() })
     onClear()
   }
 
@@ -40,7 +51,7 @@ export default function Checkout({ cart, link, onClear }) {
         <h1 id="checkout-title">Checkout</h1>
         <label className="field">
           <span>Full name</span>
-          <input name="name" type="text" autoComplete="name" required data-testid="input-name" />
+          <input name="name" type="text" autoComplete="name" required data-testid="input-name" onInput={clearValidity} />
         </label>
         <label className="field">
           <span>Email</span>
@@ -48,7 +59,7 @@ export default function Checkout({ cart, link, onClear }) {
         </label>
         <label className="field">
           <span>Delivery address</span>
-          <textarea name="address" rows="3" autoComplete="street-address" required data-testid="input-address" />
+          <textarea name="address" rows="3" autoComplete="street-address" required data-testid="input-address" onInput={clearValidity} />
         </label>
         <div className="checkout-actions">
           <p className="promo-banner" data-testid="promo-banner">Free shipping on every order — no code needed.</p>

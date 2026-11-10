@@ -547,12 +547,33 @@ def main(args_list: Optional[List[str]] = None) -> int:
         help="Skip clicking every button/link to find broken, blocked, or dead controls",
     )
     parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run high-frequency computational micro-benchmarks on core spatial and contrast engines",
+    )
+    parser.add_argument(
         "--run-id",
         type=str,
         default=None,
         help="Use this run ID (set by the backend when the dashboard starts a run)",
     )
     args = parser.parse_args(args_list)
+
+    if args.benchmark:
+        from automation.benchmark import EngineBenchmarkSuite
+        import json
+        bench_res = EngineBenchmarkSuite.run_all()
+        if args.json_output:
+            print(json.dumps(bench_res, indent=2))
+        else:
+            print("=" * 60)
+            print("  OmniSight Engine Computation Micro-Benchmark")
+            print("=" * 60)
+            print(f"Spatial AABB:  {bench_res['spatial_engine']['ops_per_sec']:,.0f} ops/sec ({bench_res['spatial_engine']['elapsed_ms']} ms)")
+            print(f"Contrast Calc: {bench_res['contrast_engine']['ops_per_sec']:,.0f} ops/sec ({bench_res['contrast_engine']['elapsed_ms']} ms)")
+            print(f"Benchmark:     {bench_res['benchmark_status'].upper()}")
+            print("=" * 60)
+        return 0
 
     backend_client = None
     backend_status_str = "Standalone Local Mode"

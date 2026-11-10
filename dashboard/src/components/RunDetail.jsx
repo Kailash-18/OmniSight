@@ -13,6 +13,14 @@ import { useToast } from './Toast.jsx'
 
 const POLL_MS = 2000
 const INTERACTION = new Set(['broken_link', 'click_error', 'no_effect'])
+const isInteraction = (f) => INTERACTION.has(f.category) || f.id?.startsWith('interaction-')
+const isA11y = (f) => f.id?.startsWith('a11y-') || f.category === 'contrast_issue' || f.description?.includes('WCAG')
+const FINDING_FILTERS = [
+  { id: 'all', name: 'All', test: () => true },
+  { id: 'visual', name: 'Visual', test: (f) => !isInteraction(f) && !isA11y(f) },
+  { id: 'interaction', name: 'Interaction', test: isInteraction },
+  { id: 'a11y', name: 'Accessibility', test: isA11y },
+]
 
 // "Open the store, then do these steps at this size" so a reviewer can see the defect live.
 function DefectLink({ link, id }) {
@@ -316,36 +324,27 @@ export default function RunDetail({ runId, link }) {
             {findings.length > 0 && (
               <div className="finding-filter-bar">
                 <span className="filter-label">Filter Category:</span>
-                {[
-                  { id: 'all', label: `All (${findings.length})` },
-                  { id: 'visual', label: `Visual (${findings.filter(f => !INTERACTION.has(f.category) && !f.id?.startsWith('interaction-') && !f.id?.startsWith('a11y-') && f.category !== 'contrast_issue').length})` },
-                  { id: 'interaction', label: `Interaction (${findings.filter(f => INTERACTION.has(f.category) || f.id?.startsWith('interaction-')).length})` },
-                  { id: 'a11y', label: `Accessibility (${findings.filter(f => f.id?.startsWith('a11y-') || f.category === 'contrast_issue' || f.description?.includes('WCAG')).length})` },
-                ].map((flt) => (
+                {FINDING_FILTERS.map((flt) => (
                   <button
                     key={flt.id}
                     type="button"
                     className={`btn-pill ${findingFilter === flt.id ? 'is-active' : ''}`}
                     onClick={() => setFindingFilter(flt.id)}
                   >
-                    {flt.label}
+                    {flt.name} ({findings.filter(flt.test).length})
                   </button>
                 ))}
               </div>
             )}
             {findings.length === 0 ? (
               <div className="panel empty" data-testid="findings-empty"><ShieldCheck size={28} aria-hidden="true" /><h2>No defects found</h2><p>This run found nothing to fix.</p></div>
-            ) : (
-              findings
-                .filter((f) => {
-                  if (findingFilter === 'all') return true
-                  if (findingFilter === 'a11y') return f.id?.startsWith('a11y-') || f.category === 'contrast_issue' || f.description?.includes('WCAG')
-                  if (findingFilter === 'interaction') return INTERACTION.has(f.category) || f.id?.startsWith('interaction-')
-                  if (findingFilter === 'visual') return !INTERACTION.has(f.category) && !f.id?.startsWith('interaction-') && !f.id?.startsWith('a11y-') && f.category !== 'contrast_issue'
-                  return true
-                })
-                .map((f) => <FindingCard key={f.id} f={f} run={run} />)
-            )}
+            ) : (() => {
+              const flt = FINDING_FILTERS.find((x) => x.id === findingFilter) || FINDING_FILTERS[0]
+              const shown = findings.filter(flt.test)
+              return shown.length
+                ? shown.map((f) => <FindingCard key={f.id} f={f} run={run} />)
+                : <div className="panel empty" data-testid="findings-filter-empty"><ShieldCheck size={28} aria-hidden="true" /><h2>No {flt.name.toLowerCase()} findings</h2><p>Nothing in this run falls under this category. Pick another filter to see the rest.</p></div>
+            })()}
           </div>
         )}
         {tab === 'evidence' && <><Evidence evidence={run.evidence_paths} runId={run.run_id} /><RetestSummary retest={retest} /></>}

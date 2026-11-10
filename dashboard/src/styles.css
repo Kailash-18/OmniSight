@@ -66,6 +66,23 @@
   color-scheme: light;
 }
 
+/* Aliases for names used by later components, mapped onto the theme tokens so they follow dark/light. */
+:root {
+  --surface-1: var(--panel-raised);
+  --surface-2: var(--neutral-bg);
+  --surface-hover: var(--accent-soft);
+  --bg-card: var(--panel-solid);
+  --bg-panel: var(--panel);
+  --bg-subtle: var(--panel-raised);
+  --border-color: var(--border);
+  --border-hover: var(--border-strong);
+  --text-primary: var(--text);
+  --text-muted: var(--muted);
+  --primary: var(--accent);
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius-sm: 8px;
+}
+
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 html, body { margin: 0; }
@@ -701,7 +718,7 @@ ul.alert { padding-left: 32px; }
 }
 .m-bar {
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border);
   border-radius: 999px;
   margin-top: 10px;
   overflow: hidden;

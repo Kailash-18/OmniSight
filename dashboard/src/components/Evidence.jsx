@@ -86,7 +86,7 @@ export default function Evidence({ evidence, runId }) {
       </div>
       <div className="pairs">
         {shown.map((p) => (
-          <figure key={p.key} className="pair panel" data-testid={`evidence-pair-${p.key}`}>
+          <figure key={p.key} className={`pair panel${p.viewport?.startsWith('mobile') ? ' is-mobile' : ''}`} data-testid={`evidence-pair-${p.key}`}>
             <figcaption><span className="mono">{p.viewport || 'unknown size'}</span><span>{p.page}</span></figcaption>
             {viewMode === 'heatmap' && runId ? (
               <div className="diag-view">

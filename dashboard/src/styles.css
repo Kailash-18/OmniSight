@@ -413,6 +413,9 @@ ul.alert { padding-left: 32px; }
 .shot-link { display: block; line-height: 0; border-radius: 12px; overflow: hidden; }
 .shot-link img { display: block; width: 100%; height: auto; }
 .shot-label { font-size: 12.5px; font-weight: 650; margin-bottom: 8px; }
+/* Phone screenshots are tall: show them at phone size, centred, instead of stretched to the card width. */
+.pair.is-mobile .compare, .pair.is-mobile .shot-link, .pair.is-mobile .diag-img { width: 100%; max-width: 280px; margin-inline: auto; }
+.pair.is-mobile .side-by-side .shot-link { max-width: 200px; }
 .shot-label.before { color: var(--defect); }
 .shot-missing { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 180px; padding: 16px; border-radius: 12px; border: 1px dashed var(--border-strong); color: var(--muted); font-size: 13.5px; text-align: center; }
 .shot-missing code { font-size: 11.5px; overflow-wrap: anywhere; color: var(--faint); }

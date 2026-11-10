@@ -56,6 +56,7 @@ from app.services.forensics_service import compile_forensic_bundle, get_forensic
 from app.services.spatial_service import spatial_service
 from app.services.run_comparator import RunComparator
 from app.services.sarif_service import SarifExporter
+from app.services.retention_service import RunRetentionService
 from app.services.github_service import (
     create_pull_request_for_fix,
     generate_pr_markdown_description,
@@ -1338,6 +1339,22 @@ def remove_run_tag(run_id: str, tag: str):
         current_tags.remove(tag_clean)
         run_record["tags"] = current_tags
     return {"run_id": run_id, "tags": run_record.get("tags", [])}
+
+
+@app.post(
+    "/runs/cleanup",
+    summary="Prune Stale Audit Runs and Free Storage Space"
+)
+def cleanup_stale_runs(max_runs: int = 50, preserve_fixed: bool = True):
+    """Prunes older runs exceeding max_runs capacity threshold."""
+    result = RunRetentionService.cleanup_runs(
+        runs_db=runs_db,
+        artifacts_dir=None,
+        max_runs_to_keep=max_runs,
+        preserve_fixed=preserve_fixed,
+    )
+    return result
+
 
 
 

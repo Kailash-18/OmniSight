@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Play, Link2, LoaderCircle, Activity, Bug, Wrench, GitPullRequest, ArrowRight } from 'lucide-react'
-import { DATA_SOURCE, fetchMetricsSummary, getActiveRun, getRun, listRuns, startRun } from '../api.js'
+import { DATA_SOURCE, fetchMetricsSummary, getActiveRun, getRun, listRuns, startRun, subscribeRunEvents } from '../api.js'
 import { isActiveStatus, relativeTime, stats } from '../lifecycle.js'
 import Lifecycle from './Lifecycle.jsx'
 import StatusBadge from './StatusBadge.jsx'

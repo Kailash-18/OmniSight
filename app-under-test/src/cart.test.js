@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { addItem, setQty, itemCount, totalPaise, money } from './cart.js'
+import { addItem, setQty, itemCount, totalPaise, money, blankFields, nextOrderNumber } from './cart.js'
 
 test('cart math', () => {
   let cart = {}
@@ -20,4 +20,16 @@ test('cart math', () => {
   cart = setQty(cart, 'lamp', 0) // removing
   assert.deepEqual(cart, { mug: 5 })
   assert.equal(itemCount(cart), 5)
+})
+
+test('blankFields names required fields that are empty or only spaces', () => {
+  assert.deepEqual(blankFields({ name: '  ', email: 'a@b.co', address: '\n\t' }, ['name', 'address']), ['name', 'address'])
+  assert.deepEqual(blankFields({ name: 'Asha', address: '1 Main St' }, ['name', 'address']), [])
+})
+
+test('nextOrderNumber counts up from EV-1001', () => {
+  const a = nextOrderNumber()
+  const b = nextOrderNumber()
+  assert.match(a, /^EV-\d{4}$/)
+  assert.equal(Number(b.slice(3)), Number(a.slice(3)) + 1)
 })

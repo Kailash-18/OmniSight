@@ -7,6 +7,16 @@ import Checkout from './components/Checkout.jsx'
 // ponytail: three fixed routes, so a pushState switch replaces a router library.
 const routes = { '/': ProductList, '/cart': Cart, '/checkout': Checkout }
 
+function NotFound({ link }) {
+  return (
+    <section className="empty card" data-testid="not-found">
+      <h1>Page not found</h1>
+      <p className="muted">There's nothing at this address.</p>
+      <a className="btn btn-primary" data-testid="back-to-shop" {...link('/')}>Browse products</a>
+    </section>
+  )
+}
+
 export default function App() {
   const [path, setPath] = useState(window.location.pathname)
   const [cart, setCart] = useState({})
@@ -33,7 +43,7 @@ export default function App() {
     },
   })
 
-  const Page = routes[path] || ProductList
+  const Page = routes[path] || NotFound
   const count = itemCount(cart)
 
   return (
@@ -49,7 +59,7 @@ export default function App() {
           </nav>
         </div>
       </header>
-      <main className="container page" data-testid={`page-${path === '/' ? 'products' : path.slice(1)}`}>
+      <main className="container page" data-testid={`page-${path === '/' ? 'products' : routes[path] ? path.slice(1) : 'not-found'}`}>
         <Page
           cart={cart}
           link={link}

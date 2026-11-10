@@ -101,6 +101,21 @@ test('live backend shape: evidence_paths.screenshots with absolute paths, every 
   assert.equal(all.size, null)
 })
 
+test('live findings: page comes from the interaction id or the store selector when evidence has every page', () => {
+  const root = '/r/screenshots/'
+  const evidence = { screenshots: ['desktop_1440x900', 'mobile_375x667'].flatMap((v) => ['home', 'cart', 'checkout'].map((p) => `${root}${v}_${p}.png`)) }
+  const at = (f) => defectPage('http://localhost:5173', f, evidence)
+  assert.equal(at({ id: 'interaction-checkout-element_obstruction-3', viewport: 'desktop_1440x900' }).page, 'Checkout')
+  assert.equal(at({ id: 'defect-1', viewport: 'desktop_1440x900', target_element: '.hero-title' }).page, 'Products')
+  const clipped = at({ id: 'defect-2', viewport: 'mobile_375x667', target_element: '.checkout-cta' })
+  assert.equal(clipped.page, 'Cart')
+  assert.deepEqual(clipped.steps, ['Add any product', 'Open Cart'])
+  assert.equal(at({ id: 'defect-3', viewport: 'all', target_element: '.promo-banner' }).page, 'Checkout')
+  assert.equal(at({ id: 'x', viewport: 'all', target_element: '.unknown' }).page, null) // still no guessing
+  const other = { screenshots: ['home', 'explore'].map((p) => `${root}desktop_1440x900_${p}.png`) }
+  assert.equal(defectPage('https://example.com', { viewport: 'desktop_1440x900', target_element: '.hero' }, other).page, null) // not our store
+})
+
 test('summary, diff and validator helpers', () => {
   const s = toSummary(runs.find((r) => r.run_id === 'mock-run-1001'))
   assert.deepEqual(Object.keys(s), ['run_id', 'start_time', 'target', 'status', 'issue_count', 'pr_url'])

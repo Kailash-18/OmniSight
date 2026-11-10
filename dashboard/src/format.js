@@ -71,6 +71,20 @@ export function safeUrl(target) {
 
 const PAGES = { home: 'Products', cart: 'Cart', checkout: 'Checkout' }
 
+// When the evidence has every page, the finding itself can still pin one down: interaction findings carry the
+// page in their id, and each store selector lives on exactly one page. Anything else stays unidentified.
+const STORE_SELECTORS = [
+  [/hero|product-(grid|card|list)/, 'home'],
+  [/checkout-cta|continue-to-checkout|cart-|line-item|qty/, 'cart'],
+  [/promo-banner|submit-order|checkout-(form|actions|summary)|input-(name|email|address)/, 'checkout'],
+]
+function pageOf(finding) {
+  const fromId = finding?.id?.match(/^interaction-(home|cart|checkout)-/)
+  if (fromId) return fromId[1]
+  const sel = finding?.target_element || ''
+  return STORE_SELECTORS.find(([re]) => re.test(sel))?.[1] || null
+}
+
 // Where a finding shows up in the store, taken from its evidence screenshots. Only name a page when the
 // evidence points to exactly one (live runs capture every page at every viewport, so don't guess).
 // Cart and checkout need items first and the store's cart is in memory, so a deep link would open empty:
@@ -82,7 +96,7 @@ export function defectPage(target, finding, evidence) {
   const sameViewport = pairs.filter((p) => p.viewport === finding?.viewport)
   const candidates = sameViewport.length ? sameViewport : pairs
   const pages = [...new Set(candidates.map((p) => p.page))]
-  const page = pages.length === 1 ? pages[0] : null
+  const page = pages.length === 1 ? pages[0] : pages.every((p) => p in PAGES) ? pageOf(finding) : null
   const viewport = sameViewport.length ? finding.viewport : candidates.length === 1 ? candidates[0].viewport : null
   const size = viewport?.match(/(\d+)x(\d+)$/)
   const steps = {

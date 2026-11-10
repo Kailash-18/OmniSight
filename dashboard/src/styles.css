@@ -312,7 +312,7 @@ ul.alert { padding-left: 32px; }
 .step.failed { color: var(--bad); font-weight: 600; }
 .step.failed .step-dot { background: var(--bad); border-color: var(--bad); }
 .step.skipped .step-dot { border-style: dashed; color: var(--faint); }
-@media (max-width: 640px) { .step-label { font-size: 11px; } .lifecycle .step:nth-child(1) .step-label { display: none; } }
+@media (max-width: 640px) { .step-label { font-size: 10.5px; line-height: 1.25; overflow-wrap: anywhere; } }
 
 /* ---------- Runs table ---------- */
 /* Search, status filter and refresh: one even row above the table. */

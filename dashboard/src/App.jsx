@@ -7,6 +7,7 @@ import Login from './components/Login.jsx'
 import Overview from './components/Overview.jsx'
 import RunList from './components/RunList.jsx'
 import RunDetail from './components/RunDetail.jsx'
+import { ShortcutsModal } from './components/ShortcutsModal.jsx'
 import { ToastProvider } from './components/Toast.jsx'
 
 // ponytail: four routes, so a pushState switch replaces a router library (same as app-under-test).
@@ -18,6 +19,7 @@ export default function App() {
   const [user, setUser] = useState(needsLogin ? getUser() : 'demo')
   const [expired, setExpired] = useState(false)
   const [theme, setTheme] = useState(readTheme())
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   const go = (to) => {
     window.history.pushState(null, '', to)
@@ -38,7 +40,22 @@ export default function App() {
     window.addEventListener('popstate', onPop)
     onUnauthorized(() => { setUser(null); setExpired(true) })
     if (needsLogin && getToken()) me().then((r) => setUser(r.username)).catch(() => {})
-    return () => window.removeEventListener('popstate', onPop)
+
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault()
+        setShortcutsOpen((o) => !o)
+      } else if (e.key === 'Escape') {
+        setShortcutsOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
   }, [])
 
   const toggleTheme = () => {
@@ -77,6 +94,7 @@ export default function App() {
       <Shell user={needsLogin ? user : null} theme={theme} onTheme={toggleTheme} onLogout={logout} link={link} path={path}>
         {page}
       </Shell>
+      <ShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </ToastProvider>
   )
 }

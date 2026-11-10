@@ -561,7 +561,6 @@ def main(args_list: Optional[List[str]] = None) -> int:
 
     if args.benchmark:
         from automation.benchmark import EngineBenchmarkSuite
-        import json
         bench_res = EngineBenchmarkSuite.run_all()
         if args.json_output:
             print(json.dumps(bench_res, indent=2))

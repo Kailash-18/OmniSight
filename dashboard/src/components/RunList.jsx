@@ -18,7 +18,12 @@ export default function RunList({ link }) {
       .then((runs) => setState({ loading: false, error: null, runs }))
       .catch((error) => setState({ loading: false, error, runs: [] }))
   }
-  useEffect(load, [])
+  useEffect(() => {
+    load()
+    const onRefresh = () => load()
+    window.addEventListener('omnisight:refresh', onRefresh)
+    return () => window.removeEventListener('omnisight:refresh', onRefresh)
+  }, [])
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()

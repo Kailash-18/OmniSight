@@ -284,37 +284,94 @@ class Orchestrator:
             if audit_report.proposed_patch and auto_retest:
                 self.state = AgentState.VALIDATING
 
-                target_vp = "mobile_375x667"
-                for finding in audit_report.findings:
-                    if finding.viewport and finding.viewport != "all":
-                        target_vp = finding.viewport
-                        break
+                def _step_for_finding(f: Finding) -> str:
+                    t_el = (f.target_element or "").lower()
+                    fid = (f.id or "").lower()
+                    if any(k in t_el for k in ("hero", "product")) or any(k in fid for k in ("home", "product", "defect-1")):
+                        return "home"
+                    if any(k in t_el for k in ("checkout-cta", "continue-to-checkout", "cart")) or any(k in fid for k in ("cart", "defect-2")):
+                        return "cart"
+                    return "checkout"
 
-                before_shot = None
-                for shot in run_results.get("screenshots", []):
-                    if target_vp in shot:
-                        before_shot = shot
-                        break
-                if not before_shot and run_results.get("screenshots"):
-                    before_shot = run_results["screenshots"][0]
+                all_viewports = run_results.get("viewports_evaluated", ["desktop_1440x900", "mobile_375x667"])
+                retest_targets: list[tuple[str, str]] = []
 
-                if before_shot and Path(before_shot).exists():
-                    self.state = AgentState.RETESTING
-                    if self.sync_backend and self.backend_client:
-                        self.backend_client.update_run_state(
-                            run_id=evidence.run_id,
-                            status=AgentState.RETESTING.value,
+                if audit_report.findings:
+                    for f in audit_report.findings:
+                        step = _step_for_finding(f)
+                        if f.viewport and f.viewport != "all":
+                            retest_targets.append((f.viewport, step))
+                        else:
+                            for vp in all_viewports:
+                                retest_targets.append((vp, step))
+                else:
+                    retest_targets.append(("mobile_375x667", "checkout"))
+
+                seen_targets = set()
+                unique_targets = []
+                for t in retest_targets:
+                    if t not in seen_targets:
+                        seen_targets.add(t)
+                        unique_targets.append(t)
+
+                if self.sync_backend and self.backend_client:
+                    self.backend_client.update_run_state(
+                        run_id=evidence.run_id,
+                        status=AgentState.RETESTING.value,
+                    )
+                self.state = AgentState.RETESTING
+
+                verifications = []
+                all_shots = run_results.get("screenshots", [])
+
+                for vp, step in unique_targets:
+                    before_shot = None
+                    for shot in all_shots:
+                        p_name = Path(shot).name.lower()
+                        if vp.lower() in p_name and step.lower() in p_name:
+                            before_shot = shot
+                            break
+                    if not before_shot:
+                        for shot in all_shots:
+                            p_name = Path(shot).name.lower()
+                            if step.lower() in p_name:
+                                before_shot = shot
+                                break
+
+                    if before_shot and Path(before_shot).exists():
+                        v = self.retest_runner.verify_patch(
+                            app_url=app_url,
+                            target_viewport=vp,
+                            before_screenshot=before_shot,
+                            proposed_patch=audit_report.proposed_patch,
+                            evidence=evidence,
+                            defect_step=step,
                         )
+                        verifications.append(v)
 
-                    verification = self.retest_runner.verify_patch(
+                if not verifications and all_shots:
+                    first_shot = all_shots[0]
+                    p_name = Path(first_shot).name.lower()
+                    step = "home" if "home" in p_name else "cart" if "cart" in p_name else "checkout"
+                    vp = "desktop_1440x900" if "desktop" in p_name else "mobile_375x667"
+                    v = self.retest_runner.verify_patch(
                         app_url=app_url,
-                        target_viewport=target_vp,
-                        before_screenshot=before_shot,
+                        target_viewport=vp,
+                        before_screenshot=first_shot,
                         proposed_patch=audit_report.proposed_patch,
                         evidence=evidence,
+                        defect_step=step,
                     )
-                    audit_report.retest_verification = verification
-                    if verification.status == RetestStatus.FIXED:
+                    verifications.append(v)
+
+                if verifications:
+                    primary_v = verifications[0]
+                    avg_mismatch = sum(v.mismatch_percentage for v in verifications) / len(verifications)
+                    primary_v.mismatch_percentage = round(avg_mismatch, 2)
+                    audit_report.retest_verification = primary_v
+
+                    all_fixed = all(v.status == RetestStatus.FIXED for v in verifications)
+                    if all_fixed:
                         self.state = AgentState.FIXED
                         final_status = AgentState.FIXED.value
                     else:

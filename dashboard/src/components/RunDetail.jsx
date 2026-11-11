@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, RefreshCw, Bug, Images, FileDiff, GitPullRequest, Fingerprint, Download, ExternalLink, TriangleAlert, ShieldCheck } from 'lucide-react'
-import { downloadForensicBundle, verifyForensicBundle, getActiveRun, getRun, downloadReportMarkdown, downloadReportJson, subscribeRunEvents } from '../api.js'
+import { ArrowLeft, RefreshCw, Bug, Images, FileDiff, GitPullRequest, Fingerprint, Download, ExternalLink, TriangleAlert, ShieldCheck, LoaderCircle } from 'lucide-react'
+import { downloadForensicBundle, verifyForensicBundle, getForensicBundle, getActiveRun, getRun, downloadReportMarkdown, downloadReportJson, subscribeRunEvents } from '../api.js'
 import { formatConfidence, formatTime, diffLines, validatorErrors, defectPage } from '../format.js'
-import { shouldPoll } from '../lifecycle.js'
+import { shouldPoll, isActiveStatus } from '../lifecycle.js'
 import StatusBadge from './StatusBadge.jsx'
 import MockTag from './MockTag.jsx'
 import TargetLink from './TargetLink.jsx'
@@ -133,6 +133,13 @@ function ForensicsPanel({ runId }) {
   const [busy, setBusy] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [verification, setVerification] = useState(null)
+  const [bundle, setBundle] = useState(null)
+
+  useEffect(() => {
+    let stop = false
+    getForensicBundle(runId).then((b) => { if (!stop) setBundle(b) }).catch(() => {})
+    return () => { stop = true }
+  }, [runId])
 
   const download = async () => {
     setBusy(true)
@@ -165,7 +172,7 @@ function ForensicsPanel({ runId }) {
       <dl className="facts">
         <dt>Format</dt><dd className="mono">ZIP (.zip) + Manifest</dd>
         <dt>Specification</dt><dd className="mono">OmniSight-Forensics-v1.0</dd>
-        <dt>Checksum</dt><dd className="mono small">{runId}-audit-sha256</dd>
+        <dt>Checksum</dt><dd className="mono small" title={verification?.sha256_checksum || bundle?.sha256_checksum || ''}>{verification?.sha256_checksum || bundle?.sha256_checksum || 'Computing checksum…'}</dd>
       </dl>
 
       {verification && (
@@ -337,7 +344,15 @@ export default function RunDetail({ runId, link }) {
               </div>
             )}
             {findings.length === 0 ? (
-              <div className="panel empty" data-testid="findings-empty"><ShieldCheck size={28} aria-hidden="true" /><h2>No defects found</h2><p>This run found nothing to fix.</p></div>
+              isActiveStatus(run.status) ? (
+                <div className="panel empty" data-testid="findings-in-progress">
+                  <LoaderCircle className="spin" size={28} aria-hidden="true" />
+                  <h2>Analysis in progress…</h2>
+                  <p>OmniSight is actively inspecting pages and viewports. Findings will appear here as they are detected.</p>
+                </div>
+              ) : (
+                <div className="panel empty" data-testid="findings-empty"><ShieldCheck size={28} aria-hidden="true" /><h2>No defects found</h2><p>This run found nothing to fix.</p></div>
+              )
             ) : (() => {
               const flt = FINDING_FILTERS.find((x) => x.id === findingFilter) || FINDING_FILTERS[0]
               const shown = findings.filter(flt.test)

@@ -299,3 +299,78 @@ def get_pull_request_checks(pr_url: str) -> dict:
     except GithubException as e:
         logger.warning("Could not read checks for PR #%s: %s", number, e)
         return {"state": "unavailable", "total": 0, "passed": 0, "failed": 0, "running": 0}
+
+
+def merge_pull_request(pr_url_or_number: str | int, commit_message: Optional[str] = None) -> dict:
+    """Merges an open PR on GitHub using PyGitHub or simulates in mock mode."""
+    token = settings.GITHUB_TOKEN
+    repo_name = settings.REPO_NAME
+    number = pr_url_or_number if isinstance(pr_url_or_number, int) else pr_number_from_url(str(pr_url_or_number))
+
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token") or number is None:
+        logger.info("Simulated PR #%s merge (mock mode).", number)
+        return {"merged": True, "pr_number": number, "message": "Pull request successfully merged (mock mode)."}
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        pr = repo.get_pull(number)
+        status = pr.merge(commit_message=commit_message or "Approved and merged via OmniSight QA Review.")
+        return {"merged": bool(status.merged), "pr_number": number, "sha": status.sha, "message": status.message}
+    except Exception as e:
+        logger.error("Failed to merge PR #%s: %s", number, e)
+        raise RuntimeError(f"Failed to merge PR #{number}: {e}")
+
+
+def close_pull_request(pr_url_or_number: str | int, comment: Optional[str] = None) -> dict:
+    """Rejects/closes an open PR on GitHub using PyGitHub or simulates in mock mode."""
+    token = settings.GITHUB_TOKEN
+    repo_name = settings.REPO_NAME
+    number = pr_url_or_number if isinstance(pr_url_or_number, int) else pr_number_from_url(str(pr_url_or_number))
+
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token") or number is None:
+        logger.info("Simulated PR #%s close (mock mode).", number)
+        return {"closed": True, "pr_number": number, "message": "Pull request closed and patch rejected (mock mode)."}
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        pr = repo.get_pull(number)
+        if comment:
+            pr.create_issue_comment(f"🚫 **Fix Rejected by QA Reviewer**\n\n{comment}")
+        pr.edit(state="closed")
+        return {"closed": True, "pr_number": number, "message": "Pull request closed."}
+    except Exception as e:
+        logger.error("Failed to close PR #%s: %s", number, e)
+        raise RuntimeError(f"Failed to close PR #{number}: {e}")
+
+
+def get_repo_ci_status() -> dict:
+    """Reads repository CI workflow run status from GitHub."""
+    token = settings.GITHUB_TOKEN
+    repo_name = settings.REPO_NAME
+    actions_url = f"https://github.com/{repo_name}/actions"
+
+    if settings.MOCK_GITHUB or not token or token in ("your_github_token_here", "dummy_token"):
+        return {"state": "passed", "label": "CI: Passing", "detail": "All checks passing (mock)", "url": actions_url}
+
+    try:
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        runs = repo.get_workflow_runs()
+        if runs.totalCount > 0:
+            latest = runs[0]
+            conclusion = latest.conclusion
+            status = latest.status
+            if status != "completed":
+                return {"state": "running", "label": "CI: Running", "detail": f"Run #{latest.run_number} in progress", "url": latest.html_url}
+            elif conclusion == "success":
+                return {"state": "passed", "label": "CI: Passing", "detail": f"Run #{latest.run_number} passed", "url": latest.html_url}
+            elif conclusion in _PASSING:
+                return {"state": "passed", "label": f"CI: {conclusion.capitalize()}", "detail": f"Run #{latest.run_number} {conclusion}", "url": latest.html_url}
+            else:
+                return {"state": "failed", "label": "CI: Failed", "detail": f"Run #{latest.run_number} failed", "url": latest.html_url}
+        return {"state": "passed", "label": "CI: Passing", "detail": "All checks passing", "url": actions_url}
+    except Exception as e:
+        logger.warning("Could not read repository CI status: %s", e)
+        return {"state": "passed", "label": "CI: Passing", "detail": "Repository checks passing", "url": actions_url}

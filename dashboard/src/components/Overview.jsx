@@ -32,6 +32,19 @@ function RunLauncherBar({ onStarted, running }) {
   const submit = async (e) => {
     e.preventDefault()
     setError(null)
+    const trimmed = url.trim()
+    let host = ''
+    try {
+      const parsed = new URL(trimmed.includes('://') ? trimmed : `http://${trimmed}`)
+      host = parsed.hostname.toLowerCase()
+    } catch {
+      setError('Please enter a valid website address (e.g. http://localhost:5173 or https://example.com).')
+      return
+    }
+    if (!host || (!host.includes('.') && host !== 'localhost' && host !== '127.0.0.1' && host !== '::1')) {
+      setError(`"${trimmed}" is not a valid hostname. Enter http://localhost:5173 or a valid public domain.`)
+      return
+    }
     setStarting(true)
     try {
       const r = await startRun(url, { retest })
@@ -129,7 +142,7 @@ function QualityTelemetryPanel({ metrics }) {
         <div className="metric-box">
           <span className="m-val">{avgDiff}%</span>
           <span className="m-lbl">Avg Pixel Diff Reduction</span>
-          <div className="m-bar"><div className="m-bar-fill" style={{ width: `${Math.min(100, parseFloat(avgDiff) * 10)}%` }} /></div>
+          <div className="m-bar"><div className="m-bar-fill" style={{ width: `${Math.min(100, Math.max(0, parseFloat(avgDiff)))}%` }} /></div>
         </div>
       </div>
       <dl className="facts compact">
@@ -142,14 +155,23 @@ function QualityTelemetryPanel({ metrics }) {
   )
 }
 
-function DefectBars({ categories, runs }) {
+function DefectBars({ categories, severityCounts, runs }) {
   const rows = Object.entries(categories || {}).sort((a, b) => b[1] - a[1])
   const max = Math.max(1, ...rows.map(([, n]) => n))
-  const sevCounts = { critical: 0, high: 0, medium: 0, low: 0 }
-  for (const r of runs || []) {
-    for (const f of r.findings || []) {
-      const sev = (f.severity || 'medium').toLowerCase()
-      if (sev in sevCounts) sevCounts[sev]++
+  const sevCounts = {
+    critical: severityCounts?.critical ?? 0,
+    high: severityCounts?.high ?? 0,
+    medium: severityCounts?.medium ?? 0,
+    low: severityCounts?.low ?? 0,
+  }
+  const hasCounts = Object.values(sevCounts).some((v) => v > 0)
+  if (!hasCounts) {
+    for (const r of runs || []) {
+      for (const f of r.findings || []) {
+        let sev = (f.severity || 'medium').toLowerCase().replace('severity.', '')
+        if (sev.includes('.')) sev = sev.split('.').pop()
+        if (sev in sevCounts) sevCounts[sev]++
+      }
     }
   }
   return (
@@ -215,6 +237,9 @@ export default function Overview({ link }) {
   useEffect(() => {
     loadRuns()
     getActiveRun().then((a) => a.run_id && setLiveId(a.run_id)).catch(() => {})
+    const onRefresh = () => loadRuns()
+    window.addEventListener('omnisight:refresh', onRefresh)
+    return () => window.removeEventListener('omnisight:refresh', onRefresh)
   }, [])
 
   // Show the latest run when nothing is running.
@@ -289,7 +314,7 @@ export default function Overview({ link }) {
             ))}
           </ul>
         </section>
-        <DefectBars categories={metrics?.defect_categories} runs={runs} />
+        <DefectBars categories={metrics?.defect_categories} severityCounts={metrics?.severity_counts} runs={runs} />
       </div>
       <QualityTelemetryPanel metrics={metrics} />
     </div>

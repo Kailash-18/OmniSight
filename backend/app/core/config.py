@@ -9,6 +9,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load local environment variables from backend/.env or root .env
+_backend_dir = Path(__file__).resolve().parent.parent.parent
+load_dotenv(_backend_dir / ".env")
+load_dotenv(_backend_dir.parent / ".env")
 load_dotenv()
 
 

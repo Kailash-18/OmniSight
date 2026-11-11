@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { GitPullRequest, LoaderCircle, ExternalLink, CircleCheck } from 'lucide-react'
 import { loadReview, saveReview } from '../review.js'
-import { createPullRequest, getPrChecks } from '../api.js'
+import { createPullRequest, getPrChecks, saveRunReview, getRunReview } from '../api.js'
 import { ciMeta } from '../lifecycle.js'
 
 const CI_POLL_MS = 15000
@@ -38,17 +38,37 @@ export default function ReviewPanel({ runId, patch, prUrl: initialPrUrl, riskSco
   const [persisted, setPersisted] = useState(true)
   const [prUrl, setPrUrl] = useState(initialPrUrl)
   const [creatingPr, setCreatingPr] = useState(false)
+  const [deciding, setDeciding] = useState(false)
   const [prError, setPrError] = useState(null)
+
+  useEffect(() => {
+    let stop = false
+    getRunReview(runId).then((r) => {
+      if (!stop && r?.decision) {
+        setReview(r)
+        if (r.note) setNote(r.note)
+      }
+    }).catch(() => {})
+    return () => { stop = true }
+  }, [runId])
 
   if (!patch) return <p className="muted" data-testid="review-unavailable">This run has no proposed fix to review.</p>
   // A validator-rejected patch can never be applied, so there's nothing for a human to approve.
   if (patch.validation_status === false)
     return <p className="muted" data-testid="review-unavailable">The safety check rejected this fix, so there’s nothing to approve.</p>
 
-  const decide = (decision) => {
+  const decide = async (decision) => {
     const next = { decision, note: note.trim(), decided_at: new Date().toISOString() }
     setReview(next)
     setPersisted(saveReview(runId, next))
+    setDeciding(true)
+    try {
+      await saveRunReview(runId, next)
+    } catch {
+      // Backend may be offline or in mock mode; local review decision persists
+    } finally {
+      setDeciding(false)
+    }
   }
 
   const handleCreatePr = async () => {
@@ -85,7 +105,7 @@ export default function ReviewPanel({ runId, patch, prUrl: initialPrUrl, riskSco
           </div>
         </div>
       )}
-      <p className="muted small">Approve or reject the fix here (saved in this browser), then open a pull request on GitHub.</p>
+      <p className="muted small">Approve or reject the fix here, synchronized with backend review gates and GitHub PR actions.</p>
       {review && (
         <p className={`review-result ${review.decision}`} data-testid="review-result" role="status">
           {review.decision === 'approved' ? 'Approved' : 'Rejected'}
@@ -97,10 +117,23 @@ export default function ReviewPanel({ runId, patch, prUrl: initialPrUrl, riskSco
         <textarea className="input" rows="2" value={note} onChange={(e) => setNote(e.target.value)} data-testid="review-note" />
       </label>
       <div className="review-actions">
-        <button type="button" className="btn btn-good" data-testid="review-approve" aria-pressed={review?.decision === 'approved'} onClick={() => decide('approved')}>Approve fix</button>
-        <button type="button" className="btn btn-bad" data-testid="review-reject" aria-pressed={review?.decision === 'rejected'} onClick={() => decide('rejected')}>Reject fix</button>
+        <button type="button" className="btn btn-good" data-testid="review-approve" disabled={deciding} aria-pressed={review?.decision === 'approved'} onClick={() => decide('approved')}>
+          {deciding && review?.decision === 'approved' ? <LoaderCircle className="spin" size={14} aria-hidden="true" /> : null}
+          Approve fix
+        </button>
+        <button type="button" className="btn btn-bad" data-testid="review-reject" disabled={deciding} aria-pressed={review?.decision === 'rejected'} onClick={() => decide('rejected')}>
+          {deciding && review?.decision === 'rejected' ? <LoaderCircle className="spin" size={14} aria-hidden="true" /> : null}
+          Reject fix
+        </button>
         {!prUrl && (
-          <button type="button" className="btn btn-primary" data-testid="review-create-pr" disabled={creatingPr} onClick={handleCreatePr}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            data-testid="review-create-pr"
+            disabled={creatingPr || deciding || review?.decision === 'rejected'}
+            title={review?.decision === 'rejected' ? 'Cannot open PR for a rejected fix' : undefined}
+            onClick={handleCreatePr}
+          >
             {creatingPr ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <GitPullRequest size={16} aria-hidden="true" />}
             {creatingPr ? 'Opening pull request…' : 'Open pull request'}
           </button>

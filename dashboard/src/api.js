@@ -99,7 +99,14 @@ export async function downloadForensicBundle(runId) {
 export async function fetchMetricsSummary() {
   if (DATA_SOURCE === 'mock') {
     const cats = {}
-    for (const r of fixtureRuns) for (const f of r.findings || []) cats[f.category] = (cats[f.category] || 0) + 1
+    const sevs = { critical: 0, high: 0, medium: 0, low: 0 }
+    for (const r of fixtureRuns) {
+      for (const f of r.findings || []) {
+        cats[f.category] = (cats[f.category] || 0) + 1
+        const s = (f.severity || 'medium').toLowerCase().replace('severity.', '')
+        if (s in sevs) sevs[s]++
+      }
+    }
     return {
       total_runs: fixtureRuns.length,
       fixed_runs: fixtureRuns.filter((r) => r.status === 'fixed' || r.status === 'pr_opened').length,
@@ -107,10 +114,38 @@ export async function fetchMetricsSummary() {
       failed_runs: fixtureRuns.filter((r) => r.status === 'failed').length,
       success_rate_percentage: 0,
       defect_categories: cats,
+      severity_counts: sevs,
       average_diff_reduction: 0,
     }
   }
   return call('/runs/metrics/summary')
+}
+
+export async function saveRunReview(runId, review) {
+  if (DATA_SOURCE === 'mock') return { status: 'recorded', ...review }
+  return call(`/runs/${encodeURIComponent(runId)}/review`, { method: 'POST', body: review })
+}
+
+export async function getRunReview(runId) {
+  if (DATA_SOURCE === 'mock') return null
+  return call(`/runs/${encodeURIComponent(runId)}/review`)
+}
+
+export async function mergePullRequest(runId, note) {
+  if (DATA_SOURCE === 'mock') return { merged: true, message: 'PR merged (mock mode)' }
+  return call(`/runs/${encodeURIComponent(runId)}/pr/merge`, { method: 'POST', body: { decision: 'approved', note } })
+}
+
+export async function closePullRequest(runId, note) {
+  if (DATA_SOURCE === 'mock') return { closed: true, message: 'PR closed (mock mode)' }
+  return call(`/runs/${encodeURIComponent(runId)}/pr/close`, { method: 'POST', body: { decision: 'rejected', note } })
+}
+
+export async function fetchRepoCiStatus() {
+  if (DATA_SOURCE === 'mock') {
+    return { state: 'passed', label: 'CI: Passing', detail: 'Mock mode passing', url: 'https://github.com/Kailash-18/OmniSight/actions' }
+  }
+  return call('/ci/status')
 }
 
 export async function fetchTargetHosts() {

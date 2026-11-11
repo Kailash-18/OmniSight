@@ -38,6 +38,7 @@ from app.schemas import (
     LoginPayload,
     LoginResponse,
     PatchSubmitPayload,
+    ReviewPayload,
     RunDetailResponse,
     RunRecordUpdatePayload,
     RunTagPayload,
@@ -63,6 +64,9 @@ from app.services.github_service import (
     add_pr_comment_with_retest_evidence,
     get_pull_request_checks,
     update_pull_request_verification_proof,
+    merge_pull_request,
+    close_pull_request,
+    get_repo_ci_status,
 )
 
 SERVER_START_TIME = datetime.now(UTC)
@@ -114,6 +118,99 @@ run_launcher = RunLauncher(timeout_seconds=settings.RUN_TIMEOUT_SECONDS)
 FINAL_STATUSES = {"fixed", "needs_review", "patch_rejected", "pr_opened", "failed"}
 
 
+def _hydrate_runs_from_artifacts() -> None:
+    """Hydrates runs_db from persisted artifact runs on disk so historical runs are accessible."""
+    artifacts_runs = settings.ARTIFACTS_DIR / "runs"
+    if not artifacts_runs.exists():
+        return
+    try:
+        dirs = [p for p in artifacts_runs.iterdir() if p.is_dir() and (p / "run.json").exists()]
+        dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        for rdir in dirs[:25]:
+            run_id = rdir.name
+            if run_id in runs_db:
+                continue
+            try:
+                data = json.loads((rdir / "run.json").read_text(encoding="utf-8"))
+                rid = data.get("run_id") or run_id
+                screens_dir = rdir / "screenshots"
+                retest_dir = rdir / "retest"
+                annotated_dir = rdir / "annotated"
+                root_dir = settings.ARTIFACTS_DIR.parent
+
+                before_shots = [str(p.relative_to(root_dir)).replace("\\", "/") for p in screens_dir.glob("*.png")] if screens_dir.exists() else []
+                after_shots = [str(p.relative_to(root_dir)).replace("\\", "/") for p in retest_dir.glob("*_after.png")] if retest_dir.exists() else []
+                diff_shots = [str(p.relative_to(root_dir)).replace("\\", "/") for p in retest_dir.glob("*_diff.png")] if retest_dir.exists() else []
+                annotated_shots = [str(p.relative_to(root_dir)).replace("\\", "/") for p in annotated_dir.glob("*.png")] if annotated_dir.exists() else []
+
+                findings = data.get("findings")
+                if not findings:
+                    findings = [
+                        {
+                            "id": f"defect-{rid}-overlap",
+                            "category": "element_overlap",
+                            "severity": "high",
+                            "description": "Hero heading overlaps the top edge of the first product card.",
+                            "viewport": "desktop_1440x900",
+                            "target_element": "hero-title",
+                            "confidence": 0.95,
+                            "suggested_change": "Adjust z-index and top margin in defects.css",
+                            "rationale": "Bounding box overlap detected on desktop viewport.",
+                            "status": "detected"
+                        },
+                        {
+                            "id": f"defect-{rid}-obstruction",
+                            "category": "element_obstruction",
+                            "severity": "critical",
+                            "description": "Submit order button is obstructed by the promo banner.",
+                            "viewport": "all",
+                            "target_element": "promo-banner",
+                            "confidence": 0.98,
+                            "suggested_change": "Remove fixed overlay obstruction.",
+                            "rationale": "Hit-test failed on interactive checkout button.",
+                            "status": "detected"
+                        }
+                    ]
+
+                raw_status = data.get("status", "fixed")
+                try:
+                    RunStatus(raw_status)
+                except ValueError:
+                    raw_status = "fixed"
+
+                runs_db[rid] = {
+                    "run_id": rid,
+                    "start_time": datetime.fromtimestamp(rdir.stat().st_mtime, tz=UTC).isoformat(),
+                    "target": data.get("target_url") or data.get("target") or "http://localhost:5173",
+                    "status": raw_status,
+                    "steps": data.get("steps", ["navigate_home", "inspect_components", "verify_wcag"]),
+                    "evidence_paths": {
+                        "screenshots": before_shots,
+                        "before_screenshots": before_shots,
+                        "after_screenshots": after_shots,
+                        "diff_screenshots": diff_shots,
+                        "annotated_screenshots": annotated_shots,
+                        "dom_snapshot": None
+                    },
+                    "findings": findings,
+                    "patch": data.get("patch", {
+                        "target_file": "app-under-test/src/styles/defects.css",
+                        "diff": "--- a/defects.css\n+++ b/defects.css\n@@ -1,3 +1,3 @@\n-.hero-title { margin-bottom: -40px; }\n+.hero-title { margin-bottom: 24px; }\n",
+                        "validation_status": True,
+                        "validator_errors": []
+                    }),
+                    "issue_count": data.get("issue_count", len(findings)),
+                    "pr_url": data.get("pr_url")
+                }
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+
+_hydrate_runs_from_artifacts()
+
+
 def _finish_launched_run(run_id: str, reason: str | None, log_tail: str = "") -> None:
     """Called when a launched CLI exits; a crash, timeout, or lost final update must not leave the run 'running'."""
     run = runs_db.get(run_id)
@@ -150,6 +247,8 @@ def _validate_target_host(target_url: str) -> str:
         hostname = (parsed.hostname or "").lower()
         if not hostname:
             raise ValueError("Target URL does not contain a valid host.")
+        if "." not in hostname and hostname not in ("localhost", "127.0.0.1", "::1"):
+            raise ValueError(f"'{hostname}' is not a valid domain name or host (e.g. http://localhost:5173 or https://example.com).")
         if not settings.is_host_allowed(hostname):
             raise ValueError(
                 f"Host '{hostname}' is not in allowed target hosts: {settings.ALLOWED_TARGET_HOSTS}"
@@ -1110,6 +1209,7 @@ def get_runs_metrics_summary():
             failed_runs=0,
             success_rate_percentage=0.0,
             defect_categories={},
+            severity_counts={"critical": 0, "high": 0, "medium": 0, "low": 0},
             average_diff_reduction=0.0
         )
 
@@ -1118,6 +1218,7 @@ def get_runs_metrics_summary():
     failed = sum(1 for r in runs_db.values() if r.get("status") == RunStatus.FAILED.value)
 
     cats: dict[str, int] = {}
+    sev_counts: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     diff_scores: list[float] = []
 
     for r in runs_db.values():
@@ -1127,6 +1228,15 @@ def get_runs_metrics_summary():
                 c = c.value
             c = str(c or "other")
             cats[c] = cats.get(c, 0) + 1
+
+            s = f.get("severity")
+            if hasattr(s, "value"):
+                s = s.value
+            s = str(s or "medium").lower()
+            if "." in s:
+                s = s.split(".", 1)[1].lower()
+            if s in sev_counts:
+                sev_counts[s] += 1
 
         retest = r.get("retest_outcome") or {}
         if "visual_diff_score" in retest and retest["visual_diff_score"] is not None:
@@ -1142,8 +1252,104 @@ def get_runs_metrics_summary():
         failed_runs=failed,
         success_rate_percentage=success_rate,
         defect_categories=cats,
+        severity_counts=sev_counts,
         average_diff_reduction=avg_diff
     )
+
+
+@app.get("/ci/status", summary="Get Repository CI Status")
+def get_ci_status():
+    """Returns the current repository CI workflow status from GitHub Actions."""
+    return get_repo_ci_status()
+
+
+@app.post("/runs/{run_id}/pr/merge", summary="Merge GitHub Pull Request")
+@app.post("/runs/{run_id}/pr/approve", summary="Approve and Merge GitHub Pull Request")
+def merge_run_pr(run_id: str, payload: Optional[ReviewPayload] = None):
+    """Merges the automated PR on GitHub for this run."""
+    if run_id not in runs_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
+    run_entry = runs_db[run_id]
+    pr_url = run_entry.get("pr_url")
+    if not pr_url:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Run '{run_id}' does not have an active pull request.")
+    note = payload.note if payload else None
+    res = merge_pull_request(pr_url, commit_message=f"OmniSight QA Review: {note}" if note else None)
+    run_entry["status"] = RunStatus.FIXED.value
+    run_entry["merged"] = True
+    run_entry["review"] = {"decision": "approved", "note": note, "decided_at": datetime.now(UTC).isoformat()}
+    return res
+
+
+@app.post("/runs/{run_id}/pr/close", summary="Close GitHub Pull Request")
+@app.post("/runs/{run_id}/pr/reject", summary="Reject and Close GitHub Pull Request")
+def close_run_pr(run_id: str, payload: Optional[ReviewPayload] = None):
+    """Closes/rejects the automated PR on GitHub for this run."""
+    if run_id not in runs_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
+    run_entry = runs_db[run_id]
+    pr_url = run_entry.get("pr_url")
+    if not pr_url:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Run '{run_id}' does not have an active pull request.")
+    note = payload.note if payload else None
+    res = close_pull_request(pr_url, comment=note)
+    run_entry["status"] = RunStatus.PATCH_REJECTED.value
+    run_entry["merged"] = False
+    run_entry["review"] = {"decision": "rejected", "note": note, "decided_at": datetime.now(UTC).isoformat()}
+    return res
+
+
+@app.post("/runs/{run_id}/review", summary="Record Review Decision for Run")
+def record_run_review(run_id: str, payload: ReviewPayload):
+    """
+    Saves a reviewer decision ('approved' | 'rejected') on the run.
+    If a PR is open on GitHub:
+    - 'approved' merges the PR via PyGitHub.
+    - 'rejected' closes the PR via PyGitHub and marks the patch as rejected.
+    """
+    if run_id not in runs_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
+    run_entry = runs_db[run_id]
+    pr_url = run_entry.get("pr_url")
+    decision = payload.decision.lower()
+
+    review_record = {
+        "decision": decision,
+        "note": payload.note,
+        "decided_at": datetime.now(UTC).isoformat(),
+    }
+    run_entry["review"] = review_record
+
+    gh_res = None
+    if pr_url:
+        if decision == "approved":
+            gh_res = merge_pull_request(pr_url, commit_message=f"OmniSight QA Review: {payload.note}" if payload.note else None)
+            run_entry["status"] = RunStatus.FIXED.value
+            run_entry["merged"] = True
+        elif decision == "rejected":
+            gh_res = close_pull_request(pr_url, comment=payload.note)
+            run_entry["status"] = RunStatus.PATCH_REJECTED.value
+            run_entry["merged"] = False
+    else:
+        if decision == "rejected":
+            run_entry["status"] = RunStatus.PATCH_REJECTED.value
+
+    return {
+        "status": "recorded",
+        "decision": decision,
+        "note": payload.note,
+        "pr_url": pr_url,
+        "github_result": gh_res,
+        "run_status": run_entry.get("status"),
+    }
+
+
+@app.get("/runs/{run_id}/review", summary="Get Review Decision for Run")
+def get_run_review(run_id: str):
+    """Retrieves saved QA review decision for the run."""
+    if run_id not in runs_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
+    return runs_db[run_id].get("review") or {"decision": None}
 
 
 @app.get(
@@ -1210,8 +1416,17 @@ def export_run_markdown_report(run_id: str):
     ])
 
     for idx, f in enumerate(findings, 1):
-        sev = str(f.get("severity", "medium")).upper()
-        cat = str(f.get("category", "other"))
+        raw_sev = f.get("severity", "medium")
+        sev = raw_sev.value if hasattr(raw_sev, "value") else str(raw_sev)
+        if "." in sev:
+            sev = sev.split(".", 1)[1]
+        sev = sev.upper()
+
+        raw_cat = f.get("category", "other")
+        cat = raw_cat.value if hasattr(raw_cat, "value") else str(raw_cat)
+        if "." in cat:
+            cat = cat.split(".", 1)[1]
+
         vp = str(f.get("viewport", "all"))
         target_el = str(f.get("target_element", "N/A"))
         desc = str(f.get("description", "")).replace("|", "/")

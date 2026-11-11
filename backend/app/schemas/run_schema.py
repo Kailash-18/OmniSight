@@ -183,7 +183,7 @@ class PatchObject(BaseModel):
     diff: str = Field(..., description="Unified git diff or targeted CSS changes")
     explanation: str | None = Field(default=None, description="Rationale for the patch")
     validation_status: bool | None = Field(default=None, description="Whether patch passed security checks")
-    validator_errors: str | None = Field(default=None, description="Error reason if patch was rejected")
+    validator_errors: list[str] | str | None = Field(default=None, description="Error reason if patch was rejected")
 
     @field_validator("target_file", mode="before")
     @classmethod
@@ -341,6 +341,11 @@ class ForensicBundleResponse(BaseModel):
     download_url: str = Field(..., description="Download URL for the forensic bundle ZIP")
     manifest: dict[str, Any] = Field(default_factory=dict, description="Tamper-evident manifest details")
 
+class ReviewPayload(BaseModel):
+    decision: str = Field(..., description="Review decision: 'approved' or 'rejected'")
+    note: Optional[str] = Field(default=None, description="Optional reviewer feedback note")
+
+
 class RunMetricsSummaryResponse(BaseModel):
     """Aggregated QA quality, remediation success, and telemetry metrics."""
     total_runs: int = Field(..., description="Total runs recorded")
@@ -349,4 +354,5 @@ class RunMetricsSummaryResponse(BaseModel):
     failed_runs: int = Field(..., description="Total failed runs")
     success_rate_percentage: float = Field(..., description="Fix success rate percentage")
     defect_categories: dict[str, int] = Field(default_factory=dict, description="Count of findings per defect category")
+    severity_counts: dict[str, int] = Field(default_factory=dict, description="Count of findings per severity level")
     average_diff_reduction: float = Field(default=0.0, description="Average visual mismatch percentage reduction")

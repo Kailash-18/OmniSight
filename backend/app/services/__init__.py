@@ -6,6 +6,9 @@ from app.services.github_service import (
     create_pull_request_for_fix,
     add_pr_comment_with_retest_evidence,
     update_pull_request_verification_proof,
+    merge_pull_request,
+    close_pull_request,
+    get_repo_ci_status,
 )
 
 __all__ = [
@@ -16,4 +19,7 @@ __all__ = [
     "create_pull_request_for_fix",
     "add_pr_comment_with_retest_evidence",
     "update_pull_request_verification_proof",
+    "merge_pull_request",
+    "close_pull_request",
+    "get_repo_ci_status",
 ]

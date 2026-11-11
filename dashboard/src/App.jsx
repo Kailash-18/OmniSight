@@ -48,6 +48,17 @@ export default function App() {
         setShortcutsOpen((o) => !o)
       } else if (e.key === 'Escape') {
         setShortcutsOpen(false)
+      } else if (e.key === 't' || e.key === 'T') {
+        e.preventDefault()
+        setTheme((prev) => {
+          const next = prev === 'dark' ? 'light' : 'dark'
+          applyTheme(next)
+          writeTheme(next)
+          return next
+        })
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent('omnisight:refresh'))
       }
     }
     window.addEventListener('keydown', handleKeyDown)

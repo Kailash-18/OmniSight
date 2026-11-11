@@ -43,7 +43,7 @@ export default function Login({ onSignedIn, expired }) {
       <main className="login-main">
         <form className="login-card panel" onSubmit={submit} noValidate>
           <h2>Sign in</h2>
-          <p className="muted">Sign in with administrator credentials (<code>admin / admin</code>).</p>
+          <p className="muted">Sign in with your administrator credentials.</p>
           <label className="field">Username
             <input className="input" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)}
               required data-testid="login-username" autoFocus />

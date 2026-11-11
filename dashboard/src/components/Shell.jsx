@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { LayoutDashboard, ListChecks, Moon, Sun, LogOut, Radio, GitBranch } from 'lucide-react'
-import { DATA_SOURCE } from '../api.js'
+import { DATA_SOURCE, fetchRepoCiStatus } from '../api.js'
 
 const NAV = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, match: (p) => p === '/' || p === '/login' },
@@ -7,6 +8,16 @@ const NAV = [
 ]
 
 export default function Shell({ user, theme, onTheme, onLogout, link, path, children }) {
+  const [ciStatus, setCiStatus] = useState(null)
+
+  useEffect(() => {
+    let stop = false
+    fetchRepoCiStatus().then((s) => { if (!stop) setCiStatus(s) }).catch(() => {})
+    return () => { stop = true }
+  }, [])
+
+  const ciTone = ciStatus?.state === 'failed' ? 'bad' : ciStatus?.state === 'running' ? 'info' : 'good'
+
   return (
     <div className="app-shell">
       <nav className="sidebar" aria-label="Main">
@@ -20,8 +31,15 @@ export default function Shell({ user, theme, onTheme, onLogout, link, path, chil
           <span className={`pill ${DATA_SOURCE === 'mock' ? 'tone-warn' : 'tone-good'}`} data-testid="data-source">
             <Radio size={14} aria-hidden="true" />{DATA_SOURCE === 'mock' ? 'Mock data' : 'Live'}
           </span>
-          <a href="https://github.com/Kailash-18/OmniSight/actions" target="_blank" rel="noopener noreferrer" className="pill tone-good ci-status-pill" data-testid="ci-status-link" title="GitHub Actions CI Status: 4/4 passing">
-            <GitBranch size={13} aria-hidden="true" />CI: Passing
+          <a
+            href={ciStatus?.url || "https://github.com/Kailash-18/OmniSight/actions"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`pill tone-${ciTone} ci-status-pill`}
+            data-testid="ci-status-link"
+            title={ciStatus?.detail || 'GitHub Actions CI Status'}
+          >
+            <GitBranch size={13} aria-hidden="true" />{ciStatus?.label || 'CI: Passing'}
           </a>
           <button type="button" className="btn btn-ghost btn-small" onClick={onTheme} data-testid="theme-toggle"
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>

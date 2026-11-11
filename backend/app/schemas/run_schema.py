@@ -343,7 +343,7 @@ class ForensicBundleResponse(BaseModel):
 
 class ReviewPayload(BaseModel):
     decision: str = Field(..., description="Review decision: 'approved' or 'rejected'")
-    note: Optional[str] = Field(default=None, description="Optional reviewer feedback note")
+    note: str | None = Field(default=None, description="Optional reviewer feedback note")
 
 
 class RunMetricsSummaryResponse(BaseModel):

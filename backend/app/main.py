@@ -1265,7 +1265,7 @@ def get_ci_status():
 
 @app.post("/runs/{run_id}/pr/merge", summary="Merge GitHub Pull Request")
 @app.post("/runs/{run_id}/pr/approve", summary="Approve and Merge GitHub Pull Request")
-def merge_run_pr(run_id: str, payload: Optional[ReviewPayload] = None):
+def merge_run_pr(run_id: str, payload: ReviewPayload | None = None):
     """Merges the automated PR on GitHub for this run."""
     if run_id not in runs_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
@@ -1283,7 +1283,7 @@ def merge_run_pr(run_id: str, payload: Optional[ReviewPayload] = None):
 
 @app.post("/runs/{run_id}/pr/close", summary="Close GitHub Pull Request")
 @app.post("/runs/{run_id}/pr/reject", summary="Reject and Close GitHub Pull Request")
-def close_run_pr(run_id: str, payload: Optional[ReviewPayload] = None):
+def close_run_pr(run_id: str, payload: ReviewPayload | None = None):
     """Closes/rejects the automated PR on GitHub for this run."""
     if run_id not in runs_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")

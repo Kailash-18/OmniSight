@@ -99,3 +99,8 @@ def test_admin_credentials_accepted(client):
     assert res.json()["username"] == "admin"
     assert "token" in res.json()
 
+
+def test_admin_cannot_bypass_when_custom_account_configured(client, configured):
+    res = client.post("/auth/login", json={"username": "admin", "password": "admin"})
+    assert res.status_code == 401
+

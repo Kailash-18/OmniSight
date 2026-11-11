@@ -35,8 +35,8 @@ class Settings:
         self.MOCK_GITHUB: bool = os.getenv("MOCK_GITHUB", "false").lower() in ("true", "1", "yes")
 
         # Dashboard login (single reviewer account). Empty = login refused with 503.
-        self.OMNISIGHT_USERNAME: str = os.getenv("OMNISIGHT_USERNAME", "")
-        self.OMNISIGHT_PASSWORD: str = os.getenv("OMNISIGHT_PASSWORD", "")
+        self.OMNISIGHT_USERNAME: str = os.getenv("OMNISIGHT_USERNAME", "admin")
+        self.OMNISIGHT_PASSWORD: str = os.getenv("OMNISIGHT_PASSWORD", "admin")
         self.OMNISIGHT_SECRET_KEY: str = os.getenv("OMNISIGHT_SECRET_KEY", "")
 
         # Webhook Shared Secrets

@@ -4,7 +4,7 @@ Integration Tests for VLM Adapter and Evidence Artifact Pipeline.
 
 from pathlib import Path
 from automation.core import DefectCategory, Severity, Finding, EvidenceCollector
-from automation.engine import MockVLMAdapter
+from automation.engine import MockVLMAdapter, apply_unified_diff
 
 
 def test_evidence_collector_directory_structure(tmp_path):
@@ -48,3 +48,28 @@ def test_mock_vlm_adapter_detects_seeded_defects():
     assert report.proposed_patch is not None
     assert "defects.css" in report.proposed_patch.target_file
     assert "promo-banner" in report.proposed_patch.diff
+
+
+def test_mock_vlm_adapter_multi_defect_patch_removes_all_three_seeded_defects():
+    adapter = MockVLMAdapter()
+    report = adapter.audit_viewports(
+        run_id="run-test-multi-hunk",
+        target_url="http://localhost:5173",
+        evidence_dir=Path("."),
+        screenshots=[
+            "desktop_1440x900_home.png",
+            "mobile_375x667_cart.png",
+            "desktop_1280x800_checkout.png",
+        ],
+        dom_snapshots=[],
+    )
+    diff = report.proposed_patch.diff
+    assert ".hero-title" in diff
+    assert ".checkout-cta" in diff
+    assert ".promo-banner" in diff
+
+    defects_css = Path("app-under-test/src/styles/defects.css").read_text(encoding="utf-8")
+    patched = apply_unified_diff(defects_css, diff)
+    assert ".hero-title" not in patched
+    assert ".checkout-cta" not in patched
+    assert ".promo-banner" not in patched

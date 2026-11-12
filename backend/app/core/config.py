@@ -3,6 +3,7 @@ Backend Configuration Module for OmniSight.
 Centralizes environment variables and application settings with zero hardcoded secrets.
 """
 
+import json
 import os
 from pathlib import Path
 
@@ -27,16 +28,18 @@ class Settings:
         # Server Configuration
         self.HOST: str = os.getenv("BACKEND_HOST", "0.0.0.0")
         self.PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
-        self.ARTIFACTS_DIR: Path = Path(os.getenv("ARTIFACTS_DIR", "artifacts")).resolve()
+        _default_artifacts = _backend_dir.parent / "artifacts"
+        self.ARTIFACTS_DIR: Path = Path(os.getenv("ARTIFACTS_DIR", str(_default_artifacts))).resolve()
 
         # GitHub Service Configuration
         self.GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
         self.REPO_NAME: str = os.getenv("REPO_NAME", "Kailash-18/OmniSight")
         self.MOCK_GITHUB: bool = os.getenv("MOCK_GITHUB", "false").lower() in ("true", "1", "yes")
 
-        # Dashboard login (single reviewer account). Empty = login refused with 503.
+        # Dashboard login (primary reviewer account + optional extra accounts). Empty primary = login refused with 503.
         self.OMNISIGHT_USERNAME: str = os.getenv("OMNISIGHT_USERNAME", "admin")
         self.OMNISIGHT_PASSWORD: str = os.getenv("OMNISIGHT_PASSWORD", "admin")
+        self.OMNISIGHT_USERS: dict[str, str] = self._parse_users(os.getenv("OMNISIGHT_USERS", ""))
         self.OMNISIGHT_SECRET_KEY: str = os.getenv("OMNISIGHT_SECRET_KEY", "")
 
         # Webhook Shared Secrets
@@ -72,6 +75,35 @@ class Settings:
         # Patch Diff Constraints
         self.MAX_DIFF_LINES: int = int(os.getenv("MAX_DIFF_LINES", "300"))
         self.MAX_DIFF_BYTES: int = int(os.getenv("MAX_DIFF_BYTES", "30000"))
+
+    @staticmethod
+    def _parse_users(raw: str) -> dict[str, str]:
+        """Parses OMNISIGHT_USERS from JSON object or comma-separated user:password pairs."""
+        text = (raw or "").strip()
+        if not text:
+            return {}
+        if text.startswith("{"):
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                return {}
+            if not isinstance(parsed, dict):
+                return {}
+            return {
+                str(k).strip(): str(v)
+                for k, v in parsed.items()
+                if str(k).strip() and isinstance(v, str) and v
+            }
+        users: dict[str, str] = {}
+        for entry in text.split(","):
+            if ":" not in entry:
+                continue
+            username, password = entry.strip().split(":", 1)
+            username = username.strip()
+            password = password.strip()
+            if username and password:
+                users[username] = password
+        return users
 
     def is_host_allowed(self, hostname: str) -> bool:
         """Checks if a given host is in the allowed target hosts list, supporting exact and wildcards."""

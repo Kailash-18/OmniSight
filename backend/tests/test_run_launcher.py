@@ -164,6 +164,14 @@ def test_launch_passes_normalized_url(client, api_launcher):
     assert cmd[cmd.index("--target") + 1] == "http://localhost:5173/shop?x=1"
 
 
+def test_launch_defaults_public_domain_to_https(client, api_launcher):
+    launcher, calls, gate, _ = api_launcher
+    res = client.post("/runs", json={"target_url": "flipkart.com", "launch": True})
+    assert res.status_code == 201
+    cmd = calls[0]
+    assert cmd[cmd.index("--target") + 1] == "https://flipkart.com"
+
+
 def test_clean_exit_without_final_status_marks_failed(client, api_launcher):
     launcher, _, gate, holder = api_launcher
     holder["proc"] = FakeProc(0)
@@ -231,3 +239,22 @@ def test_any_startup_error_marks_run_failed(client, monkeypatch, tmp_path):
     run = client.get("/runs").json()[0]
     assert run["status"] == "failed"
     assert main.run_launcher.active_run_id is None
+
+
+def test_launch_passes_auto_pr_flag_when_enabled(client, api_launcher):
+    launcher, calls, gate, holder = api_launcher
+    holder["proc"] = FakeProc(0)
+    gate.set()
+    res_default = client.post("/runs", json={"target_url": "http://localhost:5173", "launch": True})
+    assert res_default.status_code == 201
+    assert "--auto-pr" not in calls[0]
+    launcher.join(2)
+
+    res_pr = client.post(
+        "/runs",
+        json={"target_url": "http://localhost:5173", "launch": True, "retest": True, "auto_pr": True},
+    )
+    assert res_pr.status_code == 201
+    assert "--auto-pr" in calls[1]
+    assert "--no-retest" not in calls[1]
+    launcher.join(2)

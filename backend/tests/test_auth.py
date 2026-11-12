@@ -104,3 +104,27 @@ def test_admin_cannot_bypass_when_custom_account_configured(client, configured):
     res = client.post("/auth/login", json={"username": "admin", "password": "admin"})
     assert res.status_code == 401
 
+
+def test_additional_users_accepted_alongside_primary(client, configured, monkeypatch):
+    monkeypatch.setattr(settings, "OMNISIGHT_USERS", {"Kailash": "kailash", "reviewer": "wrong-override"})
+    # Primary account remains authoritative and unaffected.
+    res_primary = client.post("/auth/login", json={"username": "reviewer", "password": "s3cret-pass"})
+    assert res_primary.status_code == 200
+    # Additional configured user succeeds and receives a valid token.
+    res_extra = client.post("/auth/login", json={"username": "Kailash", "password": "kailash"})
+    assert res_extra.status_code == 200
+    body = res_extra.json()
+    assert body["username"] == "Kailash"
+    headers = {"Authorization": f"Bearer {body['token']}"}
+    assert client.get("/auth/me", headers=headers).json() == {"username": "Kailash"}
+    # Wrong password or wrong case is still rejected.
+    assert client.post("/auth/login", json={"username": "Kailash", "password": "wrong"}).status_code == 401
+    assert client.post("/auth/login", json={"username": "kailash", "password": "kailash"}).status_code == 401
+
+
+def test_parse_users_formats():
+    assert settings._parse_users("") == {}
+    assert settings._parse_users("Kailash:kailash, second:pass:123") == {"Kailash": "kailash", "second": "pass:123"}
+    assert settings._parse_users('{"Kailash": "kailash"}') == {"Kailash": "kailash"}
+
+

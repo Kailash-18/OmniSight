@@ -19,7 +19,10 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Union
+import tempfile
+import threading
+import time
+from typing import Any, Callable, Dict, Generator, List, Optional, Set, Tuple, Union
 import urllib.error
 import urllib.request
 import zipfile
@@ -872,10 +875,11 @@ def create_isolated_page(
         device_scale_factor=viewport.device_scale_factor,
         is_mobile=viewport.is_mobile,
         has_touch=viewport.has_touch,
+        ignore_https_errors=True,
         user_agent=(
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
             if viewport.is_mobile
-            else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         )
     )
     context.set_default_timeout(config.action_timeout_ms)
@@ -935,15 +939,13 @@ class UniversalWebJourney:
             ".modal-close",
             ".close-modal",
         ]
-        for sel in dismiss_selectors:
-            try:
-                locator = self.page.locator(sel).first
-                if locator.is_visible(timeout=200):
-                    locator.click(timeout=500)
-                    self.page.wait_for_timeout(300)
-                    break
-            except Exception:
-                continue
+        try:
+            locator = self.page.locator(", ".join(dismiss_selectors)).first
+            if locator.is_visible(timeout=200):
+                locator.click(timeout=400)
+                self.page.wait_for_timeout(200)
+        except Exception:
+            pass
 
     def _inspect_landmarks(self) -> None:
         """Discovers HTML5 structural landmarks for semantic auditing."""
@@ -957,14 +959,92 @@ class UniversalWebJourney:
         except Exception:
             pass
 
-    def navigate_home(self) -> None:
+    @staticmethod
+    def _is_error_or_blank_url(url: Any) -> bool:
+        if not isinstance(url, str):
+            return False
+        stripped = url.strip().lower()
+        return stripped in ("", "about:blank") or stripped.startswith("chrome-error://")
+
+    def _wait_for_visual_ready(self, timeout_ms: int = 5000) -> None:
+        """Waits for external SPAs and web pages to paint real DOM content before capture."""
+        if hasattr(self.page, "wait_for_load_state"):
+            try:
+                self.page.wait_for_load_state("load", timeout=2500)
+            except Exception:
+                pass
+        if hasattr(self.page, "wait_for_function"):
+            try:
+                self.page.wait_for_function(
+                    """() => Boolean(
+                        document.body && (
+                            (document.body.innerText || '').trim().length > 0
+                            || document.querySelectorAll('img, svg, canvas, video, input, button, a').length > 0
+                        )
+                    )""",
+                    timeout=timeout_ms,
+                )
+            except Exception:
+                pass
         try:
-            self.page.goto(self.base_url, wait_until="load", timeout=30000)
-            self.page.wait_for_timeout(1000)
-            self._dismiss_cookie_or_promo_modals()
-            self._inspect_landmarks()
+            self.page.evaluate(
+                "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+            )
         except Exception:
             pass
+        self.page.wait_for_timeout(400)
+
+    def _has_rendered_content(self) -> bool:
+        try:
+            return bool(self.page.evaluate(
+                """() => Boolean(
+                    document.body && (
+                        (document.body.innerText || '').trim().length > 0
+                        || document.querySelectorAll('img, svg, canvas, video, input, button, a').length > 0
+                    )
+                )"""
+            ))
+        except Exception:
+            return False
+
+    def navigate_home(self) -> None:
+        last_error: Optional[Exception] = None
+        loaded = False
+        for attempt in range(3):
+            last_error = None
+            try:
+                # External sites often stall window.onload with ads/media; domcontentloaded + visual settle keeps crawls responsive.
+                self.page.goto(self.base_url, wait_until="domcontentloaded", timeout=25000)
+                current_url = getattr(self.page, "url", None)
+                if not self._is_error_or_blank_url(current_url):
+                    loaded = True
+                    break
+            except Exception as exc:
+                last_error = exc
+                current_url = getattr(self.page, "url", None)
+                if (
+                    isinstance(current_url, str)
+                    and not self._is_error_or_blank_url(current_url)
+                    and self._has_rendered_content()
+                ):
+                    loaded = True
+                    break
+            if attempt < 2:
+                try:
+                    self.page.wait_for_timeout(800)
+                except Exception:
+                    pass
+
+        current_url = getattr(self.page, "url", None)
+        if not loaded or self._is_error_or_blank_url(current_url):
+            detail = str(last_error) if last_error else f"landed on '{current_url}'"
+            raise RuntimeError(
+                f"Failed to load target website '{self.base_url}' (prevented blank screenshot capture): {detail}"
+            )
+
+        self._wait_for_visual_ready()
+        self._dismiss_cookie_or_promo_modals()
+        self._inspect_landmarks()
         self.scroll_depth_percent = 0
         self.completed_steps.append("navigate_home")
 
@@ -973,9 +1053,9 @@ class UniversalWebJourney:
         try:
             self.page.evaluate("""() => {
                 const targetY = Math.min(Math.round(window.innerHeight * 0.8), document.body.scrollHeight);
-                window.scrollTo({ top: targetY, behavior: 'smooth' });
+                window.scrollTo({ top: targetY, behavior: 'auto' });
             }""")
-            self.page.wait_for_timeout(600)
+            self.page.wait_for_timeout(250)
             self._inspect_landmarks()
         except Exception:
             pass
@@ -988,13 +1068,13 @@ class UniversalWebJourney:
             self.page.evaluate("""() => {
                 const mainEl = document.querySelector('main') || document.querySelector('article') || document.querySelector('#content');
                 if (mainEl) {
-                    mainEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    mainEl.scrollIntoView({ behavior: 'auto', block: 'center' });
                 } else {
                     const midY = Math.round(document.body.scrollHeight * 0.5);
-                    window.scrollTo({ top: midY, behavior: 'smooth' });
+                    window.scrollTo({ top: midY, behavior: 'auto' });
                 }
             }""")
-            self.page.wait_for_timeout(600)
+            self.page.wait_for_timeout(250)
             self._inspect_landmarks()
         except Exception:
             pass
@@ -1007,12 +1087,12 @@ class UniversalWebJourney:
             self.page.evaluate("""() => {
                 const footerEl = document.querySelector('footer');
                 if (footerEl) {
-                    footerEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    footerEl.scrollIntoView({ behavior: 'auto', block: 'end' });
                 } else {
-                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'auto' });
                 }
             }""")
-            self.page.wait_for_timeout(600)
+            self.page.wait_for_timeout(250)
             self._inspect_landmarks()
         except Exception:
             pass
@@ -1020,10 +1100,10 @@ class UniversalWebJourney:
         self.completed_steps.append("reach_footer")
 
     def fill_checkout_form(self, *args, **kwargs) -> None:
-        """Final exploration milestone: return smoothly to page top for overall overview."""
+        """Final exploration milestone: return cleanly to page top for overall overview."""
         try:
-            self.page.evaluate("window.scrollTo({ top: 0, behavior: 'smooth' });")
-            self.page.wait_for_timeout(500)
+            self.page.evaluate("window.scrollTo({ top: 0, behavior: 'auto' });")
+            self.page.wait_for_timeout(200)
         except Exception:
             pass
         self.completed_steps.append("view_overview")
@@ -1081,6 +1161,40 @@ class StoreJourney:
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
+def _is_blank_white_image(image_path: Path) -> bool:
+    """Returns True if an image is uniformly pure/near-white (unpainted browser surface)."""
+    try:
+        with Image.open(image_path).convert("RGB") as img:
+            extrema = img.getextrema()
+            return all(lo >= 252 for lo, _ in extrema)
+    except Exception:
+        return False
+
+
+def _capture_journey_screenshot(
+    page: Page,
+    shot_path: Path,
+    shot_kwargs: Dict[str, Any],
+    is_external: bool,
+    target_url: str,
+) -> None:
+    current_url = getattr(page, "url", None)
+    if UniversalWebJourney._is_error_or_blank_url(current_url):
+        raise RuntimeError(
+            f"Refusing to capture blank error page ('{current_url}') for '{target_url}'."
+        )
+    page.screenshot(path=str(shot_path), **shot_kwargs)
+    if is_external and shot_path.exists() and _is_blank_white_image(shot_path):
+        try:
+            page.wait_for_timeout(1500)
+            page.evaluate(
+                "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+            )
+        except Exception:
+            pass
+        page.screenshot(path=str(shot_path), **shot_kwargs)
+
+
 def run_parallel_viewports(
     app_url: Optional[str] = None,
     viewports: Optional[List[str]] = None,
@@ -1122,6 +1236,10 @@ def run_parallel_viewports(
 
     def _execute_single_viewport(vp: ViewportSpec) -> Tuple[str, List[str]]:
         shots: List[str] = []
+        local_store = is_mock_store(active_url)
+        shot_kwargs: Dict[str, Any] = {"full_page": False}
+        if not local_store:
+            shot_kwargs["timeout"] = 20000
         with launch_browser() as browser:
             with create_isolated_page(browser, vp) as page:
                 attach_browser_listeners(page, collector)
@@ -1129,21 +1247,21 @@ def run_parallel_viewports(
 
                 journey.navigate_home()
                 home_shot = collector.get_screenshot_path(vp.name, "home")
-                page.screenshot(path=str(home_shot), full_page=False)
+                _capture_journey_screenshot(page, home_shot, shot_kwargs, not local_store, active_url)
                 collector.save_dom_snapshot(vp.name, "home", extract_dom_context(page))
                 shots.append(str(home_shot))
 
                 journey.add_product_to_cart("mug")
                 journey.navigate_to_cart()
                 cart_shot = collector.get_screenshot_path(vp.name, "cart")
-                page.screenshot(path=str(cart_shot), full_page=False)
+                _capture_journey_screenshot(page, cart_shot, shot_kwargs, not local_store, active_url)
                 collector.save_dom_snapshot(vp.name, "cart", extract_dom_context(page))
                 shots.append(str(cart_shot))
 
                 journey.continue_to_checkout()
                 journey.fill_checkout_form()
                 checkout_shot = collector.get_screenshot_path(vp.name, "checkout")
-                page.screenshot(path=str(checkout_shot), full_page=False)
+                _capture_journey_screenshot(page, checkout_shot, shot_kwargs, not local_store, active_url)
                 collector.save_dom_snapshot(vp.name, "checkout", extract_dom_context(page))
                 shots.append(str(checkout_shot))
         return vp.name, shots
@@ -1165,6 +1283,7 @@ def run_visual_audit_journey(
     viewports: Optional[List[str]] = None,
     evidence: Optional[EvidenceCollector] = None,
     scenario: str = "checkout_flow",
+    on_progress: Optional[Callable[[List[str]], None]] = None,
 ) -> Dict[str, Any]:
     target_url = app_url or config.app_url
 
@@ -1174,6 +1293,7 @@ def run_visual_audit_journey(
 
     active_url = verified_url or target_url
     collector = evidence or EvidenceCollector()
+    local_store = is_mock_store(active_url)
 
     selected_viewports: List[ViewportSpec] = []
     if viewports:
@@ -1181,7 +1301,14 @@ def run_visual_audit_journey(
             if vp_name in STANDARD_VIEWPORTS:
                 selected_viewports.append(STANDARD_VIEWPORTS[vp_name])
     if not selected_viewports:
-        selected_viewports = list(STANDARD_VIEWPORTS.values())
+        if local_store:
+            selected_viewports = list(STANDARD_VIEWPORTS.values())
+        else:
+            # Cover primary desktop and mobile breakpoints for external sites without redundant 4x full loads.
+            selected_viewports = [
+                STANDARD_VIEWPORTS["desktop_1440x900"],
+                STANDARD_VIEWPORTS["mobile_375x667"],
+            ]
 
     results: Dict[str, Any] = {
         "run_id": collector.run_id,
@@ -1193,6 +1320,11 @@ def run_visual_audit_journey(
         "steps_completed": [],
     }
 
+    shot_kwargs: Dict[str, Any] = {"full_page": False}
+    if not local_store:
+        shot_kwargs["timeout"] = 20000
+
+    progress_steps: List[str] = ["initiate_browser_session"]
     with launch_browser() as browser:
         for vp in selected_viewports:
             with create_isolated_page(browser, vp) as page:
@@ -1201,25 +1333,31 @@ def run_visual_audit_journey(
 
                 journey.navigate_home()
                 home_shot = collector.get_screenshot_path(vp.name, "home")
-                page.screenshot(path=str(home_shot), full_page=False)
+                _capture_journey_screenshot(page, home_shot, shot_kwargs, not local_store, active_url)
                 collector.save_dom_snapshot(vp.name, "home", extract_dom_context(page))
                 results["screenshots"].append(str(home_shot))
 
                 journey.add_product_to_cart("mug")
                 journey.navigate_to_cart()
                 cart_shot = collector.get_screenshot_path(vp.name, "cart")
-                page.screenshot(path=str(cart_shot), full_page=False)
+                _capture_journey_screenshot(page, cart_shot, shot_kwargs, not local_store, active_url)
                 collector.save_dom_snapshot(vp.name, "cart", extract_dom_context(page))
                 results["screenshots"].append(str(cart_shot))
 
                 journey.continue_to_checkout()
                 journey.fill_checkout_form()
                 checkout_shot = collector.get_screenshot_path(vp.name, "checkout")
-                page.screenshot(path=str(checkout_shot), full_page=False)
+                _capture_journey_screenshot(page, checkout_shot, shot_kwargs, not local_store, active_url)
                 collector.save_dom_snapshot(vp.name, "checkout", extract_dom_context(page))
                 results["screenshots"].append(str(checkout_shot))
 
                 results["steps_completed"] = journey.completed_steps
+                if on_progress:
+                    progress_steps.append(f"captured_{vp.name}")
+                    try:
+                        on_progress(list(progress_steps))
+                    except Exception:
+                        pass
 
     collector.save_console_logs()
     collector.save_manifest(results)
@@ -1386,13 +1524,21 @@ def apply_unified_diff(original_text: str, diff_text: str) -> str:
             else:
                 result_lines.extend(add_lines)
 
-    trailing_nl = "\n" if original_text.endswith("\n") else ""
-    return "\n".join(result_lines) + trailing_nl
+    nl = "\r\n" if "\r\n" in original_text else "\n"
+    trailing_nl = nl if original_text.endswith("\n") else ""
+    return nl.join(result_lines) + trailing_nl
+
+
+_SANDBOX_LOCKS_GUARD = threading.Lock()
+_SANDBOX_THREAD_LOCKS: Dict[str, threading.RLock] = {}
+_SANDBOX_FILE_FDS: Dict[str, int] = {}
+_SANDBOX_LOCK_DEPTH: Dict[str, int] = {}
 
 
 class PatchSandbox:
     """
     Safely applies patch in-place with guaranteed atomic snapshot rollback upon context exit.
+    Serializes concurrent sandbox sessions across threads and processes on the same target file.
     Records cryptographic SHA-256 hashes of pre-patch file states to verify zero leakage.
     """
 
@@ -1402,15 +1548,100 @@ class PatchSandbox:
         diff: str,
         repo_root: Optional[Path] = None,
         bypass_allowlist_for_testing: bool = False,
+        lock_timeout_seconds: float = 120.0,
     ):
         self.target_str = str(target_file)
         self.diff = diff
         self.repo_root = repo_root or Path.cwd()
         self.bypass_allowlist = bypass_allowlist_for_testing
+        self.lock_timeout_seconds = lock_timeout_seconds
         self.original_content: Optional[str] = None
         self.original_sha256: Optional[str] = None
         self.target_path: Optional[Path] = None
         self.is_applied: bool = False
+        self._lock_key: Optional[str] = None
+
+    @staticmethod
+    def _acquire_os_lock(lock_path: Path, timeout_seconds: float) -> int:
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
+        deadline = time.monotonic() + max(0.1, timeout_seconds)
+        try:
+            if os.fstat(fd).st_size == 0:
+                os.write(fd, b"\0")
+            while True:
+                try:
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    if os.name == "nt":
+                        import msvcrt
+
+                        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                    else:
+                        import fcntl
+
+                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    return fd
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(f"Timed out waiting for PatchSandbox lock on {lock_path}")
+                    time.sleep(0.1)
+        except BaseException:
+            os.close(fd)
+            raise
+
+    @staticmethod
+    def _release_os_lock(fd: int) -> None:
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        finally:
+            os.close(fd)
+
+    def _acquire_lock(self, resolved_path: Path) -> None:
+        raw = str(resolved_path)
+        key = raw.lower() if os.name == "nt" else raw
+        with _SANDBOX_LOCKS_GUARD:
+            rlock = _SANDBOX_THREAD_LOCKS.setdefault(key, threading.RLock())
+        rlock.acquire()
+        try:
+            depth = _SANDBOX_LOCK_DEPTH.get(key, 0)
+            if depth == 0:
+                lock_name = f"omnisight_sandbox_{hashlib.sha256(key.encode('utf-8')).hexdigest()[:16]}.lock"
+                lock_path = Path(tempfile.gettempdir()) / lock_name
+                _SANDBOX_FILE_FDS[key] = self._acquire_os_lock(lock_path, self.lock_timeout_seconds)
+            _SANDBOX_LOCK_DEPTH[key] = depth + 1
+            self._lock_key = key
+        except BaseException:
+            rlock.release()
+            raise
+
+    def _release_lock(self) -> None:
+        key = self._lock_key
+        if not key:
+            return
+        self._lock_key = None
+        with _SANDBOX_LOCKS_GUARD:
+            rlock = _SANDBOX_THREAD_LOCKS.get(key)
+        depth = _SANDBOX_LOCK_DEPTH.get(key, 1) - 1
+        try:
+            if depth <= 0:
+                _SANDBOX_LOCK_DEPTH.pop(key, None)
+                fd = _SANDBOX_FILE_FDS.pop(key, None)
+                if fd is not None:
+                    self._release_os_lock(fd)
+            else:
+                _SANDBOX_LOCK_DEPTH[key] = depth
+        finally:
+            if rlock is not None:
+                rlock.release()
 
     def snapshot_state(self) -> Dict[str, Any]:
         """Returns metadata snapshot of the pre-patch file state."""
@@ -1426,7 +1657,7 @@ class PatchSandbox:
             return True
         if not self.target_path.exists():
             return False
-        with open(self.target_path, "r", encoding="utf-8") as f:
+        with open(self.target_path, "r", encoding="utf-8", newline="") as f:
             current_hash = hashlib.sha256(f.read().encode("utf-8")).hexdigest()
         return current_hash == self.original_sha256
 
@@ -1436,31 +1667,43 @@ class PatchSandbox:
         else:
             self.target_path = validate_patch_target(self.target_str, self.repo_root)
 
-        if not self.target_path.exists():
-            raise FileNotFoundError(f"Target patch file does not exist: {self.target_path}")
+        self._acquire_lock(self.target_path)
+        try:
+            if not self.target_path.exists():
+                raise FileNotFoundError(f"Target patch file does not exist: {self.target_path}")
 
-        with open(self.target_path, "r", encoding="utf-8") as f:
-            self.original_content = f.read()
-        self.original_sha256 = hashlib.sha256(self.original_content.encode("utf-8")).hexdigest()
+            with open(self.target_path, "r", encoding="utf-8", newline="") as f:
+                self.original_content = f.read()
+            self.original_sha256 = hashlib.sha256(self.original_content.encode("utf-8")).hexdigest()
 
-        patched_content = apply_unified_diff(self.original_content, self.diff)
+            patched_content = apply_unified_diff(self.original_content, self.diff)
 
-        with open(self.target_path, "w", encoding="utf-8", newline="") as f:
-            f.write(patched_content)
+            with open(self.target_path, "w", encoding="utf-8", newline="") as f:
+                f.write(patched_content)
 
-        self.is_applied = True
-        return self
+            self.is_applied = True
+            return self
+        except BaseException:
+            if self.is_applied and self.target_path and self.original_content is not None:
+                with open(self.target_path, "w", encoding="utf-8", newline="") as f:
+                    f.write(self.original_content)
+                self.is_applied = False
+            self._release_lock()
+            raise
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.target_path and self.original_content is not None:
-            with open(self.target_path, "w", encoding="utf-8", newline="") as f:
-                f.write(self.original_content)
-            self.is_applied = False
-            if not self.verify_restoration():
-                logger.critical(
-                    "Integrity violation: Restored target file %s does not match baseline SHA-256!",
-                    self.target_path,
-                )
+        try:
+            if self.target_path and self.original_content is not None:
+                with open(self.target_path, "w", encoding="utf-8", newline="") as f:
+                    f.write(self.original_content)
+                self.is_applied = False
+                if not self.verify_restoration():
+                    logger.critical(
+                        "Integrity violation: Restored target file %s does not match baseline SHA-256!",
+                        self.target_path,
+                    )
+        finally:
+            self._release_lock()
 
 
 class RetestRunner:
@@ -1768,6 +2011,15 @@ class MockVLMAdapter(BaseVLMAdapter):
         screenshots: List[str],
         dom_snapshots: List[str],
     ) -> VisualAuditReport:
+        if not is_mock_store(target_url):
+            return VisualAuditReport(
+                run_id=run_id,
+                target_url=target_url,
+                findings=[],
+                summary="External site audited via spatial layout, WCAG accessibility, and interaction checks.",
+                proposed_patch=None,
+            )
+
         findings: List[Finding] = []
 
         for shot_path in screenshots:
@@ -1821,30 +2073,88 @@ class MockVLMAdapter(BaseVLMAdapter):
                     )
                 )
 
-        unique_findings = {f.id: f for f in findings}.values()
+        unique_findings = list({f.id: f for f in findings}.values())
+        finding_ids = {f.id for f in unique_findings}
 
-        patch_diff = (
-            "--- a/app-under-test/src/styles/defects.css\n"
-            "+++ b/app-under-test/src/styles/defects.css\n"
-            "@@ -51,6 +51,3 @@\n"
-            "-.checkout-actions {\n"
-            "-  position: relative;\n"
-            "-}\n"
-            "-.promo-banner {\n"
-            "-  position: absolute;\n"
-            "-  inset: 0;\n"
-            "-  z-index: 2;\n"
-            "-  display: flex;\n"
-            "-  align-items: center;\n"
-            "-  justify-content: center;\n"
-            "-  pointer-events: none;\n"
-            "-}\n"
+        defect_hunks = [
+            (
+                "defect-1-heading-overlap",
+                19,
+                [
+                    "@media (min-width: 1024px) {",
+                    "  .hero-title {",
+                    "    position: relative;",
+                    "    z-index: 2;",
+                    "    margin-bottom: -96px;",
+                    "  }",
+                    "}",
+                ],
+                "negative margin on .hero-title",
+            ),
+            (
+                "defect-2-checkout-button-clipped",
+                36,
+                [
+                    "@media (max-width: 480px) {",
+                    "  .cart-summary {",
+                    "    overflow: clip; /* not hidden: hidden makes a scroll container Playwright can shift */",
+                    "  }",
+                    "  .checkout-cta {",
+                    "    min-width: 460px;",
+                    "  }",
+                    "}",
+                ],
+                "fixed min-width clipping on .checkout-cta",
+            ),
+            (
+                "defect-3-submit-button-obstructed",
+                54,
+                [
+                    ".checkout-actions {",
+                    "  position: relative;",
+                    "}",
+                    ".promo-banner {",
+                    "  position: absolute;",
+                    "  inset: 0;",
+                    "  z-index: 2;",
+                    "  display: flex;",
+                    "  align-items: center;",
+                    "  justify-content: center;",
+                    "  pointer-events: none;",
+                    "}",
+                ],
+                "absolute overlay on .promo-banner blocking Submit order",
+            ),
+        ]
+
+        selected_hunks = [h for h in defect_hunks if h[0] in finding_ids]
+        if not selected_hunks:
+            selected_hunks = [defect_hunks[-1]]
+
+        diff_parts = [
+            "--- a/app-under-test/src/styles/defects.css",
+            "+++ b/app-under-test/src/styles/defects.css",
+        ]
+        removed_offset = 0
+        fix_descriptions = []
+        for _, orig_start, block_lines, fix_desc in selected_hunks:
+            count = len(block_lines)
+            diff_parts.append(f"@@ -{orig_start},{count} +{orig_start - removed_offset},0 @@")
+            diff_parts.extend(f"-{line}" for line in block_lines)
+            removed_offset += count
+            fix_descriptions.append(fix_desc)
+
+        patch_diff = "\n".join(diff_parts) + "\n"
+        explanation = (
+            "Removes absolute overlay on promo banner to restore visibility to Submit order button."
+            if len(selected_hunks) == 1 and selected_hunks[0][0] == "defect-3-submit-button-obstructed"
+            else f"Fixes {'; '.join(fix_descriptions)} in app-under-test/src/styles/defects.css."
         )
 
         patch = ProposedPatch(
             target_file="app-under-test/src/styles/defects.css",
             diff=patch_diff,
-            explanation="Removes absolute overlay on promo banner to restore visibility to Submit order button.",
+            explanation=explanation,
         )
 
         return VisualAuditReport(

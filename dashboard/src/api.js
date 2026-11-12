@@ -35,9 +35,9 @@ export async function getRun(runId) {
   return run
 }
 
-export function startRun(targetUrl, { retest = true } = {}) {
+export function startRun(targetUrl, { retest = true, autoPr = false } = {}) {
   if (DATA_SOURCE === 'mock') return Promise.reject(Object.assign(new Error('Runs can only be started in live mode'), { status: 400 }))
-  return call('/runs', { method: 'POST', body: { target_url: targetUrl.trim(), launch: true, retest } })
+  return call('/runs', { method: 'POST', body: { target_url: targetUrl.trim(), launch: true, retest, auto_pr: autoPr } })
 }
 
 export async function getActiveRun() {

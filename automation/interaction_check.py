@@ -6,6 +6,7 @@ Each element is tested from a freshly prepared page, so sequence-dependent bugs 
 
 import logging
 import re
+import time
 from typing import Callable, List, Optional, Tuple
 from urllib.parse import urldefrag, urlparse
 
@@ -76,7 +77,7 @@ def _finding(kind: DefectCategory, severity: Severity, page_name: str, viewport:
     )
 
 
-def _click_and_watch(page: Page, item: dict) -> Tuple[List[str], bool]:
+def _click_and_watch(page: Page, item: dict, settle_ms: int = SETTLE_MS) -> Tuple[List[str], bool]:
     """Clicks one element; returns (errors seen, whether anything changed)."""
     errors: List[str] = []
     dialog = [False]
@@ -113,7 +114,7 @@ def _click_and_watch(page: Page, item: dict) -> Tuple[List[str], bool]:
                 loc.click(timeout=2500)
         except Exception as e:
             errors.append(f"click failed: {str(e).splitlines()[0]}")
-        page.wait_for_timeout(SETTLE_MS)
+        page.wait_for_timeout(settle_ms)
         # A link to the page you're already on legitimately changes nothing.
         self_link = bool(item["href"]) and urldefrag(item["href"])[0] == urldefrag(before_url)[0]
         mutated = page.url != before_url or dialog[0] or validation or self_link
@@ -129,12 +130,17 @@ def _click_and_watch(page: Page, item: dict) -> Tuple[List[str], bool]:
 
 
 def check_page(page: Page, prepare: Callable[[Page], None], page_name: str, viewport_name: str,
-               max_elements: int = MAX_PER_PAGE) -> List[Finding]:
+               max_elements: int = MAX_PER_PAGE, settle_ms: int = SETTLE_MS,
+               time_budget_s: Optional[float] = None) -> List[Finding]:
+    started = time.monotonic()
     prepare(page)
     items = page.evaluate(COLLECT_JS, CLICKABLE)[:max_elements]
     origin = urlparse(page.url).netloc
     findings: List[Finding] = []
+    needs_reset = False
     for item in items:
+        if time_budget_s is not None and (time.monotonic() - started) >= time_budget_s:
+            break
         label = item["text"] or item["testid"] or item["tag"]
         if SKIP_TEXT.search(label):
             continue
@@ -142,15 +148,19 @@ def check_page(page: Page, prepare: Callable[[Page], None], page_name: str, view
         if href and urlparse(href).netloc and urlparse(href).netloc != origin:
             continue  # never follow links off the site under test (it is the only allowlisted host)
         if href and urlparse(href).scheme in ("http", "https") and urlparse(href).netloc == origin:
-            status = page.request.get(href).status
+            try:
+                status = page.request.get(href, timeout=3000).status
+            except Exception:
+                continue
             if status >= 400:
                 findings.append(_finding(
                     DefectCategory.BROKEN_LINK, Severity.MEDIUM, page_name, viewport_name, item,
                     f"Link “{label}” on the {page_name} page leads to an error page (HTTP {status}).",
                     f"Fix or remove the link target {href}.", f"GET {href} returned {status}.", 0.95))
                 continue
-        prepare(page)
-        page.evaluate(COLLECT_JS, CLICKABLE)
+        if needs_reset:
+            prepare(page)
+            page.evaluate(COLLECT_JS, CLICKABLE)
         blocker = page.evaluate(BLOCKER_JS, item["index"])
         if blocker:
             findings.append(_finding(
@@ -159,7 +169,8 @@ def check_page(page: Page, prepare: Callable[[Page], None], page_name: str, view
                 f"Stop {blocker} from overlapping “{label}” (positioning/z-index).",
                 f"The topmost element at the centre of “{label}” is {blocker}.", 0.9))
             continue
-        errors, changed = _click_and_watch(page, item)
+        needs_reset = True
+        errors, changed = _click_and_watch(page, item, settle_ms=settle_ms)
         if errors:
             findings.append(_finding(
                 DefectCategory.CLICK_ERROR, Severity.HIGH, page_name, viewport_name, item,
@@ -170,7 +181,7 @@ def check_page(page: Page, prepare: Callable[[Page], None], page_name: str, view
                 DefectCategory.NO_EFFECT, Severity.LOW, page_name, viewport_name, item,
                 f"“{label}” on the {page_name} page possibly does nothing when clicked.",
                 "Check that this control has a working action, or remove it.",
-                f"No URL change, DOM change, or dialog within {SETTLE_MS} ms of the click.", 0.5))
+                f"No URL change, DOM change, or dialog within {settle_ms} ms of the click.", 0.5))
     return findings
 
 
@@ -192,23 +203,25 @@ def store_pages(base_url: str) -> List[Tuple[str, Callable[[Page], None]]]:
         return [("home", home), ("cart", cart), ("checkout", checkout)]
     else:
         def home_generic(p: Page) -> None:
-            p.goto(base_url, wait_until="load", timeout=30000)
+            p.goto(base_url, wait_until="domcontentloaded", timeout=15000)
+            try:
+                p.wait_for_load_state("load", timeout=1500)
+            except Exception:
+                pass
 
-        def explore_generic(p: Page) -> None:
-            p.goto(base_url, wait_until="load", timeout=30000)
-            p.evaluate("window.scrollBy({ top: 400, behavior: 'smooth' });")
-
-        return [("home", home_generic), ("explore", explore_generic)]
+        return [("home", home_generic)]
 
 
 def run_interaction_check(app_url: str, pages: Optional[List[Tuple[str, Callable[[Page], None]]]] = None,
                           viewport_name: str = "desktop_1440x900") -> List[Finding]:
     findings: List[Finding] = []
+    external = pages is None and not is_mock_store(app_url)
+    check_kwargs = {"max_elements": 6, "settle_ms": 500, "time_budget_s": 15.0} if external else {}
     with launch_browser() as browser:
         with create_isolated_page(browser, STANDARD_VIEWPORTS[viewport_name]) as page:
             for name, prepare in pages or store_pages(app_url):
                 try:
-                    findings.extend(check_page(page, prepare, name, viewport_name))
+                    findings.extend(check_page(page, prepare, name, viewport_name, **check_kwargs))
                 except Exception as e:
                     logger.warning("Interaction check skipped %s page: %s", name, e)
     return findings

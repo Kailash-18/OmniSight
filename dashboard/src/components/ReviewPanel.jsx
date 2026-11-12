@@ -52,7 +52,13 @@ export default function ReviewPanel({ runId, patch, prUrl: initialPrUrl, riskSco
     return () => { stop = true }
   }, [runId])
 
-  if (!patch) return <p className="muted" data-testid="review-unavailable">This run has no proposed fix to review.</p>
+  if (!patch) {
+    return (
+      <p className="muted" data-testid="review-unavailable">
+        This run has no proposed code patch to review. Automated patches and Pull Requests are generated only for the local target app (http://localhost:5173), not external websites.
+      </p>
+    )
+  }
   // A validator-rejected patch can never be applied, so there's nothing for a human to approve.
   if (patch.validation_status === false)
     return <p className="muted" data-testid="review-unavailable">The safety check rejected this fix, so there’s nothing to approve.</p>

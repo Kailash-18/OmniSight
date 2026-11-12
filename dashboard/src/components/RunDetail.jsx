@@ -308,7 +308,19 @@ export default function RunDetail({ runId, link }) {
           <div className="mini"><dt>Retries</dt><dd data-testid="retry-count">{run.retry_count ?? 0}</dd></div>
           <div className="mini"><dt>Screenshots</dt><dd>{shots}</dd></div>
           <div className="mini"><dt>Pull request</dt>
-            <dd>{run.pr_url ? <a href={run.pr_url} target="_blank" rel="noreferrer" data-testid="pr-link">Open<ExternalLink size={13} aria-hidden="true" /></a> : <span className="muted">Not opened</span>}</dd>
+            <dd>
+              {run.pr_url ? (
+                <a href={run.pr_url} target="_blank" rel="noreferrer" data-testid="pr-link">
+                  PR raised <ExternalLink size={13} aria-hidden="true" />
+                </a>
+              ) : run.patch && run.patch.validation_status !== false ? (
+                <button type="button" className="btn btn-small" onClick={() => setTab('review')} data-testid="open-pr-jump">
+                  <GitPullRequest size={13} aria-hidden="true" />Open PR
+                </button>
+              ) : (
+                <span className="muted">Not opened</span>
+              )}
+            </dd>
           </div>
         </dl>
         {run.error && <p className="alert" role="alert" data-testid="run-error-message" style={{ marginTop: 16 }}>{run.error}</p>}

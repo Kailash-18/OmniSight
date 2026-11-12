@@ -48,15 +48,19 @@ class RunLauncher:
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
 
-    def build_command(self, run_id: str, target_url: str, backend_url: str, retest: bool) -> list[str]:
+    def build_command(
+        self, run_id: str, target_url: str, backend_url: str, retest: bool, auto_pr: bool = False
+    ) -> list[str]:
         cmd = [sys.executable, "-m", "automation.cli", "--run-id", run_id, "--target", target_url,
                "--sync-backend", "--backend-url", backend_url]
         if not retest:
             cmd.append("--no-retest")
+        if auto_pr:
+            cmd.append("--auto-pr")
         return cmd
 
     def start(self, run_id: str, target_url: str, backend_url: str, service_token: str, retest: bool,
-              on_exit: Callable[[str, Optional[str], str], None]) -> None:
+              on_exit: Callable[[str, Optional[str], str], None], auto_pr: bool = False) -> None:
         with self._lock:
             if self.active_run_id:
                 raise RunAlreadyActive(self.active_run_id)
@@ -65,7 +69,7 @@ class RunLauncher:
             log = open(log_path, "w", encoding="utf-8")
             env = {**os.environ, "OMNISIGHT_SERVICE_TOKEN": service_token, "PYTHONUNBUFFERED": "1"}
             try:
-                proc = self.popen(self.build_command(run_id, target_url, backend_url, retest),
+                proc = self.popen(self.build_command(run_id, target_url, backend_url, retest, auto_pr=auto_pr),
                                   cwd=str(self.repo_root), env=env, stdout=log, stderr=subprocess.STDOUT,
                                   start_new_session=True)  # own process group, so a timeout can kill Chromium too
             except Exception:

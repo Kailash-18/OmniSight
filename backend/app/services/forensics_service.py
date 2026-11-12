@@ -8,10 +8,16 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+import shutil
 from typing import Any, Dict, Optional
 import zipfile
 
+from app.core.config import settings
+
 logger = logging.getLogger("omnisight.backend.forensics")
+
+_BUNDLE_META_FILES = {"forensic_manifest.json", "checksums.sha256"}
+_TERMINAL_BUNDLE_STATUSES = {"fixed", "needs_review", "patch_rejected", "pr_opened", "failed"}
 
 
 def compute_file_sha256(file_path: Path) -> str:
@@ -23,6 +29,55 @@ def compute_file_sha256(file_path: Path) -> str:
     return h.hexdigest()
 
 
+def _resolve_evidence_file(raw_path: str, base_dir: Path) -> Optional[Path]:
+    if not raw_path:
+        return None
+    p = Path(raw_path)
+    candidates = [p] if p.is_absolute() else [base_dir.parent / p, base_dir / p, Path.cwd() / p]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    return None
+
+
+def _sync_external_evidence(run_dir: Path, run_data: Dict[str, Any], base_dir: Path) -> None:
+    """Ensures screenshots/DOM files referenced in evidence_paths are materialized inside run_dir."""
+    evidence = run_data.get("evidence_paths")
+    if not isinstance(evidence, dict):
+        return
+    run_dir_resolved = run_dir.resolve()
+    folder_map = {
+        "screenshots": "screenshots",
+        "before_screenshots": "screenshots",
+        "after_screenshots": "retest",
+        "diff_screenshots": "retest",
+        "annotated_screenshots": "annotated",
+        "dom_snapshots": "dom",
+    }
+    for key, subdir in folder_map.items():
+        raw_items = evidence.get(key)
+        if isinstance(raw_items, str):
+            raw_items = [raw_items]
+        if not isinstance(raw_items, list):
+            continue
+        for item in raw_items:
+            if not isinstance(item, str):
+                continue
+            src = _resolve_evidence_file(item, base_dir)
+            if not src:
+                continue
+            try:
+                if src.is_relative_to(run_dir_resolved):
+                    continue
+            except ValueError:
+                pass
+            dest_dir = run_dir / subdir
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest = dest_dir / src.name
+            if not dest.exists():
+                shutil.copy2(src, dest)
+
+
 def compile_forensic_bundle(
     run_id: str,
     run_data: Dict[str, Any],
@@ -32,9 +87,11 @@ def compile_forensic_bundle(
     Compiles an immutable forensic audit bundle for the given run.
     Gathers physical run artifacts, generated evidence, DOM data, logs, and cryptographic checksums.
     """
-    base_dir = artifacts_base_dir or Path("artifacts")
+    base_dir = artifacts_base_dir or settings.ARTIFACTS_DIR
     run_dir = base_dir / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
+
+    _sync_external_evidence(run_dir, run_data, base_dir)
 
     # 1. Ensure run.json is current
     manifest_path = run_dir / "run.json"
@@ -135,9 +192,45 @@ def compile_forensic_bundle(
 
 def get_forensic_bundle_path(run_id: str, artifacts_base_dir: Optional[Path] = None) -> Optional[Path]:
     """Retrieves path to existing bundle zip if available."""
-    base_dir = artifacts_base_dir or Path("artifacts")
+    base_dir = artifacts_base_dir or settings.ARTIFACTS_DIR
     bundle_path = base_dir / "runs" / run_id / f"forensic_bundle_{run_id}.zip"
     return bundle_path if bundle_path.exists() else None
+
+
+def is_forensic_bundle_stale(
+    run_id: str,
+    run_data: Dict[str, Any],
+    artifacts_base_dir: Optional[Path] = None,
+) -> bool:
+    """Returns True if the cached bundle is missing, built while the run was active, or missing newer artifacts."""
+    base_dir = artifacts_base_dir or settings.ARTIFACTS_DIR
+    run_dir = base_dir / "runs" / run_id
+    bundle_path = run_dir / f"forensic_bundle_{run_id}.zip"
+    if not bundle_path.exists():
+        return True
+    if run_data.get("status") not in _TERMINAL_BUNDLE_STATUSES:
+        return True
+
+    bundle_mtime = bundle_path.stat().st_mtime
+    for root, _, files in run_dir.walk():
+        for file in files:
+            if file.startswith("forensic_bundle_") or file.endswith(".sha256") or file in _BUNDLE_META_FILES:
+                continue
+            if (Path(root) / file).stat().st_mtime > bundle_mtime:
+                return True
+
+    forensics_meta = run_data.get("forensics")
+    if isinstance(forensics_meta, dict):
+        manifest_files = forensics_meta.get("manifest", {}).get("files", [])
+        packed_paths = {f.get("path") for f in manifest_files if isinstance(f, dict)}
+        for root, _, files in run_dir.walk():
+            for file in files:
+                if file.startswith("forensic_bundle_") or file.endswith(".sha256") or file in _BUNDLE_META_FILES:
+                    continue
+                rel = (Path(root) / file).relative_to(run_dir).as_posix()
+                if rel not in packed_paths:
+                    return True
+    return False
 
 
 def verify_forensic_bundle_integrity(run_id: str, artifacts_base_dir: Optional[Path] = None) -> dict[str, Any]:
@@ -147,7 +240,7 @@ def verify_forensic_bundle_integrity(run_id: str, artifacts_base_dir: Optional[P
     2. Reads the forensic manifest and verifies individual artifact SHA-256 digests.
     3. Returns verification status, verified files count, and any tampering discrepancies.
     """
-    base_dir = artifacts_base_dir or Path("artifacts")
+    base_dir = artifacts_base_dir or settings.ARTIFACTS_DIR
     run_dir = base_dir / "runs" / run_id
     manifest_path = run_dir / "forensic_manifest.json"
     bundle_path = run_dir / f"forensic_bundle_{run_id}.zip"

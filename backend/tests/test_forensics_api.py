@@ -94,3 +94,41 @@ def test_forensics_unknown_run_returns_404(client: TestClient):
     res = client.get("/runs/unknown-run-99999/forensics")
     assert res.status_code == 404
     assert "not found" in res.json()["detail"].lower()
+
+
+def test_forensics_recompiles_when_screenshots_arrive_after_initial_check(client: TestClient, tmp_path: Path, monkeypatch):
+    from PIL import Image
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ARTIFACTS_DIR", tmp_path)
+    monkeypatch.setattr(settings, "ALLOWED_TARGET_HOSTS", ["*"])
+
+    res = client.post("/webhook/build", json={"target_url": "https://example.com", "branch": "main"})
+    assert res.status_code == 202
+    run_id = res.json()["run_id"]
+
+    # First query while run is still running (before screenshots exist)
+    early = client.get(f"/runs/{run_id}/forensics")
+    assert early.status_code == 200
+
+    # Screenshots are subsequently saved by the browser runner and run finishes
+    shots_dir = tmp_path / "runs" / run_id / "screenshots"
+    shots_dir.mkdir(parents=True, exist_ok=True)
+    shot_file = shots_dir / "desktop_1440x900_home.png"
+    Image.new("RGB", (120, 80), (20, 90, 180)).save(shot_file, "PNG")
+
+    client.put(
+        f"/runs/{run_id}",
+        json={
+            "status": "fixed",
+            "evidence_paths": {"screenshots": [str(shot_file)]},
+        },
+    )
+
+    dl = client.get(f"/runs/{run_id}/forensics/download")
+    assert dl.status_code == 200
+    dest = tmp_path / "final.zip"
+    dest.write_bytes(dl.content)
+    with zipfile.ZipFile(dest, "r") as zf:
+        names = zf.namelist()
+        assert f"{run_id}/screenshots/desktop_1440x900_home.png" in names

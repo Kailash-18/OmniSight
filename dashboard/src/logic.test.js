@@ -48,6 +48,7 @@ test('lifecycle marks progress, failure and fixed-without-patch', () => {
   assert.deepEqual(states('fixed'), ['queued:done', 'running:done', 'audited:done', 'verifying:done', 'fixed:done', 'pr_opened:todo'])
   assert.deepEqual(states('fixed', { patch: null, findings: [] }).slice(3, 5), ['verifying:skipped', 'fixed:done'])
   assert.ok(states('failed').includes('running:failed'))
+  assert.ok(states('failed', { patch: { target_file: 'defects.css' } }).includes('verifying:failed'))
   assert.ok(states('patch_rejected').includes('verifying:failed'))
   assert.equal(lifecycle({ status: 'pr_opened' }).at(-1).state, 'done')
 })

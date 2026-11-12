@@ -53,7 +53,12 @@ from app.schemas import (
 from app.services.action_engine import action_engine
 from app.services.run_launcher import RunAlreadyActive, RunLauncher
 from app.services.patch_validator import validate_patch
-from app.services.forensics_service import compile_forensic_bundle, get_forensic_bundle_path, verify_forensic_bundle_integrity
+from app.services.forensics_service import (
+    compile_forensic_bundle,
+    get_forensic_bundle_path,
+    is_forensic_bundle_stale,
+    verify_forensic_bundle_integrity,
+)
 from app.services.spatial_service import spatial_service
 from app.services.run_comparator import RunComparator
 from app.services.sarif_service import SarifExporter
@@ -102,7 +107,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # A StaticFiles mount would bypass the app-wide auth dependency, so this is a plain route.
 from pathlib import Path
 
-artifacts_path = Path("artifacts").resolve()
+artifacts_path = settings.ARTIFACTS_DIR.resolve()
 
 
 @app.get("/artifacts/{file_path:path}", include_in_schema=False)
@@ -231,7 +236,14 @@ def _validate_target_host(target_url: str) -> str:
     try:
         url_to_parse = target_url.strip()
         if "://" not in url_to_parse:
-            url_to_parse = f"http://{url_to_parse}"
+            host_part = url_to_parse.split("/", 1)[0].split("?", 1)[0].lower()
+            is_local = (
+                host_part.startswith(("localhost", "127.0.0.1", "[::1]", "::1"))
+                or ":" in host_part
+                or host_part.endswith((".local", ".internal"))
+            )
+            default_scheme = "http" if is_local else "https"
+            url_to_parse = f"{default_scheme}://{url_to_parse}"
 
         parsed = urlparse(url_to_parse)
         if parsed.scheme.lower() not in ("http", "https"):
@@ -491,7 +503,7 @@ def trigger_run_manual(payload: RunTriggerPayload):
     if payload.launch:
         try:
             run_launcher.start(run_id, validated_url, f"http://127.0.0.1:{settings.PORT}", SERVICE_TOKEN,
-                               payload.retest, _finish_launched_run)
+                               payload.retest, _finish_launched_run, auto_pr=payload.auto_pr)
         except RunAlreadyActive as active:
             runs_db.pop(run_id, None)
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"A run is already in progress: {active}")
@@ -1155,7 +1167,7 @@ def get_run_forensic_bundle(run_id: str):
         )
     run_entry = runs_db[run_id]
     bundle_data = run_entry.get("forensics")
-    if not bundle_data:
+    if not bundle_data or is_forensic_bundle_stale(run_id, run_entry):
         bundle_data = compile_forensic_bundle(run_id=run_id, run_data=run_entry)
         run_entry["forensics"] = bundle_data
     return ForensicBundleResponse(**bundle_data)
@@ -1175,10 +1187,11 @@ def download_run_forensic_bundle(run_id: str):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Run '{run_id}' not found."
         )
+    run_entry = runs_db[run_id]
     bundle_path = get_forensic_bundle_path(run_id)
-    if not bundle_path or not bundle_path.exists():
-        bundle_data = compile_forensic_bundle(run_id=run_id, run_data=runs_db[run_id])
-        runs_db[run_id]["forensics"] = bundle_data
+    if not bundle_path or not bundle_path.exists() or is_forensic_bundle_stale(run_id, run_entry):
+        bundle_data = compile_forensic_bundle(run_id=run_id, run_data=run_entry)
+        run_entry["forensics"] = bundle_data
         bundle_path = Path(bundle_data["bundle_path"])
 
     return FileResponse(

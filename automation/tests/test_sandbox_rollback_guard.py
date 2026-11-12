@@ -4,6 +4,8 @@ Verifies cryptographic SHA-256 pre-patch snapshot recording and guaranteed resto
 """
 
 from pathlib import Path
+import threading
+import time
 import pytest
 
 from automation.engine import PatchSandbox

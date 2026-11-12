@@ -54,12 +54,28 @@ def verify_token(token: str, now: float | None = None) -> str | None:
     return data.get("u") or None
 
 
-def check_credentials(username: str, password: str) -> bool:
+def _configured_accounts() -> dict[str, str]:
+    """Returns configured login accounts; empty when primary login is unconfigured."""
     if not settings.OMNISIGHT_USERNAME or not settings.OMNISIGHT_PASSWORD:
+        return {}
+    accounts: dict[str, str] = {}
+    for username, password in getattr(settings, "OMNISIGHT_USERS", {}).items():
+        if username and password:
+            accounts[username] = password
+    accounts[settings.OMNISIGHT_USERNAME] = settings.OMNISIGHT_PASSWORD
+    return accounts
+
+
+def check_credentials(username: str, password: str) -> bool:
+    accounts = _configured_accounts()
+    if not accounts:
         raise LoginNotConfigured()
-    user_ok = hmac.compare_digest(username.encode(), settings.OMNISIGHT_USERNAME.encode())
-    pass_ok = hmac.compare_digest(password.encode(), settings.OMNISIGHT_PASSWORD.encode())
-    return user_ok and pass_ok
+    matched = False
+    for expected_user, expected_pass in accounts.items():
+        user_ok = hmac.compare_digest(username.encode(), expected_user.encode())
+        pass_ok = hmac.compare_digest(password.encode(), expected_pass.encode())
+        matched |= user_ok and pass_ok
+    return matched
 
 
 def require_auth(request: Request) -> str | None:

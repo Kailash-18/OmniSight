@@ -26,6 +26,7 @@ const CATEGORY_LABELS = {
 function RunLauncherBar({ onStarted, running }) {
   const [url, setUrl] = useState(DEFAULT_TARGET)
   const [retest, setRetest] = useState(true)
+  const [autoPr, setAutoPr] = useState(false)
   const [error, setError] = useState(null)
   const [starting, setStarting] = useState(false)
 
@@ -34,8 +35,12 @@ function RunLauncherBar({ onStarted, running }) {
     setError(null)
     const trimmed = url.trim()
     let host = ''
+    let targetUrl = trimmed
     try {
-      const parsed = new URL(trimmed.includes('://') ? trimmed : `http://${trimmed}`)
+      const hostHint = trimmed.split('/')[0].split('?')[0].toLowerCase()
+      const isLocal = hostHint.startsWith('localhost') || hostHint.startsWith('127.0.0.1') || hostHint.startsWith('[::1]') || hostHint.includes(':')
+      targetUrl = trimmed.includes('://') ? trimmed : `${isLocal ? 'http' : 'https'}://${trimmed}`
+      const parsed = new URL(targetUrl)
       host = parsed.hostname.toLowerCase()
     } catch {
       setError('Please enter a valid website address (e.g. http://localhost:5173 or https://example.com).')
@@ -47,7 +52,7 @@ function RunLauncherBar({ onStarted, running }) {
     }
     setStarting(true)
     try {
-      const r = await startRun(url, { retest })
+      const r = await startRun(targetUrl, { retest, autoPr })
       onStarted(r.run_id)
     } catch (err) {
       setError(err.message || 'Failed to start test run. Check network connection.')
@@ -69,7 +74,30 @@ function RunLauncherBar({ onStarted, running }) {
           <input className="input with-icon" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Site address"
             placeholder="https://example.com or http://localhost:5173" inputMode="url" spellCheck="false" data-testid="run-target" />
         </span>
-        <label className="check"><input type="checkbox" checked={retest} onChange={(e) => setRetest(e.target.checked)} data-testid="run-retest" />Check the fix</label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={retest}
+            onChange={(e) => {
+              setRetest(e.target.checked)
+              if (!e.target.checked) setAutoPr(false)
+            }}
+            data-testid="run-retest"
+          />
+          Check the fix
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={autoPr}
+            onChange={(e) => {
+              setAutoPr(e.target.checked)
+              if (e.target.checked) setRetest(true)
+            }}
+            data-testid="run-auto-pr"
+          />
+          Auto-open PR
+        </label>
         <button className="btn btn-primary" disabled={disabled} data-testid="run-start">
           {starting || running ? <LoaderCircle className="spin" size={18} aria-hidden="true" /> : <Play size={18} aria-hidden="true" />}
           {running ? 'Test running…' : 'Run test'}
@@ -212,10 +240,22 @@ function LiveRunCard({ run, live, link }) {
       </div>
       {live && <div className="progress" aria-hidden="true"><span /></div>}
       <Lifecycle run={run} />
-      <p className="muted small">
-        {`${findings} ${findings === 1 ? 'finding' : 'findings'}${live ? ' so far' : ''}. `}
-        {run.steps?.length ? `Last step: ${run.steps.at(-1).replaceAll('_', ' ')}.` : 'Opening the browser…'}
-      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 10 }}>
+        <p className="muted small" style={{ margin: 0 }}>
+          {`${findings} ${findings === 1 ? 'finding' : 'findings'}${live ? ' so far' : ''}. `}
+          {run.steps?.length ? `Last step: ${run.steps.at(-1).replaceAll('_', ' ')}.` : 'Opening the browser…'}
+        </p>
+        {run.pr_url ? (
+          <a className="pill tone-good" href={run.pr_url} target="_blank" rel="noreferrer" data-testid="live-pr-link">
+            <GitPullRequest size={14} aria-hidden="true" />PR raised
+          </a>
+        ) : (!live && run.patch && run.patch.validation_status !== false) ? (
+          <a className="btn btn-small" {...link(`/runs/${encodeURIComponent(run.run_id)}`)} data-testid="live-review-pr-link">
+            <GitPullRequest size={14} aria-hidden="true" />Review &amp; open PR<ArrowRight size={14} aria-hidden="true" />
+          </a>
+        ) : null}
+      </div>
+      {run.error && <p className="alert" role="alert" data-testid="live-run-error" style={{ marginTop: 12 }}>{run.error}</p>}
     </section>
   )
 }
@@ -265,8 +305,16 @@ export default function Overview({ link }) {
         }
         setLiveId(null)
         loadRuns()
-      } catch {
-        /* a 401 is handled globally; anything else retries on the next tick */
+      } catch (err) {
+        if (err?.status === 404 && !stop) {
+          getActiveRun().then((a) => {
+            if (!stop && a?.run_id !== liveId) {
+              setLiveId(null)
+              loadRuns()
+            }
+          }).catch(() => {})
+        }
+        /* a 401 is handled globally; other transient errors retry on the next tick */
       }
     }
     tick()

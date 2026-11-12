@@ -13,7 +13,10 @@ export const isActiveStatus = (s) => ACTIVE.has(s)
 
 export function lifecycle(run) {
   const s = run?.status
-  if (s === 'failed') return STEPS.map((st, i) => ({ ...st, state: i === 0 ? 'done' : i === 1 ? 'failed' : 'todo' }))
+  if (s === 'failed') {
+    const failAt = run?.patch || run?.retest_outcome ? 3 : 1
+    return STEPS.map((st, i) => ({ ...st, state: i < failAt ? 'done' : i === failAt ? 'failed' : 'todo' }))
+  }
   if (s === 'patch_rejected') return STEPS.map((st, i) => ({ ...st, state: i < 3 ? 'done' : i === 3 ? 'failed' : 'todo' }))
   const at = ORDER[s] ?? 0
   // Only when the run is known to have had nothing to fix (summary rows don't carry patch/findings).

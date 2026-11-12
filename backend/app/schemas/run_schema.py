@@ -107,6 +107,7 @@ class RunTriggerPayload(BaseModel):
     )
     launch: bool = Field(default=False, description="Start the automation CLI for this run (dashboard Run button)")
     retest: bool = Field(default=True, description="Verify the proposed fix in the sandbox")
+    auto_pr: bool = Field(default=False, description="Automatically open a Pull Request when the fix is verified")
 
 class FindingSchema(BaseModel):
     """Structured defect report item from VLM visual inspection."""

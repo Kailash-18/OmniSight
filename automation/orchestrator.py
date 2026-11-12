@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 from enum import Enum
+import inspect
 import json
 import logging
 import os
@@ -36,6 +37,7 @@ from automation.engine import (
     VisualComparator,
     apply_unified_diff,
     create_forensic_bundle,
+    is_mock_store,
     run_visual_audit_journey,
 )
 
@@ -211,12 +213,23 @@ class Orchestrator:
                     steps=["initiate_browser_session"],
                 )
 
-            run_results = run_visual_audit_journey(
-                app_url=app_url,
-                viewports=viewports,
-                evidence=evidence,
-                scenario=scenario,
-            )
+            def _report_progress(steps: List[str]) -> None:
+                if self.sync_backend and self.backend_client:
+                    self.backend_client.update_run_state(
+                        run_id=evidence.run_id,
+                        steps=steps,
+                    )
+
+            journey_kwargs: Dict[str, Any] = {
+                "app_url": app_url,
+                "viewports": viewports,
+                "evidence": evidence,
+                "scenario": scenario,
+            }
+            if "on_progress" in inspect.signature(run_visual_audit_journey).parameters:
+                journey_kwargs["on_progress"] = _report_progress
+
+            run_results = run_visual_audit_journey(**journey_kwargs)
 
             self.state = AgentState.AUDITING
             if self.sync_backend and self.backend_client:
@@ -250,6 +263,11 @@ class Orchestrator:
             )
 
             if self.interaction_check:
+                if self.sync_backend and self.backend_client:
+                    self.backend_client.update_run_state(
+                        run_id=evidence.run_id,
+                        steps=[*run_results.get("steps_completed", []), "run_interaction_check"],
+                    )
                 try:
                     audit_report.findings.extend(run_interaction_check(app_url))
                 except Exception as e:  # never fail the whole run because of the extra check
@@ -268,20 +286,33 @@ class Orchestrator:
 
             if not audit_report.findings:
                 self.state = AgentState.FIXED
+                evidence_paths = {
+                    "screenshots": run_results.get("screenshots", []),
+                    "before_screenshots": run_results.get("screenshots", []),
+                    "after_screenshots": [],
+                    "diff_screenshots": [],
+                    "dom_snapshots": run_results.get("dom_snapshots", []),
+                    "annotated_screenshots": audit_report.annotated_screenshots or [],
+                }
                 if self.sync_backend and self.backend_client:
                     self.backend_client.update_run_state(
                         run_id=evidence.run_id,
                         status=AgentState.FIXED.value,
                         findings=[],
+                        evidence_paths=evidence_paths,
                     )
                 return {
                     "run_id": evidence.run_id,
                     "status": self.state.value,
                     "findings": [],
+                    "evidence_paths": evidence_paths,
+                    "screenshots_count": len(run_results.get("screenshots", [])),
+                    "viewports_evaluated": run_results.get("viewports_evaluated", []),
+                    "artifacts_dir": str(evidence.run_dir),
                     "message": "Zero visual defects detected. App visually healthy."
                 }
 
-            if audit_report.proposed_patch and auto_retest:
+            if audit_report.proposed_patch and auto_retest and is_mock_store(app_url):
                 self.state = AgentState.VALIDATING
 
                 def _step_for_finding(f: Finding) -> str:
